@@ -1226,7 +1226,7 @@ class ANTsRegistrationHelpers():
                 if entry != "[]" and entry != "":
                     values = entry.split(",")
                     table_data.append({
-                        'synapse_id': int(values[0]),
+                        'partner_cell_id': int(values[0]),
                         'x': int(values[1]),
                         'y': int(values[2]),
                         'z': int(values[3]),
