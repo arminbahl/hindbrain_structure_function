@@ -10,13 +10,22 @@ ants_reg = ANTsRegistrationHelpers()
 
 root_path = Path("/Users/arminbahl/Desktop")
 
-# ants_reg.convert_synapse_file(root_path=root_path,
-#                               cell_name='cell_002_89189')
+cell_names = ["cell_002_89189"]
 
-ants_reg.map_and_skeletonize_cell(root_path=root_path,
-                                  cell_name='cell_002_89189',
-                                  include_synapses=True,
-                                  transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield")
+for cell_name in cell_names:
+    ants_reg.convert_synapse_file(root_path=root_path,
+                                  cell_name=cell_name,
+                                  shift_x=4.04816196e-01,
+                                  shift_y=5.20478002e+02,
+                                  shift_z=8.47756398e-01 * 0.480,
+                                  scale_x=7.99082669e-03,
+                                  scale_y=-8.01760871e-03,
+                                  scale_z=6.24857731e-02 * 0.480)
+
+    ants_reg.map_and_skeletonize_cell(root_path=root_path,
+                                      cell_name=cell_name,
+                                      include_synapses=True,
+                                      transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield")
 
 # ants_reg.map_and_skeletonize_cell(root_path,
 #                                   '8500',

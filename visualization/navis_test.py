@@ -28,8 +28,7 @@ meshes = [navis.read_mesh('/Volumes/ag-bahl_general/Zebrafish atlases/z_brain_at
           navis.read_mesh('/Volumes/ag-bahl_general/Zebrafish atlases/z_brain_atlas/region_masks_z_brain_1_0/Rhombencephalon - Neuropil Region 6.obj', units='microns'),
           ]
 
-cells = [navis.read_swc("/Users/arminbahl/Downloads/axon_mapped_simplified.swc"),
-navis.read_swc("/Users/arminbahl/Downloads/dendrite_mapped_simplified.swc")]
+cells = [navis.read_mesh("/Users/arminbahl/Desktop/cell_002_89189/cell_002_89189_mapped.obj")]
 
          #navis.read_swc("/Users/arminbahl/Downloads/576460752710566176.swc")
          #]
@@ -47,10 +46,10 @@ color_cells = ["red", 'blue', 'green']
 # Soma need to be labled with =1 in the beginnign of swc and need to have a radius,
 # Follow specifications of swc standard:
 # http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
-cells[0].soma = 1
-cells[0].soma_radius = 1
-cells[1].soma = 1
-cells[1].soma_radius = 1
+# cells[0].soma = 1
+# cells[0].soma_radius = 1
+# cells[1].soma = 1
+# cells[1].soma_radius = 1
 
 #print(cells[0].soma_pos)
 #print(cells[1].soma_pos)
