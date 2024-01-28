@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
-from analysis_helpers.analysis.utils.ANTs_registration_helpers import ANTsRegistrationHelpers
+from hindbrain_structure_function.mapping_helpers.ANTs_registration_helpers import ANTsRegistrationHelpers
+import numpy as np
 
 os.environ['ANTs_use_threads'] = "11"
 os.environ['ANTs_bin_path'] = "/opt/ANTs/bin"
@@ -9,8 +10,8 @@ ants_reg = ANTsRegistrationHelpers()
 
 root_path = Path("/Users/arminbahl/Desktop")
 
-ants_reg.convert_synapse_file(root_path=root_path,
-                              cell_name='cell_002_89189')
+# ants_reg.convert_synapse_file(root_path=root_path,
+#                               cell_name='cell_002_89189')
 
 ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   cell_name='cell_002_89189',

@@ -424,6 +424,10 @@ class ANTsRegistrationHelpers():
         v_points = np.array(df_v[["x", "y", "z"]], dtype=np.float64)
         f_points = np.array(df_f[["x", "y", "z"]], dtype=int)
 
+        # Make sure it has a 2D shape, also when using single data points
+        v_points.shape = (-1, 3)
+        f_points.shape = (-1, 3)
+
         v_points_transformed = self.ANTs_applytransform_to_points(v_points,
                                                                   transformation_prefix_path,
                                                                   use_forward_transformation=use_forward_transformation,
@@ -527,6 +531,8 @@ class ANTsRegistrationHelpers():
         data_points = np.c_[cell_data[:, 2],
                             cell_data[:, 3],
                             cell_data[:, 4]]
+
+        data_points.shape = (-1, 3)
 
         data_points_transformed = self.ANTs_applytransform_to_points(data_points,
                                                                      transformation_prefix_path,
@@ -981,6 +987,7 @@ class ANTsRegistrationHelpers():
                 df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
                                  header=None,
                                  names=["synapse_id", "x", "y", "z", "size"])
+                print(df)
 
                 if len(df) > 0:
 
@@ -1004,8 +1011,9 @@ class ANTsRegistrationHelpers():
                     if input_scale_z is not None:
                         df.loc[:, "z"] = df["z"] * input_scale_z
 
-                    # Make it an numpy array for the mapping function
+                    # Make it a numpy array for the mapping function
                     points = np.array(df[["x", "y", "z"]], dtype=np.float64)
+                    points.shape = (-1, 3) # Make sure it has a 2D shape, also when using single data points
 
                     points_transformed = self.ANTs_applytransform_to_points(points,
                                                                             transformation_prefix_path,
