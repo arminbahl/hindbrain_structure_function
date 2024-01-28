@@ -25,7 +25,10 @@ for cell_name in cell_names:
     ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                       cell_name=cell_name,
                                       include_synapses=True,
-                                      transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield")
+                                      transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
+                                      input_scale_x=0.001,
+                                      input_scale_y=0.001,
+                                      input_scale_z=0.001)
 
 # ants_reg.map_and_skeletonize_cell(root_path,
 #                                   '8500',
