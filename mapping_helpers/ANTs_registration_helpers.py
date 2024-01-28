@@ -12,15 +12,16 @@ import pylab as pl
 import skimage.metrics
 import tifffile
 from skimage.transform import resize
-from tifffile import imread
 import csv
+import trimesh as tm
+import navis
+import skeletor as sk
+import tomllib
 
 class ANTsRegistrationHelpers():
-    def __init__(self, manual_opts_dict=dict()):
-        self.set_opts_dict(manual_opts_dict)
+    def __init__(self, manual_opts_dict=None):
 
-    def set_opts_dict(self, manual_opts_dict):
-        default_opts_dict = {
+        self.opts_dict = {
             'interpolation_method': 'linear',
             'ANTs_verbose': 1,
             'tempdir': None,
@@ -28,15 +29,27 @@ class ANTsRegistrationHelpers():
             'ANTs_bin_path': os.environ['ANTs_bin_path'],
             'ANTs_use-histogram-matching': 0,
             'matching_metric': 'NMI',
-            'ANTs_use_SyN': True,
-            'ANTs_use_bspline_syn': False,
+
+            'SyN': {"use": True,
+                    "t": "SyN[0.1,6,0]",
+                    "m": "CC[$1,$2,1,2]",  # $1, $2, source and target path
+                    "c": "[200x200x200x100,1e-7,10]",
+                    "s": "4x3x2x1",
+                    "f": "12x8x4x2"},
+
+            'BSplineSyn': {"use": False,
+                           "t": "BSplineSyn[0.1,26,0,3]",
+                           "m": "CC[$1,$2,1,4]",  # $1, $2, source and target path
+                           "c": "[100x70x50x20,1e-7,10]",
+                           "s": "3x2x1x0",
+                           "f": "6x4x2x1"},
             'debugging': False,
         }
 
-        for key in manual_opts_dict.keys():
-            default_opts_dict[key] = manual_opts_dict[key]
-
-        self.opts_dict = default_opts_dict
+        # Override some of the default values
+        if manual_opts_dict is not None:
+            for key in manual_opts_dict.keys():
+                self.opts_dict[key] = manual_opts_dict[key]
 
     def convert_path_to_linux(self, path_name):
 
@@ -156,28 +169,53 @@ class ANTsRegistrationHelpers():
                                            "-f", "12",
                                            "-s", "4"]
 
+        if self.opts_dict['SyN']["use"]:
+            SyN = self.opts_dict["SyN"]
 
+            t = SyN['t']
+            m = SyN['m']
+            c = SyN["c"]
+            s = SyN['s']
+            f = SyN['f']
 
-        if self.opts_dict['ANTs_use_SyN']:
-            registration_commands_list += ["-t", "SyN[0.1,6,0]"]
-            registration_commands_list += ["-m", f"MI[{target_path_linux},{source_path_linux},1,2]"]
+            m = m.replace("$1", target_path_linux)
+            m = m.replace("$2", source_path_linux)
+
+            registration_commands_list += ["-t", t]
+            registration_commands_list += ["-m", m]
 
             if self.opts_dict["debugging"] == False:
-                registration_commands_list += ["-c", "[200x200x200x100,1e-7,10]",
-                                               "-s", "4x3x2x1",
-                                               "-f", "12x8x4x2"]
+                registration_commands_list += ["-c", c,
+                                               "-s", s,
+                                               "-f", f]
             else:
                 registration_commands_list += ["-c", "[100,1e-7,10]",
                                                "-f", "12",
                                                "-s", "4"]
-        if self.opts_dict['ANTs_use_bspline_syn']:
-            registration_commands_list += ["-t", "BSplineSyn[0.1,26,0,3]"]  # 0.05 for live to live, 0.1 fixed to fixed
 
-            registration_commands_list += ["-m", f"CC[{target_path_linux},{target_path_linux},1,4]"]
-            registration_commands_list += ["-c", "[100x70x50x20,1e-7,10]",
-                                           "-s", "3x2x1x0",
-                                           "-f", "6x4x2x1"]
-        # RUN
+        if self.opts_dict['BSplineSyn']["use"]:
+            BSplineSyn = self.opts_dict["BSplineSyn"]
+
+            t = BSplineSyn['t']
+            m = BSplineSyn['m']
+            c = BSplineSyn["c"]
+            s = BSplineSyn['s']
+            f = BSplineSyn['f']
+
+            m = m.replace("$1", target_path_linux)
+            m = m.replace("$2", source_path_linux)
+
+            registration_commands_list += ["-t", t]
+            registration_commands_list += ["-m", m]
+
+            if self.opts_dict["debugging"] == False:
+                registration_commands_list += ["-c", c,
+                                               "-s", s,
+                                               "-f", f]
+            else:
+                registration_commands_list += ["-c", "[100,1e-7,10]",
+                                               "-f", "12",
+                                               "-s", "4"]
 
         self.call_ANTs_command(registration_commands_list)
 
@@ -190,7 +228,7 @@ class ANTsRegistrationHelpers():
                                       "-i", f"{source_path_linux}",
                                       "-n", f"linear"]
 
-        if self.opts_dict['ANTs_use_SyN']:
+        if self.opts_dict['SyN']["use"] or self.opts_dict['BSplineSyn']["use"]:
             registration_commands_list += ["--transform", f"{f_transformation_temp_linux}1Warp.nii.gz"]
         registration_commands_list += ["--transform", f"{f_transformation_temp_linux}0GenericAffine.mat"]
 
@@ -210,7 +248,7 @@ class ANTsRegistrationHelpers():
 
         registration_commands_list += ["--transform", f"[{f_transformation_temp_linux}0GenericAffine.mat,1]"]
 
-        if self.opts_dict['ANTs_use_SyN']:
+        if self.opts_dict['SyN']["use"] or self.opts_dict['BSplineSyn']["use"]:
             registration_commands_list += ["--transform", f"{f_transformation_temp_linux}1InverseWarp.nii.gz"]
 
         registration_commands_list += ["-o", f"[{transformation_prefix_path_linux}_inverse.nii.gz,1]"]
@@ -222,7 +260,7 @@ class ANTsRegistrationHelpers():
 
         os.remove(f"{f_transformation_temp.name}0GenericAffine.mat")
 
-        if self.opts_dict['ANTs_use_SyN']:
+        if self.opts_dict['SyN']["use"] or self.opts_dict['BSplineSyn']["use"]:
             os.remove(f"{f_transformation_temp.name}1Warp.nii.gz")
             os.remove(f"{f_transformation_temp.name}1InverseWarp.nii.gz")
 
@@ -325,8 +363,33 @@ class ANTsRegistrationHelpers():
                                    output_flip_x=None, output_flip_y=None, output_flip_z=None,
                                    output_scale_x=None, output_scale_y=None, output_scale_z=None):
 
-        df = pd.read_csv(input_filename, sep=' ', skiprows=input_skiprows,
+        # When storing from blender, make sure to save the simplest form of obj (no materials, etc)
+
+        # Clean up file content structure
+        f_obj = open(input_filename, "r")
+        temp = f_obj.read()
+        f_obj.close()
+
+        # Make sure it is always using spaces as delimiter
+        temp = temp.replace("\t", " ")
+
+        # Ignore some blender specific lines
+        temp = temp.replace("o ", "#o ")
+        temp = temp.replace("mtllib", "#mtllib")
+        temp = temp.replace("vn ", "#vn ")
+        temp = temp.replace("s ", "#s ")
+        temp = temp.replace("usemtl ", "#usemtl ")
+
+        f_obj_temp = tempfile.NamedTemporaryFile(mode='w', dir=self.opts_dict["tempdir"], delete=False)
+        f_obj_temp.write(temp)
+        f_obj_temp.close()
+
+        # The file should now only consist of lines starting with v and f, and 'normal' table structure
+        df = pd.read_csv(f_obj_temp.name, sep=' ', skiprows=input_skiprows,
                          header=None, names=["type", "x", "y", "z"], comment='#')
+
+        # Remove temporary file
+        os.remove(f_obj_temp.name)
 
         df_v = df[df['type'] == 'v']
         df_f = df[df['type'] == 'f']
@@ -791,10 +854,10 @@ class ANTsRegistrationHelpers():
         dfield_3D = dfield_3D.transpose([0, 1, 3, 4, 2])
 
         # Make a nifti file with correct target resolution parameters
-        dfield_3D = nib.Nifti1Image(dfield_3D, affine=[[-dx_volume,  0.,  0., -0.],
-                                                       [0., -dy_volume,  0., -0.],
-                                                       [0.,  0.,  dz_volume,  0.],
-                                                       [0.,  0.,  0.,  1.]])
+        dfield_3D = nib.Nifti1Image(dfield_3D, affine=np.array([[-dx_volume, 0., 0., -0.],
+                                                                [0., -dy_volume, 0., -0.],
+                                                                [0., 0., dz_volume, 0.],
+                                                                [0., 0., 0., 1.]]))
 
         dfield_3D.header["srow_x"] = [-dx_volume, 0., 0., -0.]
         dfield_3D.header["srow_y"] = [0., -dy_volume, 0., -0.]
@@ -812,10 +875,10 @@ class ANTsRegistrationHelpers():
         ##################
         # Do the same for the inverse
         dfield_inverse_3D = dfield_inverse_3D.transpose([0, 1, 3, 4, 2])
-        dfield_inverse_3D = nib.Nifti1Image(dfield_inverse_3D, affine=[[-dx_planes,  0.,  0., -0.],
-                                                                       [0., -dy_planes,  0., -0.],
-                                                                       [0.,  0.,  dz_planes,  0.],
-                                                                       [0.,  0.,  0.,  1.]])
+        dfield_inverse_3D = nib.Nifti1Image(dfield_inverse_3D, affine=np.array([[-dx_planes, 0., 0., -0.],
+                                                                                [0., -dy_planes, 0., -0.],
+                                                                                [0., 0., dz_planes, 0.],
+                                                                                [0., 0., 0., 1.]]))
 
         dfield_inverse_3D.header["srow_x"] = [-dx_planes, 0., 0., 0.]
         dfield_inverse_3D.header["srow_y"] = [0., -dy_planes, 0., 0.]
@@ -830,54 +893,51 @@ class ANTsRegistrationHelpers():
 
         nib.save(dfield_inverse_3D, str(transforms_prefix_path) + "_inverse.nii.gz")
 
-    def invert_bigwarp_landmarks(self, transforms_prefix_path):
+    def invert_bigwarp_landmarks(self, input_path, output_path):
         """
         Just changes the columns in the bigwarp matrix, such that source becomes target.
         The csv mapping file must exist, with a suffix _bigwarp_landmarks.csv
         """
 
-        dd = pd.read_csv(f"{str(transforms_prefix_path)}_bigwarp_landmarks.csv",
-                         names=["a", 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+        landmarks = pd.read_csv(input_path, names=["a", 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
 
-        dd_inverted = dd.copy()
+        landmarks_inverted = landmarks.copy()
 
-        dd_inverted["c"] = dd["f"]
-        dd_inverted["d"] = dd["g"]
-        dd_inverted["e"] = dd["h"]
-        dd_inverted["f"] = dd["c"]
-        dd_inverted["g"] = dd["d"]
-        dd_inverted["h"] = dd["e"]
+        landmarks_inverted["c"] = landmarks["f"]
+        landmarks_inverted["d"] = landmarks["g"]
+        landmarks_inverted["e"] = landmarks["h"]
+        landmarks_inverted["f"] = landmarks["c"]
+        landmarks_inverted["g"] = landmarks["d"]
+        landmarks_inverted["h"] = landmarks["e"]
 
-        dd_inverted.to_csv(f"{str(transforms_prefix_path)}_bigwarp_landmarks_inverted.csv", sep=',',
-                           quoting=csv.QUOTE_ALL, index=False, header=False)
+        landmarks_inverted.to_csv(output_path, sep=',', quoting=csv.QUOTE_ALL, index=False, header=False)
 
         print("Inverted points generated, please use bigwarp again to generate the transform dfield. Save with suffix '_bigwarp_dfield_inverse.tif'")
 
     def convert_bigwarp_dfield_to_ANTs_dfield(self,
-                                                dx,
-                                                dy,
-                                                dz,
-                                                bigwarp_dfield_path,
-                                                ANTs_dfield_path):
+                                              dx,
+                                              dy,
+                                              dz,
+                                              bigwarp_dfield_path,
+                                              ANTs_dfield_path):
 
-        bigwarp_dfield = imread(str(bigwarp_dfield_path))
+        bigwarp_dfield = tifffile.imread(str(bigwarp_dfield_path))
 
         dfield_x = bigwarp_dfield[:, 0]
         dfield_y = bigwarp_dfield[:, 1]
         dfield_z = bigwarp_dfield[:, 2]
 
-        ants_dfield = np.array([[dfield_x, dfield_y, dfield_z]]).swapaxes(1, 2).swapaxes(2, 3).swapaxes(3, 4)
-        ants_dfield = ants_dfield.swapaxes(0, 1).swapaxes(1, 2).swapaxes(2, 3)
-        ants_dfield = ants_dfield.swapaxes(0, 1).swapaxes(1, 2)
-        ants_dfield = ants_dfield.swapaxes(0, 1)
+        ants_dfield = np.array([[dfield_x,
+                                 dfield_y,
+                                 dfield_z]]).transpose(4, 3, 2, 0, 1)
 
         # float 32 is precise enough and makes the file much smaller
         ants_dfield = ants_dfield.astype(np.float32)
 
-        ants_dfield = nib.Nifti1Image(ants_dfield, affine=[[-dx, 0., 0., -0.],
-                                                           [0., -dy, 0., -0.],
-                                                           [0., 0., dz, 0.],
-                                                           [0., 0., 0., 1.]])
+        ants_dfield = nib.Nifti1Image(ants_dfield, affine=np.array([[-dx, 0., 0., -0.],
+                                                                    [0., -dy, 0., -0.],
+                                                                    [0., 0., dz, 0.],
+                                                                    [0., 0., 0., 1.]]))
 
         ants_dfield.header["srow_x"] = [0., 0., 0., 0.]
         ants_dfield.header["srow_y"] = [0., 0., 0., 0.]
@@ -891,3 +951,234 @@ class ANTsRegistrationHelpers():
         ants_dfield.header["quatern_d"] = 1
 
         nib.save(ants_dfield, str(ANTs_dfield_path))
+
+    def map_and_skeletonize_cell(self,
+                                 root_path,
+                                 cell_name,
+                                 transformation_prefix_path,
+                                 input_limit_x=None,
+                                 input_limit_y=None,
+                                 input_limit_z=None,
+                                 input_scale_x=None,
+                                 input_scale_y=None,
+                                 input_scale_z=None):
+
+        # Load the meta data file
+        with open(root_path / cell_name / f"{cell_name}_metadata.txt", mode="rb") as fp:
+            metadata = tomllib.load(fp)
+
+        print(f"Mapping and skeletonization of cell {cell_name}.")
+
+        print("Meta data:", metadata)
+
+        meshes = dict({})
+        for part_name in ["soma", "dendrite", "axon"]:
+
+            print("Mapping", part_name)
+
+            f_obj_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.obj')
+            f_obj_temp.close()
+
+            self.ANTS_applytransform_to_obj(input_filename=root_path / cell_name / f"{cell_name}_{part_name}.obj",
+                                            output_filename=f_obj_temp.name,
+                                            transformation_prefix_path=transformation_prefix_path,
+                                            use_forward_transformation=True,
+                                            input_limit_x=input_limit_x,
+                                            input_limit_y=input_limit_y,
+                                            input_limit_z=input_limit_z,
+                                            input_scale_x=input_scale_x,
+                                            input_scale_y=input_scale_y,
+                                            input_scale_z=input_scale_z)
+
+            # Load the mapped mesh from the temporay file
+            mesh = tm.load_mesh(f_obj_temp.name)
+
+            # Fix problems after mapping and store in dictionary
+            meshes[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
+
+            # Delete temporary file
+            os.remove(f_obj_temp.name)
+
+            meshes[part_name] = tm.load_mesh(root_path / cell_name / f"{cell_name}_{part_name}_mapped.obj",)
+
+        # Combine meshes
+        mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
+        mesh_soma_dendrite_axon = meshes["soma"].union(mesh_axon_dendrite, engine='blender')
+
+        # Get the location of the soma by averaging soma obj vertices
+        soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
+
+        # Skeletonize the axons and dendrites at 1.5 um precision
+        skel = sk.skeletonize.by_teasar(mesh_axon_dendrite, inv_dist=1.5)
+
+        # Remove some potential perpedicular branches that should not be there
+        skel = sk.post.clean_up(skel)
+        skel = skel.reindex()
+
+        # Continue with the swc as a pandas dataframe
+        df = skel.swc
+
+        # Make a standard axon/dendrite radius of 1 um everywhere
+        df["radius"] = 0.5
+        df["label"] = 0
+
+        # Repair gaps in the skeleton using navis
+        x = navis.read_swc(df)
+        x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
+
+        # Save as a temporary swc
+        f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
+        f_swc_temp.close()
+
+        x.to_swc(f_swc_temp.name)
+
+        # Read it as a dataframe for further processing
+        df = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
+
+        # Delete temporary file again
+        os.remove(f_swc_temp.name)
+
+        # Label what is dednrite or axon, bases on minimal distances to the provided meshes
+        for i, row in df.iterrows():
+            d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
+                                 (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
+                                 (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
+
+            d_min_dendrite = np.sqrt((meshes["dendrite"].vertices[:, 0] - row["x"]) ** 2 +
+                                     (meshes["dendrite"].vertices[:, 1] - row["y"]) ** 2 +
+                                     (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
+
+            if d_min_axon < d_min_dendrite:
+                df.loc[i, "label"] = 2  # Axon
+            else:
+                df.loc[i, "label"] = 3  # Dendrite
+
+            # TODO add labels for pre- and post- synapse
+
+        # Add the soma. For this need to move parent ids and node ids
+        df.loc[:, "node_id"] += 1
+        df.loc[df["parent_id"] > -1, "parent_id"] += 1
+
+        # Find the row that is closest to the soma
+        i_min = ((df["x"] - soma_x) ** 2 + (df["y"] - soma_y) ** 2 + (df["z"] - soma_z) ** 2).argmin()
+
+        # If that node does not have a parent, then set the new soma as the parent
+        if df.loc[i_min, "parent_id"] == -1:
+            df.loc[i_min, "parent_id"] = 0
+            soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": -1}, index=[0])
+        else:
+            # Otherwise make the soma the child of that node
+            node_id = df.loc[i_min, "node_id"]
+            soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
+
+        df = pd.concat([soma_row, df])
+
+        # Save slightly simplified meshes
+        sk.pre.simplify(meshes["soma"], 0.5).export(root_path / cell_name/ f"{cell_name}_soma_mapped.obj")
+        sk.pre.simplify(meshes["axon"], 0.5).export(root_path / cell_name/ f"{cell_name}_axon_mapped.obj")
+        sk.pre.simplify(meshes["dendrite"], 0.5).export(root_path / cell_name/ f"{cell_name}_dendrite_mapped.obj")
+        sk.pre.simplify(mesh_soma_dendrite_axon, 0.5).export(root_path / cell_name / f"{cell_name}_mapped.obj")
+
+        # Reorder columns for proper storage
+        df = df.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+
+        # Save the swc
+        header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
+                  f"# metadata: {str(metadata)}"
+                  f"# label: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite\n")
+
+        with open(root_path / cell_name/ f"{cell_name}_mapped.swc", 'w') as fp:
+            fp.write(header)
+            df.to_csv(fp, index=False, sep=' ', header=None)
+
+    def map_and_draw_synapses(self, root_path, cell_name, transformation_prefix_path, use_forward_transformation=True):
+
+        fp = open(root_path / cell_name / f"{cell_name}_synapses.txt", 'r')
+
+        split_data = fp.read().split(",postsynaptic")
+
+        presynaptic_data_str = split_data[0]
+        postsynaptic_data_str = split_data[1]
+
+        presynaptic_data_str = presynaptic_data_str.replace("'", "")
+        postsynaptic_data_str = postsynaptic_data_str.replace("'", "")
+
+        for i, data_str in enumerate([presynaptic_data_str, postsynaptic_data_str]):
+
+            # Extracting presynaptic data
+            start_index = data_str.find("[")
+            end_index = data_str.find("]")
+            synaptic_data = data_str[start_index + 1:end_index]
+
+            # Splitting the presynaptic data into individual entries
+            synaptic_list = synaptic_data.split(", ")
+
+            # Creating a list of dictionaries to represent the table
+            table_data = []
+            for entry in synaptic_list:
+                if entry != "[]" and entry != "":
+                    values = entry.split(",")
+                    table_data.append({
+                        'synapse_id': int(values[0]),
+                        'x': int(values[1]),
+                        'y': int(values[2]),
+                        'z': int(values[3]),
+                        'Size': 0
+                    })
+
+            # Converting the list of dictionaries into a pandas DataFrame
+            df = pd.DataFrame(table_data)
+
+            if len(df) > 0:
+                # Apply the conversion from highres to lowres
+                df.loc[:, "x"] = 4.04816196e-01 + df["x"] * (7.99082669e-03)
+                df.loc[:, "y"] = 5.20478002e+02 + df["y"] * (-8.01760871e-03)
+                df.loc[:, "z"] = 8.47756398e-01 + df["z"] * (6.24857731e-02)
+
+            if i == 0:
+                df.to_csv(root_path / cell_name / f"{cell_name}_presynapses.csv", index=False, sep=' ', header=None, float_format='%.8f')
+            else:
+                df.to_csv(root_path / cell_name / f"{cell_name}_postsynapses.csv", index=False, sep=' ', header=None, float_format='%.8f')
+
+        # Map the points
+        for synapse_type_str in ['presynapses', 'postsynapses']:
+            df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
+                             header=None,
+                             names=["synapse_id", "x", "y", "z", "size"])
+
+            if len(df) > 0:
+                points = np.array(df[["x", "y", "z"]], dtype=np.float64)
+
+                points_transformed = self.ANTs_applytransform_to_points(points,
+                                                                        transformation_prefix_path,
+                                                                        use_forward_transformation=use_forward_transformation,
+                                                                        ANTs_dim=3)
+
+                df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
+                                          'x': points_transformed[:, 0],
+                                          'y': points_transformed[:, 1],
+                                          'z': points_transformed[:, 2],
+                                          'size': df["size"]})
+            else:
+                df_mapped = df # This will again store an empty file
+
+            df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
+                             index=False, sep=' ', header=None, float_format='%.8f')
+
+        # Draw the synapses as small spheres in a new mesh file
+        for mapped_str in ["", "_mapped"]:
+            for synapse_type_str in ['presynapses', 'postsynapses']:
+                df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
+                                 comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
+
+                spheres = []
+
+                for _, row in df.iterrows():
+                    sphere = tm.creation.icosphere(radius=1, subdivisions=2)
+                    sphere.apply_translation((row["x"], row["y"], row["z"]))
+
+                    spheres.append(sphere)
+
+                if len(spheres) > 0:
+                    scene = tm.Scene(spheres)
+                    scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
