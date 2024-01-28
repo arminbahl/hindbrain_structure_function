@@ -1158,7 +1158,7 @@ class ANTsRegistrationHelpers():
 
         # Add the soma. For this need to move parent ids and node ids
         df_swc.loc[:, "node_id"] += 1
-        df_swc.loc[df["parent_id"] > -1, "parent_id"] += 1
+        df_swc.loc[df_swc["parent_id"] > -1, "parent_id"] += 1
 
         # Find the row that is closest to the soma
         i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
