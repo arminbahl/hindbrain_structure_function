@@ -344,7 +344,7 @@ class ANTsRegistrationHelpers():
 
         self.call_ANTs_command(registration_commands_list)
 
-        transformed_points = np.loadtxt(all_data_points_registered_path.name, delimiter=',', skiprows=1, usecols=(0, 1, 2))
+        transformed_points = np.loadtxt(all_data_points_registered_path.name, delimiter=',', skiprows=1, usecols=(0, 1, 2), ndmin=2)
 
         os.remove(all_data_points_path.name)
         os.remove(all_data_points_registered_path.name)
@@ -494,7 +494,7 @@ class ANTsRegistrationHelpers():
         f_swc_temp.write(temp)
         f_swc_temp.close()
 
-        cell_data = np.loadtxt(f_swc_temp.name, skiprows=input_skiprows, delimiter=' ')
+        cell_data = np.loadtxt(f_swc_temp.name, skiprows=input_skiprows, delimiter=' ', ndmin=2)
 
         os.remove(f_swc_temp.name)
 
@@ -582,7 +582,7 @@ class ANTsRegistrationHelpers():
 
         print(datetime.datetime.now(), "Running draw_cell_in_empty_volume.", locals())
 
-        data = np.loadtxt(path, delimiter=' ')
+        data = np.loadtxt(path, delimiter=' ', ndmin=2)
 
         #cell_body_locations = []
         stack = np.zeros((target_z_size * 2, target_y_size * 2, target_x_size * 2),dtype=int)
