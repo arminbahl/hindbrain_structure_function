@@ -980,56 +980,56 @@ class ANTsRegistrationHelpers():
         print("Meta data:", metadata)
 
         if include_synapses:
-        #     for synapse_type_str in ['presynapses', 'postsynapses']:
-        #
-        #         print(f"Mapping {synapse_type_str}")
-        #
-        #         df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
-        #                          header=None,
-        #                          names=["synapse_id", "x", "y", "z", "size"])
-        #
-        #         if len(df) > 0:
-        #
-        #             # Take care of synapses that are potentially outside the original stack
-        #             if input_limit_x is not None:
-        #                 df.loc[df['x'] > input_limit_x, 'x'] = input_limit_x
-        #
-        #             if input_limit_y is not None:
-        #                 df.loc[df['y'] > input_limit_y, 'y'] = input_limit_y
-        #
-        #             if input_limit_z is not None:
-        #                 df.loc[df['z'] > input_limit_z, 'z'] = input_limit_z
-        #
-        #             # Apply additional coordinate transformations
-        #             if input_scale_x is not None:
-        #                 df.loc[:, "x"] = df["x"] * input_scale_x
-        #
-        #             if input_scale_y is not None:
-        #                 df.loc[:, "y"] = df["y"] * input_scale_y
-        #
-        #             if input_scale_z is not None:
-        #                 df.loc[:, "z"] = df["z"] * input_scale_z
-        #
-        #             # Make it a numpy array for the mapping function
-        #             points = np.array(df[["x", "y", "z"]], dtype=np.float64)
-        #             points.shape = (-1, 3) # Make sure it has a 2D shape, also when using single data points
-        #
-        #             points_transformed = self.ANTs_applytransform_to_points(points,
-        #                                                                     transformation_prefix_path,
-        #                                                                     use_forward_transformation=use_forward_transformation,
-        #                                                                     ANTs_dim=3)
-        #
-        #             df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
-        #                                       'x': points_transformed[:, 0],
-        #                                       'y': points_transformed[:, 1],
-        #                                       'z': points_transformed[:, 2],
-        #                                       'size': df["size"]})
-        #         else:
-        #             df_mapped = df  # This will again store an empty file
-        #
-        #         # Save the mapped synapse locations
-        #         df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
-        #                          index=False, sep=' ', header=None, float_format='%.8f')
+            for synapse_type_str in ['presynapses', 'postsynapses']:
+
+                print(f"Mapping {synapse_type_str}")
+
+                df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
+                                 header=None,
+                                 names=["synapse_id", "x", "y", "z", "size"])
+
+                if len(df) > 0:
+
+                    # Take care of synapses that are potentially outside the original stack
+                    if input_limit_x is not None:
+                        df.loc[df['x'] > input_limit_x, 'x'] = input_limit_x
+
+                    if input_limit_y is not None:
+                        df.loc[df['y'] > input_limit_y, 'y'] = input_limit_y
+
+                    if input_limit_z is not None:
+                        df.loc[df['z'] > input_limit_z, 'z'] = input_limit_z
+
+                    # Apply additional coordinate transformations
+                    if input_scale_x is not None:
+                        df.loc[:, "x"] = df["x"] * input_scale_x
+
+                    if input_scale_y is not None:
+                        df.loc[:, "y"] = df["y"] * input_scale_y
+
+                    if input_scale_z is not None:
+                        df.loc[:, "z"] = df["z"] * input_scale_z
+
+                    # Make it a numpy array for the mapping function
+                    points = np.array(df[["x", "y", "z"]], dtype=np.float64)
+                    points.shape = (-1, 3) # Make sure it has a 2D shape, also when using single data points
+
+                    points_transformed = self.ANTs_applytransform_to_points(points,
+                                                                            transformation_prefix_path,
+                                                                            use_forward_transformation=use_forward_transformation,
+                                                                            ANTs_dim=3)
+
+                    df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
+                                              'x': points_transformed[:, 0],
+                                              'y': points_transformed[:, 1],
+                                              'z': points_transformed[:, 2],
+                                              'size': df["size"]})
+                else:
+                    df_mapped = df  # This will again store an empty file
+
+                # Save the mapped synapse locations
+                df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
+                                 index=False, sep=' ', header=None, float_format='%.8f')
 
             # Draw the synapses as small spheres in a new mesh file
             for mapped_str in ["", "_mapped"]:
@@ -1048,7 +1048,7 @@ class ANTsRegistrationHelpers():
                     if len(spheres) > 0:
                         scene = tm.Scene(spheres)
                         scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
-        sedf
+
         ################
         meshes = dict({})
         for part_name in ["soma", "dendrite", "axon"]:
