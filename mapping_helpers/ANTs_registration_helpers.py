@@ -986,7 +986,7 @@ class ANTsRegistrationHelpers():
 
                 df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
                                  header=None,
-                                 names=["synapse_id", "x", "y", "z", "size"])
+                                 names=["partner_cell_id", "x", "y", "z", "radius"])
 
                 if len(df) > 0:
 
@@ -1003,6 +1003,7 @@ class ANTsRegistrationHelpers():
                     # Apply additional coordinate transformations
                     if input_scale_x is not None:
                         df.loc[:, "x"] = df["x"] * input_scale_x
+                        df.loc[:, "radius"] = df["radius"] * input_scale_x  # Scale the synapse radius with input_scale x
 
                     if input_scale_y is not None:
                         df.loc[:, "y"] = df["y"] * input_scale_y
@@ -1019,11 +1020,11 @@ class ANTsRegistrationHelpers():
                                                                             use_forward_transformation=use_forward_transformation,
                                                                             ANTs_dim=3)
 
-                    df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
+                    df_mapped = pd.DataFrame({'partner_cell_id': df['partner_cell_id'],
                                               'x': points_transformed[:, 0],
                                               'y': points_transformed[:, 1],
                                               'z': points_transformed[:, 2],
-                                              'size': df["size"]})
+                                              'radius': df["radius"]})
                 else:
                     df_mapped = df  # This will again store an empty file
 
@@ -1035,12 +1036,12 @@ class ANTsRegistrationHelpers():
             for mapped_str in ["", "_mapped"]:
                 for synapse_type_str in ['presynapses', 'postsynapses']:
                     df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
-                                     comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
+                                     comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "radius"])
 
                     spheres = []
 
                     for _, row in df.iterrows():
-                        sphere = tm.creation.icosphere(radius=1, subdivisions=2)
+                        sphere = tm.creation.icosphere(radius=row["radius"], subdivisions=2)
                         sphere.apply_translation((row["x"], row["y"], row["z"]))
 
                         spheres.append(sphere)
@@ -1048,7 +1049,7 @@ class ANTsRegistrationHelpers():
                     if len(spheres) > 0:
                         scene = tm.Scene(spheres)
                         scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
-
+        sdf
         ################
         meshes = dict({})
         for part_name in ["soma", "dendrite", "axon"]:
@@ -1198,7 +1199,8 @@ class ANTsRegistrationHelpers():
                              shift_z,
                              scale_x,
                              scale_y,
-                             scale_z):
+                             scale_z,
+                             radius_set):
 
         fp = open(root_path / cell_name / f"{cell_name}_synapses.txt", 'r')
 
@@ -1230,7 +1232,7 @@ class ANTsRegistrationHelpers():
                         'x': int(values[1]),
                         'y': int(values[2]),
                         'z': int(values[3]),
-                        'Size': 0
+                        'Size': radius_set
                     })
 
             # Converting the list of dictionaries into a pandas DataFrame
