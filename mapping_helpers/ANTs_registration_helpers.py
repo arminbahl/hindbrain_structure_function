@@ -955,7 +955,9 @@ class ANTsRegistrationHelpers():
     def map_and_skeletonize_cell(self,
                                  root_path,
                                  cell_name,
+                                 include_synapses,
                                  transformation_prefix_path,
+                                 use_forward_transformation=True,
                                  input_limit_x=None,
                                  input_limit_y=None,
                                  input_limit_z=None,
@@ -971,10 +973,80 @@ class ANTsRegistrationHelpers():
 
         print("Meta data:", metadata)
 
+        if include_synapses:
+            for synapse_type_str in ['presynapses', 'postsynapses']:
+
+                print(f"Mapping {synapse_type_str}")
+
+                df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
+                                 header=None,
+                                 names=["synapse_id", "x", "y", "z", "size"])
+
+                if len(df) > 0:
+
+                    # Take care of synapses that are potentially outside the original stack
+                    if input_limit_x is not None:
+                        df.loc[df['x'] > input_limit_x, 'x'] = input_limit_x
+
+                    if input_limit_y is not None:
+                        df.loc[df['y'] > input_limit_y, 'y'] = input_limit_y
+
+                    if input_limit_z is not None:
+                        df.loc[df['z'] > input_limit_z, 'z'] = input_limit_z
+
+                    # Apply additional coordinate transformations
+                    if input_scale_x is not None:
+                        df.loc[:, "x"] = df["x"] * input_scale_x
+
+                    if input_scale_y is not None:
+                        df.loc[:, "y"] = df["y"] * input_scale_y
+
+                    if input_scale_z is not None:
+                        df.loc[:, "z"] = df["z"] * input_scale_z
+
+                    # Make it an numpy array for the mapping function
+                    points = np.array(df[["x", "y", "z"]], dtype=np.float64)
+
+                    points_transformed = self.ANTs_applytransform_to_points(points,
+                                                                            transformation_prefix_path,
+                                                                            use_forward_transformation=use_forward_transformation,
+                                                                            ANTs_dim=3)
+
+                    df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
+                                              'x': points_transformed[:, 0],
+                                              'y': points_transformed[:, 1],
+                                              'z': points_transformed[:, 2],
+                                              'size': df["size"]})
+                else:
+                    df_mapped = df  # This will again store an empty file
+
+                # Save the mapped synapse locations
+                df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
+                                 index=False, sep=' ', header=None, float_format='%.8f')
+
+            # Draw the synapses as small spheres in a new mesh file
+            for mapped_str in ["", "_mapped"]:
+                for synapse_type_str in ['presynapses', 'postsynapses']:
+                    df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
+                                     comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
+
+                    spheres = []
+
+                    for _, row in df.iterrows():
+                        sphere = tm.creation.icosphere(radius=1, subdivisions=2)
+                        sphere.apply_translation((row["x"], row["y"], row["z"]))
+
+                        spheres.append(sphere)
+
+                    if len(spheres) > 0:
+                        scene = tm.Scene(spheres)
+                        scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
+
+        ################
         meshes = dict({})
         for part_name in ["soma", "dendrite", "axon"]:
 
-            print("Mapping", part_name)
+            print("Mapping mesh", part_name)
 
             f_obj_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.obj')
             f_obj_temp.close()
@@ -999,8 +1071,6 @@ class ANTsRegistrationHelpers():
             # Delete temporary file
             os.remove(f_obj_temp.name)
 
-            meshes[part_name] = tm.load_mesh(root_path / cell_name / f"{cell_name}_{part_name}_mapped.obj",)
-
         # Combine meshes
         mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
         mesh_soma_dendrite_axon = meshes["soma"].union(mesh_axon_dendrite, engine='blender')
@@ -1016,14 +1086,14 @@ class ANTsRegistrationHelpers():
         skel = skel.reindex()
 
         # Continue with the swc as a pandas dataframe
-        df = skel.swc
+        df_swc = skel.swc
 
-        # Make a standard axon/dendrite radius of 1 um everywhere
-        df["radius"] = 0.5
-        df["label"] = 0
+        # Make a standard axon/dendrite radius of 0.5 um everywhere
+        df_swc["radius"] = 0.5
+        df_swc["label"] = 0
 
         # Repair gaps in the skeleton using navis
-        x = navis.read_swc(df)
+        x = navis.read_swc(df_swc)
         x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
 
         # Save as a temporary swc
@@ -1033,13 +1103,13 @@ class ANTsRegistrationHelpers():
         x.to_swc(f_swc_temp.name)
 
         # Read it as a dataframe for further processing
-        df = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
+        df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
 
-        # Delete temporary file again
+        # Delete temporary file
         os.remove(f_swc_temp.name)
 
-        # Label what is dednrite or axon, bases on minimal distances to the provided meshes
-        for i, row in df.iterrows():
+        # Label what is dendrite or axon, bases on minimal distances to the provided meshes
+        for i, row in df_swc.iterrows():
             d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
                                  (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
                                  (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
@@ -1049,29 +1119,53 @@ class ANTsRegistrationHelpers():
                                      (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
 
             if d_min_axon < d_min_dendrite:
-                df.loc[i, "label"] = 2  # Axon
+                df_swc.loc[i, "label"] = 2  # Axon
             else:
-                df.loc[i, "label"] = 3  # Dendrite
+                df_swc.loc[i, "label"] = 3  # Dendrite
 
-            # TODO add labels for pre- and post- synapse
+        # Load the mapped synapses
+        if include_synapses:
+            df_presynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_presynapses_mapped.csv",
+                                         comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
+
+
+            df_postsynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv",
+                                          comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
+
+            # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
+            for i, row in df_presynapses.iterrows():
+                dist = ((df_swc["x"] - row["x"]) ** 2 + (df_swc["y"] - row["y"]) ** 2 + (df_swc["z"] - row["z"]) ** 2)
+                i_min = dist.argmin()
+
+                # Minimal distance needs to be small
+                if dist[i_min] < 5:
+                    df_swc.loc[i_min, "label"] = 4  # Pre synapse
+
+            for i, row in df_postsynapses.iterrows():
+                dist = ((df_swc["x"] - row["x"]) ** 2 + (df_swc["y"] - row["y"]) ** 2 + (df_swc["z"] - row["z"]) ** 2)
+                i_min = dist.argmin()
+
+                # Minimal distance needs to be small
+                if dist[i_min] < 5:
+                    df_swc.loc[i_min, "label"] = 5  # Postsynapse
 
         # Add the soma. For this need to move parent ids and node ids
-        df.loc[:, "node_id"] += 1
-        df.loc[df["parent_id"] > -1, "parent_id"] += 1
+        df_swc.loc[:, "node_id"] += 1
+        df_swc.loc[df["parent_id"] > -1, "parent_id"] += 1
 
         # Find the row that is closest to the soma
-        i_min = ((df["x"] - soma_x) ** 2 + (df["y"] - soma_y) ** 2 + (df["z"] - soma_z) ** 2).argmin()
+        i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
 
         # If that node does not have a parent, then set the new soma as the parent
-        if df.loc[i_min, "parent_id"] == -1:
-            df.loc[i_min, "parent_id"] = 0
+        if df_swc.loc[i_min, "parent_id"] == -1:
+            df_swc.loc[i_min, "parent_id"] = 0
             soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": -1}, index=[0])
         else:
             # Otherwise make the soma the child of that node
-            node_id = df.loc[i_min, "node_id"]
+            node_id = df_swc.loc[i_min, "node_id"]
             soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
 
-        df = pd.concat([soma_row, df])
+        df_swc = pd.concat([soma_row, df_swc])
 
         # Save slightly simplified meshes
         sk.pre.simplify(meshes["soma"], 0.5).export(root_path / cell_name/ f"{cell_name}_soma_mapped.obj")
@@ -1080,7 +1174,7 @@ class ANTsRegistrationHelpers():
         sk.pre.simplify(mesh_soma_dendrite_axon, 0.5).export(root_path / cell_name / f"{cell_name}_mapped.obj")
 
         # Reorder columns for proper storage
-        df = df.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+        df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
 
         # Save the swc
         header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
@@ -1089,9 +1183,9 @@ class ANTsRegistrationHelpers():
 
         with open(root_path / cell_name/ f"{cell_name}_mapped.swc", 'w') as fp:
             fp.write(header)
-            df.to_csv(fp, index=False, sep=' ', header=None)
+            df_swc.to_csv(fp, index=False, sep=' ', header=None)
 
-    def map_and_draw_synapses(self, root_path, cell_name, transformation_prefix_path, use_forward_transformation=True):
+    def convert_synapse_file(self, root_path, cell_name):
 
         fp = open(root_path / cell_name / f"{cell_name}_synapses.txt", 'r')
 
@@ -1140,45 +1234,3 @@ class ANTsRegistrationHelpers():
             else:
                 df.to_csv(root_path / cell_name / f"{cell_name}_postsynapses.csv", index=False, sep=' ', header=None, float_format='%.8f')
 
-        # Map the points
-        for synapse_type_str in ['presynapses', 'postsynapses']:
-            df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
-                             header=None,
-                             names=["synapse_id", "x", "y", "z", "size"])
-
-            if len(df) > 0:
-                points = np.array(df[["x", "y", "z"]], dtype=np.float64)
-
-                points_transformed = self.ANTs_applytransform_to_points(points,
-                                                                        transformation_prefix_path,
-                                                                        use_forward_transformation=use_forward_transformation,
-                                                                        ANTs_dim=3)
-
-                df_mapped = pd.DataFrame({'synapse_id': df['synapse_id'],
-                                          'x': points_transformed[:, 0],
-                                          'y': points_transformed[:, 1],
-                                          'z': points_transformed[:, 2],
-                                          'size': df["size"]})
-            else:
-                df_mapped = df # This will again store an empty file
-
-            df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
-                             index=False, sep=' ', header=None, float_format='%.8f')
-
-        # Draw the synapses as small spheres in a new mesh file
-        for mapped_str in ["", "_mapped"]:
-            for synapse_type_str in ['presynapses', 'postsynapses']:
-                df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
-                                 comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "size"])
-
-                spheres = []
-
-                for _, row in df.iterrows():
-                    sphere = tm.creation.icosphere(radius=1, subdivisions=2)
-                    sphere.apply_translation((row["x"], row["y"], row["z"]))
-
-                    spheres.append(sphere)
-
-                if len(spheres) > 0:
-                    scene = tm.Scene(spheres)
-                    scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
