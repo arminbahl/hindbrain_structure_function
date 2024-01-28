@@ -987,7 +987,6 @@ class ANTsRegistrationHelpers():
                 df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
                                  header=None,
                                  names=["synapse_id", "x", "y", "z", "size"])
-                print(df)
 
                 if len(df) > 0:
 
