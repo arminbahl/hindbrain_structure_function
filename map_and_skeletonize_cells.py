@@ -10,7 +10,7 @@ ants_reg = ANTsRegistrationHelpers()
 root_path = Path("/Users/arminbahl/Desktop")
 
 ants_reg.convert_synapse_file(root_path=root_path,
-                                  cell_name='cell_002_89189')
+                              cell_name='cell_002_89189')
 
 ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   cell_name='cell_002_89189',
