@@ -1155,10 +1155,10 @@ class ANTsRegistrationHelpers():
                 df_swc.loc[i, "label"] = 3  # Dendrite
 
         # Load the mapped synapses
-        if include_synapses:
+        pre_synapses = []
+        post_synapses = []
 
-            pre_synapses = []
-            post_synapses = []
+        if include_synapses:
 
             df_presynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_presynapses_mapped.csv",
                                          comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
