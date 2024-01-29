@@ -1142,8 +1142,8 @@ class ANTsRegistrationHelpers():
         for i, row in df_swc.iterrows():
 
             # Ignore the soma, it is already labeled with = 1
-            if i == 1:
-              continue
+            if df_swc.loc[i, "node_id"] == 1:
+                continue
 
             d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
                                  (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
