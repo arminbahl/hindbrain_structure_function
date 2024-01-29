@@ -1126,11 +1126,15 @@ class ANTsRegistrationHelpers():
         # If that node does not have a parent, then set the new soma as the parent
         if df_swc.loc[i_min, "parent_id"] == -1:
             df_swc.loc[i_min, "parent_id"] = 0
-            soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": -1}, index=[0])
+
+            # Soma always has node_id = 1
+            soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": -1}, index=[0])
         else:
             # Otherwise make the soma the child of that node
             node_id = df_swc.loc[i_min, "node_id"]
-            soma_row = pd.DataFrame({"node_id": 0, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
+
+            # Soma always has node_id = 1
+            soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
 
         df_swc = pd.concat([soma_row, df_swc])
 
@@ -1138,7 +1142,7 @@ class ANTsRegistrationHelpers():
         for i, row in df_swc.iterrows():
 
             # Ignore the soma, it is already labeled with = 1
-            if i == 0:
+            if i == 1:
               continue
 
             d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
@@ -1174,7 +1178,7 @@ class ANTsRegistrationHelpers():
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 4  # Pre synapse
-                    pre_synapses.append([i_min, int(row["postsynaptic_cell_id"])])
+                    pre_synapses.append([df_swc.loc[i_min, "node_id"], int(row["postsynaptic_cell_id"])])
                 else:
                     print("Postsynaptic cell not connected to swc. Presynapse too far away:", row["postsynaptic_cell_id"])
 
@@ -1185,9 +1189,9 @@ class ANTsRegistrationHelpers():
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 5  # Postsynapse
-                    post_synapses.append([i_min, int(row["postsynaptic_cell_id"])])
+                    post_synapses.append([df_swc.loc[i_min, "node_id"], int(row["postsynaptic_cell_id"])])
                 else:
-                    print("Presynaptic cell not connected to swc. Postsynapse too far away.", row["presynaptic_cell_id"])
+                    print("Presynaptic cell not connected to swc. Postsynapse too far away.", row["presynaptic_cell_id"],dist[i_min])
 
         # Save slightly simplified meshes
         sk.pre.simplify(meshes["soma"], 0.75).export(root_path / cell_name/ f"{cell_name}_soma_mapped.obj")
