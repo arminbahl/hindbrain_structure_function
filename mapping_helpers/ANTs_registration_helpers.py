@@ -1178,7 +1178,7 @@ class ANTsRegistrationHelpers():
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 4  # Pre synapse
-                    pre_synapses.append([df_swc.loc[i_min, "node_id"], int(row["postsynaptic_cell_id"])])
+                    pre_synapses.append([int(df_swc.loc[i_min, "node_id"]), int(row["postsynaptic_cell_id"])])
                 else:
                     print("Postsynaptic cell not connected to swc. Presynapse too far away:", row["postsynaptic_cell_id"])
 
@@ -1189,7 +1189,7 @@ class ANTsRegistrationHelpers():
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 5  # Postsynapse
-                    post_synapses.append([df_swc.loc[i_min, "node_id"], int(row["postsynaptic_cell_id"])])
+                    post_synapses.append([int(df_swc.loc[i_min, "node_id"]), int(row["postsynaptic_cell_id"])])
                 else:
                     print("Presynaptic cell not connected to swc. Postsynapse too far away.", row["presynaptic_cell_id"],dist[i_min])
 
