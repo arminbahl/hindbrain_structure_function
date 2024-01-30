@@ -17,6 +17,7 @@ import trimesh as tm
 import navis
 import skeletor as sk
 import tomllib
+import time
 
 class ANTsRegistrationHelpers():
     def __init__(self, manual_opts_dict=None):
@@ -116,6 +117,9 @@ class ANTsRegistrationHelpers():
                 print("UBTUNTUNUTNUNTUTN")
 
             os.remove(registration_commands_path_temp.name)
+
+        # Sleep a bit, so the operating system may free the memory
+        time.sleep(0.5)
 
     def ANTs_registration(self,
                           source_path,
@@ -311,9 +315,17 @@ class ANTsRegistrationHelpers():
                                       data_points,
                                       transformation_prefix_path,
                                       use_forward_transformation=True,
-                                      ANTs_dim=3):
+                                      ANTs_dim=3,
+                                      input_limit_x=None,
+                                      input_limit_y=None,
+                                      input_limit_z=None,
+                                      input_shift_x=0, input_scale_x=1,
+                                      input_shift_y=0, input_scale_y=1,
+                                      input_shift_z=0, input_scale_z=1,
+                                      output_shift_x=0, output_scale_x=1,
+                                      output_shift_y=0, output_scale_y=1,
+                                      output_shift_z=0, output_scale_z=1):
 
-        # create some random number, to avoid parallel processes with the same filenames
         all_data_points_path = tempfile.NamedTemporaryFile(dir=self.opts_dict["tempdir"], suffix='.csv', delete=False)
         all_data_points_path.close()
 
@@ -326,6 +338,22 @@ class ANTsRegistrationHelpers():
 
         # ANTs wants four columns
         data_points_ants = np.c_[data_points, np.zeros(data_points.shape[0])]
+
+        # Limit because ANTs makes mistakes if points are outside the orignal volume
+        if input_limit_x is not None:
+            data_points_ants[data_points_ants[:, 0] > input_limit_x, :] = input_limit_x
+
+        if input_limit_y is not None:
+            data_points_ants[data_points_ants[:, 1] > input_limit_y, :] = input_limit_y
+
+        if input_limit_z is not None:
+            data_points_ants[data_points_ants[:, 2] > input_limit_z, :] = input_limit_z
+
+        # Basic transformation
+        data_points_ants[:, 0] = input_shift_x + input_scale_x * data_points_ants[:, 0]
+        data_points_ants[:, 1] = input_shift_y + input_scale_y * data_points_ants[:, 1]
+        data_points_ants[:, 2] = input_shift_z + input_scale_z * data_points_ants[:, 2]
+
         np.savetxt(all_data_points_path.name, data_points_ants, delimiter=',', header="x,y,z,t", comments='')
 
         registration_commands_list = [f"{self.opts_dict['ANTs_bin_path']}/antsApplyTransformsToPoints",
@@ -344,7 +372,13 @@ class ANTsRegistrationHelpers():
 
         self.call_ANTs_command(registration_commands_list)
 
+        # Make sure when loading, the data is 2D, even if it is a single data line
         transformed_points = np.loadtxt(all_data_points_registered_path.name, delimiter=',', skiprows=1, usecols=(0, 1, 2), ndmin=2)
+
+        # Basic transformation
+        transformed_points[:, 0] = output_shift_x + output_scale_x * transformed_points[:, 0]
+        transformed_points[:, 1] = output_shift_y + output_scale_y * transformed_points[:, 1]
+        transformed_points[:, 2] = output_shift_z + output_scale_z * transformed_points[:, 2]
 
         os.remove(all_data_points_path.name)
         os.remove(all_data_points_registered_path.name)
@@ -356,119 +390,34 @@ class ANTsRegistrationHelpers():
                                    output_filename,
                                    transformation_prefix_path,
                                    use_forward_transformation=True,
-                                   input_skiprows=0,
-                                   input_limit_x=None, input_limit_y=None, input_limit_z=None,
-                                   input_flip_x=None, input_flip_y=None, input_flip_z=None,
-                                   input_scale_x=None, input_scale_y=None, input_scale_z=None,
-                                   output_flip_x=None, output_flip_y=None, output_flip_z=None,
-                                   output_scale_x=None, output_scale_y=None, output_scale_z=None):
+                                   input_limit_x=None,
+                                   input_limit_y=None,
+                                   input_limit_z=None,
+                                   input_shift_x=0, input_scale_x=1,
+                                   input_shift_y=0, input_scale_y=1,
+                                   input_shift_z=0, input_scale_z=1,
+                                   output_shift_x=0, output_scale_x=1,
+                                   output_shift_y=0, output_scale_y=1,
+                                   output_shift_z=0, output_scale_z=1):
 
-        # When storing from blender, make sure to save the simplest form of obj (no materials, etc)
+        # Use trimesh to load vertices and faces
+        mesh = tm.load(input_filename)
 
-        # Clean up file content structure
-        f_obj = open(input_filename, "r")
-        temp = f_obj.read()
-        f_obj.close()
+        mesh.vertices = self.ANTs_applytransform_to_points(mesh.vertices,
+                                                           transformation_prefix_path,
+                                                           use_forward_transformation=use_forward_transformation,
+                                                           ANTs_dim=3,
+                                                           input_limit_x=input_limit_x,
+                                                           input_limit_y=input_limit_y,
+                                                           input_limit_z=input_limit_z,
+                                                           input_shift_x=input_shift_x, input_scale_x=input_scale_x,
+                                                           input_shift_y=input_shift_y, input_scale_y=input_scale_y,
+                                                           input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                           output_shift_x=output_shift_x, output_scale_x=output_scale_x,
+                                                           output_shift_y=output_shift_y, output_scale_y=output_scale_y,
+                                                           output_shift_z=output_shift_z, output_scale_z=output_scale_z)
 
-        # Make sure it is always using spaces as delimiter
-        temp = temp.replace("\t", " ")
-
-        # Ignore some blender specific lines
-        temp = temp.replace("o ", "#o ")
-        temp = temp.replace("mtllib", "#mtllib")
-        temp = temp.replace("vn ", "#vn ")
-        temp = temp.replace("s ", "#s ")
-        temp = temp.replace("usemtl ", "#usemtl ")
-
-        f_obj_temp = tempfile.NamedTemporaryFile(mode='w', dir=self.opts_dict["tempdir"], delete=False)
-        f_obj_temp.write(temp)
-        f_obj_temp.close()
-
-        # The file should now only consist of lines starting with v and f, and 'normal' table structure
-        df = pd.read_csv(f_obj_temp.name, sep=' ', skiprows=input_skiprows,
-                         header=None, names=["type", "x", "y", "z"], comment='#')
-
-        # Remove temporary file
-        os.remove(f_obj_temp.name)
-
-        df_v = df[df['type'] == 'v']
-        df_f = df[df['type'] == 'f']
-
-        if input_limit_x is not None:
-            df_v.loc[df_v['x'] > input_limit_x, 'x'] = input_limit_x
-
-        if input_limit_y is not None:
-            df_v.loc[df_v['y'] > input_limit_y, 'y'] = input_limit_y
-
-        if input_limit_z is not None:
-            df_v.loc[df_v['z'] > input_limit_z, 'z'] = input_limit_z
-
-        if input_flip_x is not None:
-            df_v.loc[:, "x"] = input_flip_x - df_v['x']
-
-        if input_flip_y is not None:
-            df_v.loc[:, "y"] = input_flip_y - df_v['y']
-
-        if input_flip_z is not None:
-            df_v.loc[:, "z"] = input_flip_y - df_v['z']
-
-        if input_scale_x is not None:
-            df_v.loc[:, "x"] = df_v["x"] * input_scale_x
-
-        if input_scale_y is not None:
-            df_v.loc[:, "y"] = df_v["y"] * input_scale_y
-
-        if input_scale_z is not None:
-            df_v.loc[:, "z"] = df_v["z"] * input_scale_z
-
-        v_points = np.array(df_v[["x", "y", "z"]], dtype=np.float64)
-        f_points = np.array(df_f[["x", "y", "z"]], dtype=int)
-
-        # Make sure it has a 2D shape, also when using single data points
-        v_points.shape = (-1, 3)
-        f_points.shape = (-1, 3)
-
-        v_points_transformed = self.ANTs_applytransform_to_points(v_points,
-                                                                  transformation_prefix_path,
-                                                                  use_forward_transformation=use_forward_transformation,
-                                                                  ANTs_dim=3)
-
-        df_v_mapped = pd.DataFrame({'type': ['v'] * v_points_transformed.shape[0],
-                                    'x': v_points_transformed[:, 0],
-                                    'y': v_points_transformed[:, 1],
-                                    'z': v_points_transformed[:, 2]})
-
-        if output_scale_x is not None:
-            df_v_mapped.loc[:, "x"] = df_v_mapped["x"] * output_scale_x
-
-        if output_scale_y is not None:
-            df_v_mapped.loc[:, "y"] = df_v_mapped["y"] * output_scale_y
-
-        if output_scale_x is not None:
-            df_v_mapped.loc[:, "z"] = df_v_mapped["z"] * output_scale_z
-
-        if output_flip_x is not None:
-            df_v_mapped.loc[:, "x"] = output_flip_x - df_v_mapped["x"]
-
-        if output_flip_y is not None:
-            df_v_mapped.loc[:, "y"] = output_flip_y - df_v_mapped["y"]
-
-        if output_flip_z is not None:
-            df_v_mapped.loc[:, "z"] = output_flip_z - df_v_mapped["z"]
-
-        # f part is not changed, it is important that these are integers for navis to work
-        df_f_mapped = pd.DataFrame({'type': ['f'] * f_points.shape[0],
-                                    'x': f_points[:, 0],
-                                    'y': f_points[:, 1],
-                                    'z': f_points[:, 2]})
-
-        buf1 = df_v_mapped.to_csv(None, index=False, sep=' ', header=None, float_format='%.8f')
-        buf2 = df_f_mapped.to_csv(None, index=False, sep=' ', header=None)
-
-        with open(output_filename, 'w') as fp:
-            fp.write(buf1)
-            fp.write(buf2)
-            fp.close()
+        mesh.export(output_filename)
 
     def ANTs_applytransform_to_swc(self,
                                    input_filename,
@@ -477,11 +426,15 @@ class ANTsRegistrationHelpers():
                                    use_forward_transformation=True,
                                    node_size_scale=1,
                                    input_skiprows=0,
-                                   input_limit_x=None, input_limit_y=None, input_limit_z=None,
-                                   input_flip_x=None, input_flip_y=None, input_flip_z=None,
-                                   input_scale_x=None, input_scale_y=None, input_scale_z=None,
-                                   output_flip_x=None, output_flip_y=None, output_flip_z=None,
-                                   output_scale_x=None, output_scale_y=None, output_scale_z=None):
+                                   input_limit_x=None,
+                                   input_limit_y=None,
+                                   input_limit_z=None,
+                                   input_shift_x=0, input_scale_x=1,
+                                   input_shift_y=0, input_scale_y=1,
+                                   input_shift_z=0, input_scale_z=1,
+                                   output_shift_x=0, output_scale_x=1,
+                                   output_shift_y=0, output_scale_y=1,
+                                   output_shift_z=0, output_scale_z=1):
 
         # Repair some strange swc coming from SNT
         f_swc = open(input_filename, "r")
@@ -498,63 +451,23 @@ class ANTsRegistrationHelpers():
 
         os.remove(f_swc_temp.name)
 
-        if input_limit_x is not None:
-            ind = np.where(cell_data[:, 2] > input_limit_x)
-            cell_data[:, 2][ind] = input_limit_x
-
-        if input_limit_y is not None:
-            ind = np.where(cell_data[:, 3] > input_limit_y)
-            cell_data[:, 3][ind] = input_limit_y
-
-        if input_limit_z is not None:
-            ind = np.where(cell_data[:, 4] > input_limit_z)
-            cell_data[:, 4][ind] = input_limit_z
-
-        if input_flip_x is not None:
-            cell_data[:, 2] = input_flip_x - cell_data[:, 2]
-
-        if input_flip_y is not None:
-            cell_data[:, 3] = input_flip_y - cell_data[:, 3]
-
-        if input_flip_z is not None:
-            cell_data[:, 4] = input_flip_z - cell_data[:, 4]
-
-        if input_scale_x is not None:
-            cell_data[:, 2] = cell_data[:, 2] * input_scale_x
-
-        if input_scale_y is not None:
-            cell_data[:, 3] = cell_data[:, 3] * input_scale_y
-
-        if input_scale_z is not None:
-            cell_data[:, 4] = cell_data[:, 4] * input_scale_z
-
         data_points = np.c_[cell_data[:, 2],
                             cell_data[:, 3],
                             cell_data[:, 4]]
 
-        data_points.shape = (-1, 3)
-
         data_points_transformed = self.ANTs_applytransform_to_points(data_points,
                                                                      transformation_prefix_path,
                                                                      use_forward_transformation=use_forward_transformation,
-                                                                     ANTs_dim=3)
-        if output_scale_x is not None:
-            data_points_transformed[:, 0] = data_points_transformed[:, 0] * output_scale_x
-
-        if output_scale_y is not None:
-            data_points_transformed[:, 1] = data_points_transformed[:, 1] * output_scale_y
-
-        if output_scale_z is not None:
-            data_points_transformed[:, 2] = data_points_transformed[:, 2] * output_scale_z
-
-        if output_flip_x is not None:
-            data_points_transformed[:, 0] = output_flip_x - data_points_transformed[:, 0]
-
-        if output_flip_y is not None:
-            data_points_transformed[:, 1] = output_flip_y - data_points_transformed[:, 1]
-
-        if output_flip_z is not None:
-            data_points_transformed[:, 2] = output_flip_z - data_points_transformed[:, 2]
+                                                                     ANTs_dim=3,
+                                                                     input_limit_x=input_limit_x,
+                                                                     input_limit_y=input_limit_y,
+                                                                     input_limit_z=input_limit_z,
+                                                                     input_shift_x=input_shift_x, input_scale_x=input_scale_x,
+                                                                     input_shift_y=input_shift_y, input_scale_y=input_scale_y,
+                                                                     input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                                     output_shift_x=output_shift_x, output_scale_x=output_scale_x,
+                                                                     output_shift_y=output_shift_y, output_scale_y=output_scale_y,
+                                                                     output_shift_z=output_shift_z, output_scale_z=output_scale_z)
 
         # the x_scale is computes as the ratio of target and source resolution
         transformed_cell_data = np.c_[cell_data[:, 0],
@@ -966,9 +879,12 @@ class ANTsRegistrationHelpers():
                                  input_limit_x=None,
                                  input_limit_y=None,
                                  input_limit_z=None,
-                                 input_scale_x=None,
-                                 input_scale_y=None,
-                                 input_scale_z=None):
+                                 input_shift_x=0, input_scale_x=1,
+                                 input_shift_y=0, input_scale_y=1,
+                                 input_shift_z=0, input_scale_z=1,
+                                 output_shift_x=0, output_scale_x=1,
+                                 output_shift_y=0, output_scale_y=1,
+                                 output_shift_z=0, output_scale_z=1):
 
         root_path = Path(root_path)
 
@@ -994,26 +910,7 @@ class ANTsRegistrationHelpers():
 
                 if len(df) > 0:
 
-                    # Take care of synapses that are potentially outside the original stack
-                    if input_limit_x is not None:
-                        df.loc[df['x'] > input_limit_x, 'x'] = input_limit_x
-
-                    if input_limit_y is not None:
-                        df.loc[df['y'] > input_limit_y, 'y'] = input_limit_y
-
-                    if input_limit_z is not None:
-                        df.loc[df['z'] > input_limit_z, 'z'] = input_limit_z
-
-                    # Apply additional coordinate transformations
-                    if input_scale_x is not None:
-                        df.loc[:, "x"] = df["x"] * input_scale_x
-                        df.loc[:, "radius"] = df["radius"] * input_scale_x  # Scale the synapse radius with input_scale x
-
-                    if input_scale_y is not None:
-                        df.loc[:, "y"] = df["y"] * input_scale_y
-
-                    if input_scale_z is not None:
-                        df.loc[:, "z"] = df["z"] * input_scale_z
+                    df.loc[:, "radius"] = df["radius"] * input_scale_x  # Scale the synapse radius with input_scale x
 
                     # Make it a numpy array for the mapping function
                     points = np.array(df[["x", "y", "z"]], dtype=np.float64)
@@ -1022,7 +919,16 @@ class ANTsRegistrationHelpers():
                     points_transformed = self.ANTs_applytransform_to_points(points,
                                                                             transformation_prefix_path,
                                                                             use_forward_transformation=use_forward_transformation,
-                                                                            ANTs_dim=3)
+                                                                            ANTs_dim=3,
+                                                                            input_limit_x=input_limit_x,
+                                                                            input_limit_y=input_limit_y,
+                                                                            input_limit_z=input_limit_z,
+                                                                            input_shift_x=input_shift_x, input_scale_x=input_scale_x,
+                                                                            input_shift_y=input_shift_y, input_scale_y=input_scale_y,
+                                                                            input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                                            output_shift_x=output_shift_x, output_scale_x=output_scale_x,
+                                                                            output_shift_y=output_shift_y, output_scale_y=output_scale_y,
+                                                                            output_shift_z=output_shift_z, output_scale_z=output_scale_z)
 
                     df_mapped = pd.DataFrame({'partner_cell_id': df['partner_cell_id'],
                                               'x': points_transformed[:, 0],
@@ -1069,28 +975,25 @@ class ANTsRegistrationHelpers():
 
             print("Mapping mesh", part_name)
 
-            f_obj_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.obj')
-            f_obj_temp.close()
+            # Use trimesh to load vertices and faces
+            mesh = tm.load(root_path / cell_name / f"{cell_name}_{part_name}.obj")
 
-            self.ANTS_applytransform_to_obj(input_filename=root_path / cell_name / f"{cell_name}_{part_name}.obj",
-                                            output_filename=f_obj_temp.name,
-                                            transformation_prefix_path=transformation_prefix_path,
-                                            use_forward_transformation=True,
-                                            input_limit_x=input_limit_x,
-                                            input_limit_y=input_limit_y,
-                                            input_limit_z=input_limit_z,
-                                            input_scale_x=input_scale_x,
-                                            input_scale_y=input_scale_y,
-                                            input_scale_z=input_scale_z)
-
-            # Load the mapped mesh from the temporay file
-            mesh = tm.load_mesh(f_obj_temp.name)
+            mesh.vertices = self.ANTs_applytransform_to_points(mesh.vertices,
+                                                               transformation_prefix_path,
+                                                               use_forward_transformation=use_forward_transformation,
+                                                               ANTs_dim=3,
+                                                               input_limit_x=input_limit_x,
+                                                               input_limit_y=input_limit_y,
+                                                               input_limit_z=input_limit_z,
+                                                               input_shift_x=input_shift_x, input_scale_x=input_scale_x,
+                                                               input_shift_y=input_shift_y, input_scale_y=input_scale_y,
+                                                               input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                               output_shift_x=output_shift_x, output_scale_x=output_scale_x,
+                                                               output_shift_y=output_shift_y, output_scale_y=output_scale_y,
+                                                               output_shift_z=output_shift_z, output_scale_z=output_scale_z)
 
             # Fix problems after mapping and store in dictionary
             meshes[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
-
-            # Delete temporary file
-            os.remove(f_obj_temp.name)
 
         # Combine meshes
         mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
