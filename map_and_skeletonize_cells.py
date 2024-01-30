@@ -36,8 +36,8 @@ ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   input_scale_y=0.001,
                                   input_scale_z=0.001)
 
-ants_reg.map_and_skeletonize_cell(root_path,
-                                  '8500',
+ants_reg.map_and_skeletonize_cell(root_path=root_path,
+                                  cell_name='8500',
                                   transformation_prefix_path="/Users/arminbahl/Desktop/em_fish15-to-z_brain_012524/ANTs_dfield",
                                   input_limit_x=523776,  # (1024 x pixel - 1) * 512 nm x-resolution
                                   input_limit_y=327168,  # (640 y pixel - 1) * 512 nm x-resolution
