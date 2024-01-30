@@ -961,7 +961,6 @@ class ANTsRegistrationHelpers():
     def map_and_skeletonize_cell(self,
                                  root_path,
                                  cell_name,
-                                 include_synapses,
                                  transformation_prefix_path,
                                  use_forward_transformation=True,
                                  input_limit_x=None,
@@ -979,9 +978,9 @@ class ANTsRegistrationHelpers():
 
         print("Meta data:", metadata)
 
-        if include_synapses:
-            for synapse_type_str in ['presynapses', 'postsynapses']:
+        for synapse_type_str in ['presynapses', 'postsynapses']:
 
+            if (root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv").exists():
                 print(f"Mapping {synapse_type_str}")
 
                 df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}.csv", comment='#', sep=' ',
@@ -1035,20 +1034,21 @@ class ANTsRegistrationHelpers():
             # Draw the synapses as small spheres in a new mesh file
             for mapped_str in ["", "_mapped"]:
                 for synapse_type_str in ['presynapses', 'postsynapses']:
-                    df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
-                                     comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "radius"])
+                    if (root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv").exists():
+                        df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
+                                         comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "radius"])
 
-                    spheres = []
+                        spheres = []
 
-                    for _, row in df.iterrows():
-                        sphere = tm.creation.icosphere(radius=row["radius"], subdivisions=2)
-                        sphere.apply_translation((row["x"], row["y"], row["z"]))
+                        for _, row in df.iterrows():
+                            sphere = tm.creation.icosphere(radius=row["radius"], subdivisions=2)
+                            sphere.apply_translation((row["x"], row["y"], row["z"]))
 
-                        spheres.append(sphere)
+                            spheres.append(sphere)
 
-                    if len(spheres) > 0:
-                        scene = tm.Scene(spheres)
-                        scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
+                        if len(spheres) > 0:
+                            scene = tm.Scene(spheres)
+                            scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
 
         ################
         meshes = dict({})
@@ -1136,13 +1136,14 @@ class ANTsRegistrationHelpers():
             # Soma always has node_id = 1
             soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
 
-        df_swc = pd.concat([soma_row, df_swc])
+        # Add soma to the beginning, make sure this does not produce double indices
+        df_swc = pd.concat([soma_row, df_swc], ignore_index=True)
 
         # Label what is dendrite or axon, bases on minimal distances to the provided meshes
         for i, row in df_swc.iterrows():
 
             # Ignore the soma, it is already labeled with = 1
-            if df_swc.loc[i, "node_id"] == 1:
+            if row["node_id"] == 1:
                 continue
 
             d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
@@ -1162,38 +1163,54 @@ class ANTsRegistrationHelpers():
         pre_synapses = []
         post_synapses = []
 
-        if include_synapses:
+        if (root_path / cell_name / f"{cell_name}_presynapses_mapped.csv").exists():
 
             df_presynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_presynapses_mapped.csv",
                                          comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
 
-            df_postsynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv",
-                                          comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
-
             # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
             for i, row in df_presynapses.iterrows():
-                dist = ((df_swc["x"] - row["x"]) ** 2 + (df_swc["y"] - row["y"]) ** 2 + (df_swc["z"] - row["z"]) ** 2)
+
+                dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                               (df_swc["y"] - row["y"]) ** 2 +
+                               (df_swc["z"] - row["z"]) ** 2)
+
                 i_min = dist.argmin()
 
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 4  # Pre synapse
-                    pre_synapses.append([int(df_swc.loc[i_min, "node_id"]), int(row["postsynaptic_cell_id"])])
+                    pre_synapses.append([int(row["postsynaptic_cell_id"]),
+                                         int(df_swc.loc[i_min, "node_id"])])
                 else:
-                    print("Postsynaptic cell not connected to swc. Presynapse too far away:", row["postsynaptic_cell_id"])
+                    print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
+                    pre_synapses.append([int(row["postsynaptic_cell_id"]),
+                                         -1])
+
+        if (root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv").exists():
+
+            df_postsynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv",
+                                          comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
 
             for i, row in df_postsynapses.iterrows():
-                dist = ((df_swc["x"] - row["x"]) ** 2 + (df_swc["y"] - row["y"]) ** 2 + (df_swc["z"] - row["z"]) ** 2)
+
+                dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                               (df_swc["y"] - row["y"]) ** 2 +
+                               (df_swc["z"] - row["z"]) ** 2)
+
                 i_min = dist.argmin()
 
                 # Minimal distance needs to be small
                 if dist[i_min] < 5:
                     df_swc.loc[i_min, "label"] = 5  # Postsynapse
-                    post_synapses.append([int(df_swc.loc[i_min, "node_id"]), int(row["postsynaptic_cell_id"])])
+                    post_synapses.append([int(row["presynaptic_cell_id"]),
+                                          int(df_swc.loc[i_min, "node_id"])])
                 else:
-                    print("Presynaptic cell not connected to swc. Postsynapse too far away.", row["presynaptic_cell_id"],dist[i_min])
+                    print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
+                    post_synapses.append([int(row["presynaptic_cell_id"]),
+                                          -1])
 
-        # Save slightly simplified meshes
+        # Save slightly simplified mapped meshes
         sk.pre.simplify(meshes["soma"], 0.75).export(root_path / cell_name/ f"{cell_name}_soma_mapped.obj")
         sk.pre.simplify(meshes["axon"], 0.75).export(root_path / cell_name/ f"{cell_name}_axon_mapped.obj")
         sk.pre.simplify(meshes["dendrite"], 0.75).export(root_path / cell_name/ f"{cell_name}_dendrite_mapped.obj")
