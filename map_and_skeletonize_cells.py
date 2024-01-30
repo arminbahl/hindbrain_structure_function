@@ -13,14 +13,14 @@ ants_reg = ANTsRegistrationHelpers()
 root_path = Path("/Users/arminbahl/Desktop")
 
 ants_reg.convert_synapse_file(root_path=root_path,
-                               cell_name="cell_002_89189",
-                               shift_x=4.04816196e-01 * 1000,  # Make sure the unit remains nm
-                               shift_y=5.20478002e+02 * 1000,
-                               shift_z=8.47756398e-01 * 480,
-                               scale_x=7.99082669e-03 * 1000,
-                               scale_y=-8.01760871e-03 * 1000,
-                               scale_z=6.24857731e-02 * 480,
-                               radius_set=250)  # 250 nm radius
+                              cell_name="cell_002_89189",
+                              shift_x=4.04816196e-01 * 1000,  # Make sure the unit remains nm
+                              shift_y=5.20478002e+02 * 1000,
+                              shift_z=8.47756398e-01 * 480,
+                              scale_x=7.99082669e-03 * 1000,
+                              scale_y=-8.01760871e-03 * 1000,
+                              scale_z=6.24857731e-02 * 480,
+                              radius_set=250)  # 250 nm radius
 
 ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   cell_name="cell_002_89189",
