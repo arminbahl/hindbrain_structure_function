@@ -970,6 +970,8 @@ class ANTsRegistrationHelpers():
                                  input_scale_y=None,
                                  input_scale_z=None):
 
+        root_path = Path(root_path)
+
         # Load the meta data file
         with open(root_path / cell_name / f"{cell_name}_metadata.txt", mode="rb") as fp:
             metadata = tomllib.load(fp)
@@ -977,6 +979,9 @@ class ANTsRegistrationHelpers():
         print(f"Mapping and skeletonization of cell {cell_name}.")
 
         print("Meta data:", metadata)
+
+        # Make a folder for the mapped file
+        (root_path / cell_name / "mapped").mkdir(exist_ok=True)
 
         for synapse_type_str in ['presynapses', 'postsynapses']:
 
@@ -1028,14 +1033,22 @@ class ANTsRegistrationHelpers():
                     df_mapped = df  # This will again store an empty file
 
                 # Save the mapped synapse locations
-                df_mapped.to_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}_mapped.csv",
+                df_mapped.to_csv(root_path / cell_name / "mapped" / f"{cell_name}_{synapse_type_str}_mapped.csv",
                                  index=False, sep=' ', header=None, float_format='%.8f')
 
             # Draw the synapses as small spheres in a new mesh file
-            for mapped_str in ["", "_mapped"]:
+            for mapped_i in [0, 1]:
+
+                if mapped_i == 0:
+                    suffix_str = ""
+                    folder_str = ""
+                else:
+                    suffix_str = "_mapped"
+                    folder_str = "mapped"
+
                 for synapse_type_str in ['presynapses', 'postsynapses']:
-                    if (root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv").exists():
-                        df = pd.read_csv(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.csv",
+                    if (root_path / cell_name / folder_str / f"{cell_name}_{synapse_type_str}{suffix_str}.csv").exists():
+                        df = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_{synapse_type_str}{suffix_str}.csv",
                                          comment='#', sep=' ', header=None, names=["synapse_id", "x", "y", "z", "radius"])
 
                         spheres = []
@@ -1048,7 +1061,7 @@ class ANTsRegistrationHelpers():
 
                         if len(spheres) > 0:
                             scene = tm.Scene(spheres)
-                            scene.export(root_path / cell_name / f"{cell_name}_{synapse_type_str}{mapped_str}.obj")
+                            scene.export(root_path / cell_name / folder_str / f"{cell_name}_{synapse_type_str}{suffix_str}.obj")
 
         ################
         meshes = dict({})
@@ -1163,9 +1176,9 @@ class ANTsRegistrationHelpers():
         pre_synapses = []
         post_synapses = []
 
-        if (root_path / cell_name / f"{cell_name}_presynapses_mapped.csv").exists():
+        if (root_path / cell_name / "mapped" / f"{cell_name}_presynapses_mapped.csv").exists():
 
-            df_presynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_presynapses_mapped.csv",
+            df_presynapses = pd.read_csv(root_path / cell_name / "mapped" / f"{cell_name}_presynapses_mapped.csv",
                                          comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
 
             # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
@@ -1189,7 +1202,7 @@ class ANTsRegistrationHelpers():
 
         if (root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv").exists():
 
-            df_postsynapses = pd.read_csv(root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv",
+            df_postsynapses = pd.read_csv(root_path / cell_name / "mapped" / f"{cell_name}_postsynapses_mapped.csv",
                                           comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
 
             for i, row in df_postsynapses.iterrows():
@@ -1211,10 +1224,10 @@ class ANTsRegistrationHelpers():
                                           -1])
 
         # Save slightly simplified mapped meshes
-        sk.pre.simplify(meshes["soma"], 0.75).export(root_path / cell_name/ f"{cell_name}_soma_mapped.obj")
-        sk.pre.simplify(meshes["axon"], 0.75).export(root_path / cell_name/ f"{cell_name}_axon_mapped.obj")
-        sk.pre.simplify(meshes["dendrite"], 0.75).export(root_path / cell_name/ f"{cell_name}_dendrite_mapped.obj")
-        sk.pre.simplify(mesh_soma_dendrite_axon, 0.75).export(root_path / cell_name / f"{cell_name}_mapped.obj")
+        sk.pre.simplify(meshes["soma"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")
+        sk.pre.simplify(meshes["axon"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")
+        sk.pre.simplify(meshes["dendrite"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")
+        sk.pre.simplify(mesh_soma_dendrite_axon, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
 
         # Reorder columns for proper storage
         df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
@@ -1228,7 +1241,7 @@ class ANTsRegistrationHelpers():
                   f"# Metadata: {str(metadata)}\n"
                   f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
 
-        with open(root_path / cell_name/ f"{cell_name}_mapped.swc", 'w') as fp:
+        with open(root_path / cell_name / "mapped" / f"{cell_name}_mapped.swc", 'w') as fp:
             fp.write(header)
             df_swc.to_csv(fp, index=False, sep=' ', header=None)
 
