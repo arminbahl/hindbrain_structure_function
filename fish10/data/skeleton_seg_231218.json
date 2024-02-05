@@ -1,0 +1,127 @@
+{
+  "dimensions": {
+    "x": [
+      8e-9,
+      "m"
+    ],
+    "y": [
+      8e-9,
+      "m"
+    ],
+    "z": [
+      3e-8,
+      "m"
+    ]
+  },
+  "position": [
+    62220.3671875,
+    33182.59375,
+    4275.5
+  ],
+  "crossSectionScale": 25.382998254494105,
+  "projectionScale": 524288,
+  "layers": [
+    {
+      "type": "image",
+      "source": "precomputed://gs://fish1-public/clahe_231218",
+      "tab": "rendering",
+      "name": "em_clahe23"
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/lores_cbs_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "somas",
+      "visible": false
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/mece0_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "mece_l0",
+      "visible": false
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/mece1_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "mece_l1",
+      "visible": false
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/mece2_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "mece_l2",
+      "visible": false
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/mece3_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "mece_l3",
+      "visible": false
+    },
+    {
+      "type": "image",
+      "source": {
+        "url": "n5://gs://fish1-public/confocal_231218.n5",
+        "transform": {
+          "outputDimensions": {
+            "x": [
+              8e-9,
+              "m"
+            ],
+            "y": [
+              8e-9,
+              "m"
+            ],
+            "z": [
+              3e-8,
+              "m"
+            ],
+            "c^": [
+              1,
+              ""
+            ]
+          }
+        }
+      },
+      "tab": "rendering",
+      "shader": "#uicontrol invlerp ch0 (channel=0)\n#uicontrol invlerp ch1 (channel=0)\n\nvoid main() {\n  emitRGB(vec3(ch1(), ch0(), 0.0));\n}\n",
+      "shaderControls": {
+        "ch0": {
+          "channel": [
+            1
+          ]
+        }
+      },
+      "channelDimensions": {
+        "c^": [
+          1,
+          ""
+        ]
+      },
+      "name": "confocal",
+      "visible": false
+    },
+    {
+      "type": "segmentation",
+      "source": "precomputed://gs://fish1-public/seg_231218",
+      "tab": "source",
+      "segments": [],
+      "name": "seg_231218"
+    }
+  ],
+  "selectedLayer": {
+    "size": 487,
+    "visible": true,
+    "layer": "seg_231218"
+  },
+  "layout": "4panel"
+}
