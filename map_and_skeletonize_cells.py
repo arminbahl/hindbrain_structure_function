@@ -13,7 +13,7 @@ ants_reg = ANTsRegistrationHelpers()
 root_path = Path("/Users/arminbahl/Desktop")
 
 ants_reg.convert_synapse_file(root_path=root_path,
-                              cell_name="cell_002_89189",
+                              cell_name="EM10_cell_003_115916",
                               shift_x=4.04816196e-01 * 1000,  # Make sure the unit remains nm
                               shift_y=5.20478002e+02 * 1000,
                               shift_z=8.47756398e-01 * 480,
@@ -23,25 +23,25 @@ ants_reg.convert_synapse_file(root_path=root_path,
                               radius_set=250)  # 250 nm radius
 
 ants_reg.map_and_skeletonize_cell(root_path=root_path,
-                                  cell_name="cell_002_89189",
+                                  cell_name="EM10_cell_003_115916",
                                   transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
                                   input_scale_x=0.001,  # Convert all units from um to nm
                                   input_scale_y=0.001,
                                   input_scale_z=0.001)
-
-ants_reg.map_and_skeletonize_cell(root_path=root_path,
-                                  cell_name="cell_007_124806",
-                                  transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
-                                  input_scale_x=0.001,  # Convert all units from um to nm
-                                  input_scale_y=0.001,
-                                  input_scale_z=0.001)
-
-ants_reg.map_and_skeletonize_cell(root_path=root_path,
-                                  cell_name='8500',
-                                  transformation_prefix_path="/Users/arminbahl/Desktop/em_fish15-to-z_brain_012524/ANTs_dfield",
-                                  input_limit_x=523776,  # (1024 x pixel - 1) * 512 nm x-resolution
-                                  input_limit_y=327168,  # (640 y pixel - 1) * 512 nm x-resolution
-                                  input_limit_z=120000,  # (251 planes - 1) * 480 nm z-resolution
-                                  input_scale_x=0.001,  # The lowres stack was reduced by factor 1000
-                                  input_scale_y=0.001,
-                                  input_scale_z=0.001)
+#
+# ants_reg.map_and_skeletonize_cell(root_path=root_path,
+#                                   cell_name="cell_007_124806",
+#                                   transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
+#                                   input_scale_x=0.001,  # Convert all units from um to nm
+#                                   input_scale_y=0.001,
+#                                   input_scale_z=0.001)
+#
+# ants_reg.map_and_skeletonize_cell(root_path=root_path,
+#                                   cell_name='8500',
+#                                   transformation_prefix_path="/Users/arminbahl/Desktop/em_fish15-to-z_brain_012524/ANTs_dfield",
+#                                   input_limit_x=523776,  # (1024 x pixel - 1) * 512 nm x-resolution
+#                                   input_limit_y=327168,  # (640 y pixel - 1) * 512 nm x-resolution
+#                                   input_limit_z=120000,  # (251 planes - 1) * 480 nm z-resolution
+#                                   input_scale_x=0.001,  # The lowres stack was reduced by factor 1000
+#                                   input_scale_y=0.001,
+#                                   input_scale_z=0.001)

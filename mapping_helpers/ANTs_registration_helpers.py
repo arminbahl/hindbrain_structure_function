@@ -1184,9 +1184,9 @@ class ANTsRegistrationHelpers():
                     values = entry.split(",")
                     table_data.append({
                         'partner_cell_id': str(values[0]),
-                        'x': int(values[1]),
-                        'y': int(values[2]),
-                        'z': int(values[3]),
+                        'x': int(values[1].split(".")[0]),
+                        'y': int(values[2].split(".")[0]),
+                        'z': int(values[3].split(".")[0]),
                         'Size': radius_set
                     })
 
