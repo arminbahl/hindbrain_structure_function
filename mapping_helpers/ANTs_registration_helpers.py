@@ -137,8 +137,8 @@ class ANTsRegistrationHelpers():
         f_transformation_temp = tempfile.NamedTemporaryFile(dir=self.opts_dict["tempdir"], delete=False)
         f_transformation_temp.close()
 
-        source_path_linux = [self.convert_path_to_linux(val) for val in self.convert_path_to_linux(source_path)]
-        target_path_linux = [self.convert_path_to_linux(val) for val in self.convert_path_to_linux(target_path)]
+        source_path_linux = [self.convert_path_to_linux(val) for val in source_path]
+        target_path_linux = [self.convert_path_to_linux(val) for val in target_path]
 
         transformation_prefix_path_linux = self.convert_path_to_linux(transformation_prefix_path)
         f_transformation_temp_linux = self.convert_path_to_linux(f_transformation_temp.name)
