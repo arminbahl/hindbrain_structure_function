@@ -156,81 +156,87 @@ class ANTsRegistrationHelpers():
         registration_commands_list += ["--initial-moving-transform"]
         registration_commands_list += [f"[{target_path_linux[0]},{source_path_linux[0]},1]"]
 
-        for i in range(len(target_path_linux)):
-            registration_commands_list += ["-t", "Rigid[0.1]"]
-            registration_commands_list += ["-m", f"MI[{target_path_linux[i]},{source_path_linux[i]},1,32,Regular,0.25]"]
-
-            if self.opts_dict["debugging"] == False:
-                registration_commands_list += ["-c", "[1000x500x250x300,1e-8,10]",
-                                               "-s", "3x2x1x0",
-                                               "-f", "12x8x4x2"]
-            else:
-                registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
-                                           "-f", "12x8x4x2",
-                                           "-s", "4x3x2x1"]
+        registration_commands_list += ["-t", "Rigid[0.1]"]
 
         for i in range(len(target_path_linux)):
-            registration_commands_list += ["-t", "Affine[0.1]"]
             registration_commands_list += ["-m", f"MI[{target_path_linux[i]},{source_path_linux[i]},1,32,Regular,0.25]"]
 
+        if self.opts_dict["debugging"] == False:
+            registration_commands_list += ["-c", "[1000x500x250x300,1e-8,10]",
+                                           "-s", "3x2x1x0",
+                                           "-f", "12x8x4x2"]
+        else:
+            registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
+                                       "-f", "12x8x4x2",
+                                       "-s", "4x3x2x1"]
+
+        registration_commands_list += ["-t", "Affine[0.1]"]
+
+        for i in range(len(target_path_linux)):
+            registration_commands_list += ["-m", f"MI[{target_path_linux[i]},{source_path_linux[i]},1,32,Regular,0.25]"]
+
+        if self.opts_dict["debugging"] == False:
+            registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
+                                       "-f", "12x8x4x2",
+                                       "-s", "4x3x2x1"]
+        else:
+            registration_commands_list += ["-c", "[100,1e-8,10]",
+                                           "-f", "12",
+                                           "-s", "4"]
+
+        if self.opts_dict['SyN']["use"]:
+
+            SyN = self.opts_dict["SyN"]
+
+            t = SyN['t']
+            m = SyN['m']
+            c = SyN["c"]
+            s = SyN['s']
+            f = SyN['f']
+
+            registration_commands_list += ["-t", t]
+
+            for i in range(len(target_path_linux)):
+                m_ = m.replace("$1", target_path_linux[i])
+                m_ = m_.replace("$2", source_path_linux[i])
+
+                registration_commands_list += ["-m", m_]
+
             if self.opts_dict["debugging"] == False:
-                registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
-                                           "-f", "12x8x4x2",
-                                           "-s", "4x3x2x1"]
+                registration_commands_list += ["-c", c,
+                                               "-s", s,
+                                               "-f", f]
             else:
-                registration_commands_list += ["-c", "[100,1e-8,10]",
+                registration_commands_list += ["-c", "[100,1e-7,10]",
                                                "-f", "12",
                                                "-s", "4"]
 
-        if self.opts_dict['SyN']["use"]:
-            for i in range(len(target_path_linux)):
-                SyN = self.opts_dict["SyN"]
-
-                t = SyN['t']
-                m = SyN['m']
-                c = SyN["c"]
-                s = SyN['s']
-                f = SyN['f']
-
-                m = m.replace("$1", target_path_linux[i])
-                m = m.replace("$2", source_path_linux[i])
-
-                registration_commands_list += ["-t", t]
-                registration_commands_list += ["-m", m]
-
-                if self.opts_dict["debugging"] == False:
-                    registration_commands_list += ["-c", c,
-                                                   "-s", s,
-                                                   "-f", f]
-                else:
-                    registration_commands_list += ["-c", "[100,1e-7,10]",
-                                                   "-f", "12",
-                                                   "-s", "4"]
-
         if self.opts_dict['BSplineSyn']["use"]:
+
+            BSplineSyn = self.opts_dict["BSplineSyn"]
+
+            t = BSplineSyn['t']
+            m = BSplineSyn['m']
+            c = BSplineSyn["c"]
+            s = BSplineSyn['s']
+            f = BSplineSyn['f']
+
+            registration_commands_list += ["-t", t]
+
             for i in range(len(target_path_linux)):
-                BSplineSyn = self.opts_dict["BSplineSyn"]
+                m_ = m.replace("$1", target_path_linux[i])
+                m_ = m_.replace("$2", source_path_linux[i])
 
-                t = BSplineSyn['t']
-                m = BSplineSyn['m']
-                c = BSplineSyn["c"]
-                s = BSplineSyn['s']
-                f = BSplineSyn['f']
+                registration_commands_list += ["-m", m_]
 
-                m = m.replace("$1", target_path_linux[i])
-                m = m.replace("$2", source_path_linux[i])
-
-                registration_commands_list += ["-t", t]
-                registration_commands_list += ["-m", m]
-
-                if self.opts_dict["debugging"] == False:
-                    registration_commands_list += ["-c", c,
-                                                   "-s", s,
-                                                   "-f", f]
-                else:
-                    registration_commands_list += ["-c", "[100,1e-7,10]",
-                                                   "-f", "12",
-                                                   "-s", "4"]
+            if self.opts_dict["debugging"] == False:
+                registration_commands_list += ["-c", c,
+                                               "-s", s,
+                                               "-f", f]
+            else:
+                registration_commands_list += ["-c", "[100,1e-7,10]",
+                                               "-f", "12",
+                                               "-s", "4"]
 
         self.call_ANTs_command(registration_commands_list)
 
