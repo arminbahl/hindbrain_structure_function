@@ -131,7 +131,7 @@ class ANTsRegistrationHelpers():
         if not isinstance(source_path, list):
             source_path = [source_path]
 
-        if not isinstance(source_path, list):
+        if not isinstance(target_path, list):
             target_path = [target_path]
 
         f_transformation_temp = tempfile.NamedTemporaryFile(dir=self.opts_dict["tempdir"], delete=False)
