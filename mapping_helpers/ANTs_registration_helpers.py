@@ -374,7 +374,7 @@ class ANTsRegistrationHelpers():
         data_points_ants[:, 2] = input_shift_z + input_scale_z * data_points_ants[:, 2]
 
         if input_transpose_xy:
-            data_points_ants = np.transpose(data_points_ants, (0, 1))
+            data_points_ants = data_points_ants[:, [1, 0, 2]]  # Swap x and y
 
         np.savetxt(all_data_points_path.name, data_points_ants, delimiter=',', header="x,y,z,t", comments='')
 
@@ -403,7 +403,7 @@ class ANTsRegistrationHelpers():
         transformed_points[:, 2] = output_shift_z + output_scale_z * transformed_points[:, 2]
 
         if output_transpose_xy:
-            transformed_points = np.transpose(transformed_points, (0, 1))
+            transformed_points = transformed_points[:, [1, 0, 2]]  # Swap x and y
 
         os.remove(all_data_points_path.name)
         os.remove(all_data_points_registered_path.name)
