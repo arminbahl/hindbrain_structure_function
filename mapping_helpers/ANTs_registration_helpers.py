@@ -339,9 +339,11 @@ class ANTsRegistrationHelpers():
                                       input_shift_x=0, input_scale_x=1,
                                       input_shift_y=0, input_scale_y=1,
                                       input_shift_z=0, input_scale_z=1,
+                                      input_transpose_xy=False,
                                       output_shift_x=0, output_scale_x=1,
                                       output_shift_y=0, output_scale_y=1,
-                                      output_shift_z=0, output_scale_z=1):
+                                      output_shift_z=0, output_scale_z=1,
+                                      output_transpose_xy=False):
 
         all_data_points_path = tempfile.NamedTemporaryFile(dir=self.opts_dict["tempdir"], suffix='.csv', delete=False)
         all_data_points_path.close()
@@ -371,6 +373,9 @@ class ANTsRegistrationHelpers():
         data_points_ants[:, 1] = input_shift_y + input_scale_y * data_points_ants[:, 1]
         data_points_ants[:, 2] = input_shift_z + input_scale_z * data_points_ants[:, 2]
 
+        if input_transpose_xy:
+            data_points_ants = np.transpose(data_points_ants, (0, 1))
+
         np.savetxt(all_data_points_path.name, data_points_ants, delimiter=',', header="x,y,z,t", comments='')
 
         registration_commands_list = [f"{self.opts_dict['ANTs_bin_path']}/antsApplyTransformsToPoints",
@@ -397,6 +402,9 @@ class ANTsRegistrationHelpers():
         transformed_points[:, 1] = output_shift_y + output_scale_y * transformed_points[:, 1]
         transformed_points[:, 2] = output_shift_z + output_scale_z * transformed_points[:, 2]
 
+        if output_transpose_xy:
+            transformed_points = np.transpose(transformed_points, (0, 1))
+
         os.remove(all_data_points_path.name)
         os.remove(all_data_points_registered_path.name)
 
@@ -413,9 +421,11 @@ class ANTsRegistrationHelpers():
                                    input_shift_x=0, input_scale_x=1,
                                    input_shift_y=0, input_scale_y=1,
                                    input_shift_z=0, input_scale_z=1,
+                                   input_transpose_xy=False,
                                    output_shift_x=0, output_scale_x=1,
                                    output_shift_y=0, output_scale_y=1,
-                                   output_shift_z=0, output_scale_z=1):
+                                   output_shift_z=0, output_scale_z=1,
+                                   output_transpose_xy=False):
 
         # Use trimesh to load vertices and faces
         mesh = tm.load(input_filename)
@@ -430,9 +440,11 @@ class ANTsRegistrationHelpers():
                                                            input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                            input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                            input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                           input_transpose_xy=input_transpose_xy,
                                                            output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                            output_shift_y=output_shift_y, output_scale_y=output_scale_y,
-                                                           output_shift_z=output_shift_z, output_scale_z=output_scale_z)
+                                                           output_shift_z=output_shift_z, output_scale_z=output_scale_z,
+                                                           output_transpose_xy=output_transpose_xy)
 
         mesh.export(output_filename)
 
@@ -449,9 +461,11 @@ class ANTsRegistrationHelpers():
                                    input_shift_x=0, input_scale_x=1,
                                    input_shift_y=0, input_scale_y=1,
                                    input_shift_z=0, input_scale_z=1,
+                                   input_transpose_xy=False,
                                    output_shift_x=0, output_scale_x=1,
                                    output_shift_y=0, output_scale_y=1,
-                                   output_shift_z=0, output_scale_z=1):
+                                   output_shift_z=0, output_scale_z=1,
+                                   output_transpose_xy=False):
 
         # Repair some strange swc coming from SNT
         f_swc = open(input_filename, "r")
@@ -482,9 +496,11 @@ class ANTsRegistrationHelpers():
                                                                      input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                      input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                      input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                                     input_transpose_xy=input_transpose_xy,
                                                                      output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                      output_shift_y=output_shift_y, output_scale_y=output_scale_y,
-                                                                     output_shift_z=output_shift_z, output_scale_z=output_scale_z)
+                                                                     output_shift_z=output_shift_z, output_scale_z=output_scale_z,
+                                                                     output_transpose_xy=output_transpose_xy)
 
         # the x_scale is computes as the ratio of target and source resolution
         transformed_cell_data = np.c_[cell_data[:, 0],
@@ -899,9 +915,11 @@ class ANTsRegistrationHelpers():
                                  input_shift_x=0, input_scale_x=1,
                                  input_shift_y=0, input_scale_y=1,
                                  input_shift_z=0, input_scale_z=1,
+                                 input_transpose_xy=False,
                                  output_shift_x=0, output_scale_x=1,
                                  output_shift_y=0, output_scale_y=1,
-                                 output_shift_z=0, output_scale_z=1):
+                                 output_shift_z=0, output_scale_z=1,
+                                 output_transpose_xy=False):
 
         root_path = Path(root_path)
 
@@ -931,6 +949,7 @@ class ANTsRegistrationHelpers():
 
                     # Make it a numpy array for the mapping function
                     points = np.array(df[["x", "y", "z"]], dtype=np.float64)
+
                     points.shape = (-1, 3) # Make sure it has a 2D shape, also when using single data points
 
                     points_transformed = self.ANTs_applytransform_to_points(points,
@@ -943,9 +962,11 @@ class ANTsRegistrationHelpers():
                                                                             input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                             input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                             input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                                            input_transpose_xy=input_transpose_xy,
                                                                             output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                             output_shift_y=output_shift_y, output_scale_y=output_scale_y,
-                                                                            output_shift_z=output_shift_z, output_scale_z=output_scale_z)
+                                                                            output_shift_z=output_shift_z, output_scale_z=output_scale_z,
+                                                                            output_transpose_xy=output_transpose_xy)
 
                     df_mapped = pd.DataFrame({'partner_cell_id': df['partner_cell_id'],
                                               'x': points_transformed[:, 0],
@@ -1005,9 +1026,11 @@ class ANTsRegistrationHelpers():
                                                                input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                               input_transpose_xy=input_transpose_xy,
                                                                output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                output_shift_y=output_shift_y, output_scale_y=output_scale_y,
-                                                               output_shift_z=output_shift_z, output_scale_z=output_scale_z)
+                                                               output_shift_z=output_shift_z, output_scale_z=output_scale_z,
+                                                               output_transpose_xy=output_transpose_xy)
 
             # Fix problems after mapping and store in dictionary
             meshes[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)

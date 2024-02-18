@@ -27,7 +27,8 @@ ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
                                   input_scale_x=0.001,  # Convert all units from um to nm
                                   input_scale_y=0.001,
-                                  input_scale_z=0.001)
+                                  input_scale_z=0.001,
+                                  output_transpose_xy=True)  # The transform uses left-ward looking z-brain, so switch x y coordinates, after transform to orient with common forward z-brain orientation
 #
 # ants_reg.map_and_skeletonize_cell(root_path=root_path,
 #                                   cell_name="cell_007_124806",
