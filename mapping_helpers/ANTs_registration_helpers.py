@@ -397,13 +397,13 @@ class ANTsRegistrationHelpers():
         # Make sure when loading, the data is 2D, even if it is a single data line
         transformed_points = np.loadtxt(all_data_points_registered_path.name, delimiter=',', skiprows=1, usecols=(0, 1, 2), ndmin=2)
 
+        if output_transpose_xy:
+            transformed_points = transformed_points[:, [1, 0, 2]]  # Swap x and y
+
         # Basic transformation
         transformed_points[:, 0] = output_shift_x + output_scale_x * transformed_points[:, 0]
         transformed_points[:, 1] = output_shift_y + output_scale_y * transformed_points[:, 1]
         transformed_points[:, 2] = output_shift_z + output_scale_z * transformed_points[:, 2]
-
-        if output_transpose_xy:
-            transformed_points = transformed_points[:, [1, 0, 2]]  # Swap x and y
 
         os.remove(all_data_points_path.name)
         os.remove(all_data_points_registered_path.name)
