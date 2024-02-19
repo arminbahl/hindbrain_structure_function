@@ -24,10 +24,13 @@ ants_reg.convert_synapse_file(root_path=root_path,
 
 ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                   cell_name="EM10_cell_003_115916",
-                                  transformation_prefix_path="/Users/arminbahl/Desktop/em_fish10_to_z_brain_011724/ANTs_dfield",
+                                  transformation_prefix_path="/Users/arminbahl/Desktop/em_zfish1_to_zbrain_021824/ANTs_dfield",
                                   input_scale_x=0.001,  # Convert all units from um to nm
                                   input_scale_y=0.001,
-                                  input_scale_z=0.001)
+                                  input_scale_z=0.001,
+                                  output_transpose_xy=True,  output_shift_y=1408*0.798, output_scale_y=-1, # Flip x and y, because the transform mapped left-ward looking fish
+                                  output_shift_z=138*2, output_scale_z=-1)  # Flip the z, because the transform did map dorsal-to-bottom stacks
+
 #
 # ants_reg.map_and_skeletonize_cell(root_path=root_path,
 #                                   cell_name="cell_007_124806",
