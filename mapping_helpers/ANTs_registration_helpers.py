@@ -1197,6 +1197,10 @@ class ANTsRegistrationHelpers():
                              scale_z,
                              radius_set):
 
+        if not (root_path / cell_name / f"{cell_name}_synapses.txt").exists():
+            print(cell_name, "No synpase file found.")
+            return
+
         fp = open(root_path / cell_name / f"{cell_name}_synapses.txt", 'r')
 
         split_data = fp.read().split(",postsynaptic")
