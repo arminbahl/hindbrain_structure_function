@@ -11,7 +11,7 @@ import pandas as pd
 import pylab as pl
 import skimage.metrics
 import tifffile
-from skimage.transform import resize
+from scipy.ndimage import zoom
 import csv
 import trimesh as tm
 import navis
@@ -31,6 +31,20 @@ class ANTsRegistrationHelpers():
             'ANTs_use-histogram-matching': 0,
             'matching_metric': 'NMI',
 
+            'rigid': {"use": True,
+                      "t": "Rigid[0.1]",
+                      "m": "MI[$1,$2,1,32,Regular,0.25]",  # $1, $2, source and target path
+                      "c": "[1000x500x250x300,1e-8,10]",
+                      "s": "3x2x1x0",
+                      "f": "8x4x2x1"},
+
+            'affine': {"use": True,
+                       "t": "Affine[0.1]",
+                       "m": "MI[$1,$2,1,32,Regular,0.25]",  # $1, $2, source and target path
+                       "c": "[200x200x200x100,1e-8,10]",
+                       "s": "3x2x1x0",
+                       "f": "8x4x2x1"},
+
             'SyN': {"use": True,
                     "t": "SyN[0.1,6,0]",
                     "m": "CC[$1,$2,1,2]",  # $1, $2, source and target path
@@ -43,8 +57,7 @@ class ANTsRegistrationHelpers():
                            "m": "CC[$1,$2,1,4]",  # $1, $2, source and target path
                            "c": "[100x70x50x20,1e-7,10]",
                            "s": "3x2x1x0",
-                           "f": "6x4x2x1"},
-            'debugging': False,
+                           "f": "6x4x2x1"}
         }
 
         # Override some of the default values
@@ -125,6 +138,7 @@ class ANTsRegistrationHelpers():
                           source_path,
                           target_path,
                           transformation_prefix_path,
+                          manual_initial_moving_transform_path=None,
                           ANTs_dim=3):
 
         # Multi-channel registration allow for multiple sources and targets, usally one uses just a single one
@@ -152,91 +166,38 @@ class ANTsRegistrationHelpers():
                                       "--use-histogram-matching", f"{self.opts_dict['ANTs_use-histogram-matching']}",
                                       "-o", f_transformation_temp_linux]
 
-        # # Only do one for the initial moving transform, take always the first from the list
-        registration_commands_list += ["--initial-moving-transform"]
-        registration_commands_list += [f"[{target_path_linux[0]},{source_path_linux[0]},1]"]
-
-        registration_commands_list += ["-t", "Rigid[0.1]"]
-
-        for i in range(len(target_path_linux)):
-            registration_commands_list += ["-m", f"MI[{target_path_linux[i]},{source_path_linux[i]},1,32,Regular,0.25]"]
-
-        if self.opts_dict["debugging"] == False:
-            registration_commands_list += ["-c", "[1000x500x250x300,1e-8,10]",
-                                           "-s", "3x2x1x0",
-                                           "-f", "12x8x4x2"]
+        # In case, an initial moving transform was given, use this one, otherwise compute it (translations)
+        if manual_initial_moving_transform_path is not None:
+            registration_commands_list += ["--initial-moving-transform"]
+            registration_commands_list += [self.convert_path_to_linux(manual_initial_moving_transform_path)]
         else:
-            registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
-                                       "-f", "12x8x4x2",
-                                       "-s", "4x3x2x1"]
+            # # Only do one for the initial moving transform, take always the first from the list
+            registration_commands_list += ["--initial-moving-transform"]
+            registration_commands_list += [f"[{target_path_linux[0]},{source_path_linux[0]},1]"]
 
-        registration_commands_list += ["-t", "Affine[0.1]"]
+        # Build the registration steps
+        for step_name in ["rigid", "affine", "SyN", "BSplineSyn"]:
 
-        for i in range(len(target_path_linux)):
-            registration_commands_list += ["-m", f"MI[{target_path_linux[i]},{source_path_linux[i]},1,32,Regular,0.25]"]
+            if self.opts_dict[step_name]["use"]:
 
-        if self.opts_dict["debugging"] == False:
-            registration_commands_list += ["-c", "[200x200x200x100,1e-8,10]",
-                                       "-f", "12x8x4x2",
-                                       "-s", "4x3x2x1"]
-        else:
-            registration_commands_list += ["-c", "[100,1e-8,10]",
-                                           "-f", "12",
-                                           "-s", "4"]
+                t = self.opts_dict[step_name]['t']
+                m = self.opts_dict[step_name]['m']
+                c = self.opts_dict[step_name]["c"]
+                s = self.opts_dict[step_name]['s']
+                f = self.opts_dict[step_name]['f']
 
-        if self.opts_dict['SyN']["use"]:
+                registration_commands_list += ["-t", t]
 
-            SyN = self.opts_dict["SyN"]
+                # Allow for multi-modal registrations
+                for i in range(len(target_path_linux)):
+                    m_ = m.replace("$1", target_path_linux[i])
+                    m_ = m_.replace("$2", source_path_linux[i])
 
-            t = SyN['t']
-            m = SyN['m']
-            c = SyN["c"]
-            s = SyN['s']
-            f = SyN['f']
+                    registration_commands_list += ["-m", m_]
 
-            registration_commands_list += ["-t", t]
-
-            for i in range(len(target_path_linux)):
-                m_ = m.replace("$1", target_path_linux[i])
-                m_ = m_.replace("$2", source_path_linux[i])
-
-                registration_commands_list += ["-m", m_]
-
-            if self.opts_dict["debugging"] == False:
                 registration_commands_list += ["-c", c,
                                                "-s", s,
                                                "-f", f]
-            else:
-                registration_commands_list += ["-c", "[100,1e-7,10]",
-                                               "-f", "12",
-                                               "-s", "4"]
-
-        if self.opts_dict['BSplineSyn']["use"]:
-
-            BSplineSyn = self.opts_dict["BSplineSyn"]
-
-            t = BSplineSyn['t']
-            m = BSplineSyn['m']
-            c = BSplineSyn["c"]
-            s = BSplineSyn['s']
-            f = BSplineSyn['f']
-
-            registration_commands_list += ["-t", t]
-
-            for i in range(len(target_path_linux)):
-                m_ = m.replace("$1", target_path_linux[i])
-                m_ = m_.replace("$2", source_path_linux[i])
-
-                registration_commands_list += ["-m", m_]
-
-            if self.opts_dict["debugging"] == False:
-                registration_commands_list += ["-c", c,
-                                               "-s", s,
-                                               "-f", f]
-            else:
-                registration_commands_list += ["-c", "[100,1e-7,10]",
-                                               "-f", "12",
-                                               "-s", "4"]
 
         self.call_ANTs_command(registration_commands_list)
 
@@ -278,7 +239,6 @@ class ANTsRegistrationHelpers():
         self.call_ANTs_command(registration_commands_list)
 
         # The individual transforms can already be deleted, we keep the concatenated one for later.
-
         os.remove(f"{f_transformation_temp.name}0GenericAffine.mat")
 
         if self.opts_dict['SyN']["use"] or self.opts_dict['BSplineSyn']["use"]:
@@ -339,11 +299,11 @@ class ANTsRegistrationHelpers():
                                       input_shift_x=0, input_scale_x=1,
                                       input_shift_y=0, input_scale_y=1,
                                       input_shift_z=0, input_scale_z=1,
-                                      input_transpose_xy=False,
+                                      input_swap_xy=False,
                                       output_shift_x=0, output_scale_x=1,
                                       output_shift_y=0, output_scale_y=1,
                                       output_shift_z=0, output_scale_z=1,
-                                      output_transpose_xy=False):
+                                      output_swap_xy=False):
 
         all_data_points_path = tempfile.NamedTemporaryFile(dir=self.opts_dict["tempdir"], suffix='.csv', delete=False)
         all_data_points_path.close()
@@ -360,20 +320,20 @@ class ANTsRegistrationHelpers():
 
         # Limit because ANTs makes mistakes if points are outside the orignal volume
         if input_limit_x is not None:
-            data_points_ants[data_points_ants[:, 0] > input_limit_x, :] = input_limit_x
+            data_points_ants[data_points_ants[:, 0] > input_limit_x, 0] = input_limit_x
 
         if input_limit_y is not None:
-            data_points_ants[data_points_ants[:, 1] > input_limit_y, :] = input_limit_y
+            data_points_ants[data_points_ants[:, 1] > input_limit_y, 1] = input_limit_y
 
         if input_limit_z is not None:
-            data_points_ants[data_points_ants[:, 2] > input_limit_z, :] = input_limit_z
+            data_points_ants[data_points_ants[:, 2] > input_limit_z, 2] = input_limit_z
 
         # Basic transformation
         data_points_ants[:, 0] = input_shift_x + input_scale_x * data_points_ants[:, 0]
         data_points_ants[:, 1] = input_shift_y + input_scale_y * data_points_ants[:, 1]
         data_points_ants[:, 2] = input_shift_z + input_scale_z * data_points_ants[:, 2]
 
-        if input_transpose_xy:
+        if input_swap_xy:
             data_points_ants = data_points_ants[:, [1, 0, 2]]  # Swap x and y
 
         np.savetxt(all_data_points_path.name, data_points_ants, delimiter=',', header="x,y,z,t", comments='')
@@ -397,7 +357,7 @@ class ANTsRegistrationHelpers():
         # Make sure when loading, the data is 2D, even if it is a single data line
         transformed_points = np.loadtxt(all_data_points_registered_path.name, delimiter=',', skiprows=1, usecols=(0, 1, 2), ndmin=2)
 
-        if output_transpose_xy:
+        if output_swap_xy:
             transformed_points = transformed_points[:, [1, 0, 2]]  # Swap x and y
 
         # Basic transformation
@@ -421,11 +381,11 @@ class ANTsRegistrationHelpers():
                                    input_shift_x=0, input_scale_x=1,
                                    input_shift_y=0, input_scale_y=1,
                                    input_shift_z=0, input_scale_z=1,
-                                   input_transpose_xy=False,
+                                   input_swap_xy=False,
                                    output_shift_x=0, output_scale_x=1,
                                    output_shift_y=0, output_scale_y=1,
                                    output_shift_z=0, output_scale_z=1,
-                                   output_transpose_xy=False):
+                                   output_swap_xy=False):
 
         # Use trimesh to load vertices and faces
         mesh = tm.load(input_filename)
@@ -440,11 +400,11 @@ class ANTsRegistrationHelpers():
                                                            input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                            input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                            input_shift_z=input_shift_z, input_scale_z=input_scale_z,
-                                                           input_transpose_xy=input_transpose_xy,
+                                                           input_swap_xy=input_swap_xy,
                                                            output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                            output_shift_y=output_shift_y, output_scale_y=output_scale_y,
                                                            output_shift_z=output_shift_z, output_scale_z=output_scale_z,
-                                                           output_transpose_xy=output_transpose_xy)
+                                                           output_swap_xy=output_swap_xy)
 
         mesh.export(output_filename)
 
@@ -461,11 +421,11 @@ class ANTsRegistrationHelpers():
                                    input_shift_x=0, input_scale_x=1,
                                    input_shift_y=0, input_scale_y=1,
                                    input_shift_z=0, input_scale_z=1,
-                                   input_transpose_xy=False,
+                                   input_swap_xy=False,
                                    output_shift_x=0, output_scale_x=1,
                                    output_shift_y=0, output_scale_y=1,
                                    output_shift_z=0, output_scale_z=1,
-                                   output_transpose_xy=False):
+                                   output_swap_xy=False):
 
         # Repair some strange swc coming from SNT
         f_swc = open(input_filename, "r")
@@ -496,11 +456,11 @@ class ANTsRegistrationHelpers():
                                                                      input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                      input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                      input_shift_z=input_shift_z, input_scale_z=input_scale_z,
-                                                                     input_transpose_xy=input_transpose_xy,
+                                                                     input_swap_xy=input_swap_xy,
                                                                      output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                      output_shift_y=output_shift_y, output_scale_y=output_scale_y,
                                                                      output_shift_z=output_shift_z, output_scale_z=output_scale_z,
-                                                                     output_transpose_xy=output_transpose_xy)
+                                                                     output_swap_xy=output_swap_xy)
 
         # the x_scale is computes as the ratio of target and source resolution
         transformed_cell_data = np.c_[cell_data[:, 0],
@@ -521,7 +481,7 @@ class ANTsRegistrationHelpers():
 
     def draw_swc_in_empty_volume(self, path_swc,target_path= None,
                                   target_x_size=621, target_y_size=1406, target_z_size=138,
-                                  target_dx=0.798, target_dy=0.798, target_dz=2,z_enhancer=False):
+                                  target_dx=0.798, target_dy=0.798, target_dz=2):
 
         path = Path(path_swc)
         output_path = Path(path).with_suffix(".nrrd")
@@ -531,13 +491,13 @@ class ANTsRegistrationHelpers():
         data = np.loadtxt(path, delimiter=' ', ndmin=2)
 
         #cell_body_locations = []
-        stack = np.zeros((target_z_size * 2, target_y_size * 2, target_x_size * 2),dtype=int)
+        stack = np.zeros((target_z_size * 2, target_y_size * 2, target_x_size * 2), dtype=int)
 
         for i in range(data.shape[0]):
 
             node_x = data[i, 2] / target_dx
             node_y = data[i, 3] / target_dy
-            node_z = (data[i, 4] / target_dz)
+            node_z = data[i, 4] / target_dz
 
             stack[int(round(node_z * 2)), int(round(node_y * 2)), int(round(node_x * 2))] = 1000
 
@@ -565,35 +525,30 @@ class ANTsRegistrationHelpers():
 
             for k in range(1000):
                 stack[zs[k], ys[k], xs[k]] = 1000
-        if not z_enhancer:
-            stack = resize(stack, (stack.shape[0] / 2, stack.shape[1] / 2, stack.shape[2] / 2))
-        stack[stack > 20] = 1000
-        stack[stack <= 20] = 0
 
         # Draw the soma
         # Soma location in ym
-        soma_x = data[0, 2]*2
-        soma_y = data[0, 3]*2
-        soma_z = data[0, 4]*2
-
-        soma_r = 4  # in ym
-        if z_enhancer:
-            multi = 2
-        else:
-            multi = 1
+        soma_x = data[0, 2] / target_dx * 2
+        soma_y = data[0, 3] / target_dy * 2
+        soma_z = data[0, 4] / target_dz * 2
 
         # Make a meshgrid for the volume
-        x = np.arange(0, target_x_size*multi) * target_dx
-        y = np.arange(0, target_y_size*multi) * target_dy
-        z = np.arange(0, target_z_size*multi) * target_dz
+        x = np.arange(0, target_x_size*2)
+        y = np.arange(0, target_y_size*2)
+        z = np.arange(0, target_z_size*2)
 
         # Strangely, the order of the meshgrid needs to be y z x
         YY, ZZ, XX = np.meshgrid(y, z, x)
-
+        soma_r = 4
         # Select a radius region around the soma
         ind = np.sqrt(((ZZ - soma_z)) ** 2 + ((YY - soma_y)) ** 2 + ((XX - soma_x)) ** 2) < soma_r
 
-        stack[ind] = 1001
+        stack[ind] = 1000
+
+        stack = zoom(stack, 0.5)
+
+        stack[stack > 20] = 255
+        stack[stack <= 20] = 0
 
         stack = stack.astype(np.uint16)
         header = {'type': 'uint16',
@@ -605,6 +560,7 @@ class ANTsRegistrationHelpers():
                   'space directions': [[target_dx, 0, 0], [0, target_dy, 0],
                                        [0, 0, target_dz]],
                   'space units': ['microns', 'microns', 'microns']}
+
         if target_path != None:
             output_path = target_path
 
@@ -915,11 +871,11 @@ class ANTsRegistrationHelpers():
                                  input_shift_x=0, input_scale_x=1,
                                  input_shift_y=0, input_scale_y=1,
                                  input_shift_z=0, input_scale_z=1,
-                                 input_transpose_xy=False,
+                                 input_swap_xy=False,
                                  output_shift_x=0, output_scale_x=1,
                                  output_shift_y=0, output_scale_y=1,
                                  output_shift_z=0, output_scale_z=1,
-                                 output_transpose_xy=False):
+                                 output_swap_xy=False):
 
         root_path = Path(root_path)
 
@@ -962,11 +918,11 @@ class ANTsRegistrationHelpers():
                                                                             input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                             input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                             input_shift_z=input_shift_z, input_scale_z=input_scale_z,
-                                                                            input_transpose_xy=input_transpose_xy,
+                                                                            input_swap_xy=input_swap_xy,
                                                                             output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                             output_shift_y=output_shift_y, output_scale_y=output_scale_y,
                                                                             output_shift_z=output_shift_z, output_scale_z=output_scale_z,
-                                                                            output_transpose_xy=output_transpose_xy)
+                                                                            output_swap_xy=output_swap_xy)
 
                     df_mapped = pd.DataFrame({'partner_cell_id': df['partner_cell_id'],
                                               'x': points_transformed[:, 0],
@@ -1008,13 +964,19 @@ class ANTsRegistrationHelpers():
                             scene.export(root_path / cell_name / folder_str / f"{cell_name}_{synapse_type_str}{suffix_str}.obj")
 
         ################
-        meshes = dict({})
+        meshes_original = dict({})
+        meshes_mapped = dict({})
+
+        # Mape dendrite, axon, and soma
         for part_name in ["soma", "dendrite", "axon"]:
 
             print("Mapping mesh", part_name)
 
             # Use trimesh to load vertices and faces
             mesh = tm.load(root_path / cell_name / f"{cell_name}_{part_name}.obj")
+            meshes_original[part_name] = mesh.copy()
+
+            meshes_original[part_name].vertices *= 0.001 # make it ym
 
             mesh.vertices = self.ANTs_applytransform_to_points(mesh.vertices,
                                                                transformation_prefix_path,
@@ -1026,167 +988,188 @@ class ANTsRegistrationHelpers():
                                                                input_shift_x=input_shift_x, input_scale_x=input_scale_x,
                                                                input_shift_y=input_shift_y, input_scale_y=input_scale_y,
                                                                input_shift_z=input_shift_z, input_scale_z=input_scale_z,
-                                                               input_transpose_xy=input_transpose_xy,
+                                                               input_swap_xy=input_swap_xy,
                                                                output_shift_x=output_shift_x, output_scale_x=output_scale_x,
                                                                output_shift_y=output_shift_y, output_scale_y=output_scale_y,
                                                                output_shift_z=output_shift_z, output_scale_z=output_scale_z,
-                                                               output_transpose_xy=output_transpose_xy)
+                                                               output_swap_xy=output_swap_xy)
 
             # Fix problems after mapping and store in dictionary
-            meshes[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
+            meshes_mapped[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
 
-        # Combine meshes
-        mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
-        mesh_soma_dendrite_axon = meshes["soma"].union(mesh_axon_dendrite, engine='blender')
+            # Save slightly simplified mapped meshes
+            sk.pre.simplify(meshes_mapped[part_name], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_{part_name}_mapped.obj")
 
-        # Get the location of the soma by averaging soma obj vertices
-        soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
+        # Make swcs for the original and mapped obj
+        for mapped_i in [0, 1]:
 
-        # Skeletonize the axons and dendrites at 1.5 um precision
-        skel = sk.skeletonize.by_teasar(mesh_axon_dendrite, inv_dist=1.5)
+            neurite_radius = 0.5
+            soma_radius = 2
+            skeletonize_inv_dist = 1.5
 
-        # Remove some potential perpedicular branches that should not be there
-        skel = sk.post.clean_up(skel)
-        skel = skel.reindex()
+            if mapped_i == 0:
+                suffix_str = ""
+                folder_str = ""
+                meshes = meshes_original
 
-        # Continue with the swc as a pandas dataframe
-        df_swc = skel.swc
-
-        # Make a standard axon/dendrite radius of 0.5 um everywhere
-        df_swc["radius"] = 0.5
-        df_swc["label"] = 0
-
-        # Repair gaps in the skeleton using navis
-        x = navis.read_swc(df_swc)
-        x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
-
-        # Save as a temporary swc
-        f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
-        f_swc_temp.close()
-
-        x.to_swc(f_swc_temp.name)
-
-        # Read it as a dataframe for further processing
-        df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
-
-        # Delete temporary file
-        os.remove(f_swc_temp.name)
-
-        # Add the soma. For this need to move parent ids and node ids
-        df_swc.loc[:, "node_id"] += 1
-        df_swc.loc[df_swc["parent_id"] > -1, "parent_id"] += 1
-
-        # Find the row that is closest to the soma
-        i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
-
-        # If that node does not have a parent, then set the new soma as the parent
-        if df_swc.loc[i_min, "parent_id"] == -1:
-            df_swc.loc[i_min, "parent_id"] = 0
-
-            # Soma always has node_id = 1
-            soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": -1}, index=[0])
-        else:
-            # Otherwise make the soma the child of that node
-            node_id = df_swc.loc[i_min, "node_id"]
-
-            # Soma always has node_id = 1
-            soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": 2, "parent_id": node_id}, index=[0])
-
-        # Add soma to the beginning, make sure this does not produce double indices
-        df_swc = pd.concat([soma_row, df_swc], ignore_index=True)
-
-        # Label what is dendrite or axon, bases on minimal distances to the provided meshes
-        for i, row in df_swc.iterrows():
-
-            # Ignore the soma, it is already labeled with = 1
-            if row["node_id"] == 1:
-                continue
-
-            d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
-                                 (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
-                                 (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
-
-            d_min_dendrite = np.sqrt((meshes["dendrite"].vertices[:, 0] - row["x"]) ** 2 +
-                                     (meshes["dendrite"].vertices[:, 1] - row["y"]) ** 2 +
-                                     (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
-
-            if d_min_axon < d_min_dendrite:
-                df_swc.loc[i, "label"] = 2  # Axon
             else:
-                df_swc.loc[i, "label"] = 3  # Dendrite
+                suffix_str = "_mapped"
+                folder_str = "mapped"
+                meshes = meshes_mapped
 
-        # Load the mapped synapses
-        pre_synapses = []
-        post_synapses = []
+            # Combine meshes
+            mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
 
-        if (root_path / cell_name / "mapped" / f"{cell_name}_presynapses_mapped.csv").exists():
+            # Get the location of the soma by averaging soma obj vertices
+            soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
 
-            df_presynapses = pd.read_csv(root_path / cell_name / "mapped" / f"{cell_name}_presynapses_mapped.csv",
-                                         comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
+            # Skeletonize the axons and dendrites at 1.5 um precision
+            skel = sk.skeletonize.by_teasar(mesh_axon_dendrite, inv_dist=skeletonize_inv_dist)
 
-            # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
-            for i, row in df_presynapses.iterrows():
+            # Remove some potential perpedicular branches that should not be there
+            skel = sk.post.clean_up(skel)
+            skel = skel.reindex()
 
-                dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
-                               (df_swc["y"] - row["y"]) ** 2 +
-                               (df_swc["z"] - row["z"]) ** 2)
+            # Continue with the swc as a pandas dataframe
+            df_swc = skel.swc
 
-                i_min = dist.argmin()
+            # Make a standard axon/dendrite radius everywhere
+            df_swc["radius"] = neurite_radius
+            df_swc["label"] = 0
 
-                # Minimal distance needs to be small
-                if dist[i_min] < 5:
-                    df_swc.loc[i_min, "label"] = 4  # Pre synapse
-                    pre_synapses.append([int(row["postsynaptic_cell_id"]),
-                                         int(df_swc.loc[i_min, "node_id"])])
+            # Repair gaps in the skeleton using navis
+            x = navis.read_swc(df_swc)
+            x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
+
+            # Save as a temporary swc
+            f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
+            f_swc_temp.close()
+
+            x.to_swc(f_swc_temp.name)
+
+            # Read it as a dataframe for further processing
+            df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
+
+            # Delete temporary file
+            os.remove(f_swc_temp.name)
+
+            # Add the soma. For this need to move parent ids and node ids
+            df_swc.loc[:, "node_id"] += 1
+            df_swc.loc[df_swc["parent_id"] > -1, "parent_id"] += 1
+
+            # Find the row that is closest to the soma
+            i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
+
+            # If that node does not have a parent, then set the new soma as the parent
+            if df_swc.loc[i_min, "parent_id"] == -1:
+                df_swc.loc[i_min, "parent_id"] = 0
+
+                # Soma always has node_id = 1
+                soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": -1}, index=[0])
+            else:
+                # Otherwise make the soma the child of that node
+                node_id = df_swc.loc[i_min, "node_id"]
+
+                # Soma always has node_id = 1
+                soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": node_id}, index=[0])
+
+            # Add soma to the beginning, make sure this does not produce double indices
+            df_swc = pd.concat([soma_row, df_swc], ignore_index=True)
+
+            # Label what is dendrite or axon, bases on minimal distances to the provided meshes
+            for i, row in df_swc.iterrows():
+
+                # Ignore the soma, it is already labeled with = 1
+                if row["node_id"] == 1:
+                    continue
+
+                d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
+                                     (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
+                                     (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
+
+                d_min_dendrite = np.sqrt((meshes["dendrite"].vertices[:, 0] - row["x"]) ** 2 +
+                                         (meshes["dendrite"].vertices[:, 1] - row["y"]) ** 2 +
+                                         (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
+
+                if d_min_axon < d_min_dendrite:
+                    df_swc.loc[i, "label"] = 2  # Axon
                 else:
-                    print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
-                    pre_synapses.append([int(row["postsynaptic_cell_id"]),
-                                         -1])
+                    df_swc.loc[i, "label"] = 3  # Dendrite
 
-        if (root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv").exists():
+            # Load the mapped synapses
+            pre_synapses = []
+            post_synapses = []
 
-            df_postsynapses = pd.read_csv(root_path / cell_name / "mapped" / f"{cell_name}_postsynapses_mapped.csv",
-                                          comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
+            if (root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv").exists():
 
-            for i, row in df_postsynapses.iterrows():
+                df_presynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv",
+                                             comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
 
-                dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
-                               (df_swc["y"] - row["y"]) ** 2 +
-                               (df_swc["z"] - row["z"]) ** 2)
+                # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                if mapped_i == 0:
+                    df_presynapses.loc[:, "x"] = df_presynapses["x"] * input_scale_x
+                    df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
+                    df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
 
-                i_min = dist.argmin()
+                # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
+                for i, row in df_presynapses.iterrows():
 
-                # Minimal distance needs to be small
-                if dist[i_min] < 5:
-                    df_swc.loc[i_min, "label"] = 5  # Postsynapse
-                    post_synapses.append([int(row["presynaptic_cell_id"]),
-                                          int(df_swc.loc[i_min, "node_id"])])
-                else:
-                    print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
-                    post_synapses.append([int(row["presynaptic_cell_id"]),
-                                          -1])
+                    dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                   (df_swc["y"] - row["y"]) ** 2 +
+                                   (df_swc["z"] - row["z"]) ** 2)
 
-        # Save slightly simplified mapped meshes
-        sk.pre.simplify(meshes["soma"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")
-        sk.pre.simplify(meshes["axon"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")
-        sk.pre.simplify(meshes["dendrite"], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")
-        sk.pre.simplify(mesh_soma_dendrite_axon, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
+                    i_min = dist.argmin()
 
-        # Reorder columns for proper storage
-        df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+                    # Minimal distance needs to be small
+                    if dist[i_min] < 10 * neurite_radius:
+                        df_swc.loc[i_min, "label"] = 4  # Pre synapse
+                        pre_synapses.append([int(row["postsynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                    else:
+                        print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
+                        pre_synapses.append([int(row["postsynaptic_cell_id"]), -1])
 
-        metadata["presynapses"] = pre_synapses
-        metadata["postsynapses"] = post_synapses
+            if (root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv").exists():
 
-        # Save the swc
-        header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
-                  f"# Generated by 'map_and_skeletonize_cell' of the ANTs registration helper library developed by the Bahl lab Konstanz.\n"
-                  f"# Metadata: {str(metadata)}\n"
-                  f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
+                df_postsynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_postsynapses{suffix_str}.csv",
+                                              comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
 
-        with open(root_path / cell_name / "mapped" / f"{cell_name}_mapped.swc", 'w') as fp:
-            fp.write(header)
-            df_swc.to_csv(fp, index=False, sep=' ', header=None)
+                # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                if mapped_i == 0:
+                    df_postsynapses.loc[:, "x"] = df_postsynapses["x"] * input_scale_x
+                    df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
+                    df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
+
+                for i, row in df_postsynapses.iterrows():
+
+                    dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                   (df_swc["y"] - row["y"]) ** 2 +
+                                   (df_swc["z"] - row["z"]) ** 2)
+
+                    i_min = dist.argmin()
+
+                    # Minimal distance needs to be small
+                    if dist[i_min] < 10 * neurite_radius:
+                        df_swc.loc[i_min, "label"] = 5  # Postsynapse
+                        post_synapses.append([int(row["presynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                    else:
+                        print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
+                        post_synapses.append([int(row["presynaptic_cell_id"]), -1])
+
+            # Reorder columns for proper storage
+            df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+
+            metadata["presynapses"] = pre_synapses
+            metadata["postsynapses"] = post_synapses
+
+            # Save the swc
+            header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
+                      f"# Generated by 'map_and_skeletonize_cell' of the ANTs registration helper library developed by the Bahl lab Konstanz.\n"
+                      f"# Metadata: {str(metadata)}\n"
+                      f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
+
+            with open(root_path / cell_name / folder_str / f"{cell_name}{suffix_str}.swc", 'w') as fp:
+                fp.write(header)
+                df_swc.to_csv(fp, index=False, sep=' ', header=None)
 
     def convert_synapse_file(self, root_path, cell_name,
                              shift_x,
