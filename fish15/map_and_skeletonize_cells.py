@@ -26,7 +26,7 @@ for cell_name in clem_fish1_cells:
 
     ants_reg.map_and_skeletonize_cell(root_path=root_path / "clem_zfish1" / "all_cells",
                                       cell_name=cell_name,
-                                      transformation_prefix_path=root_path / "clem_zfish1" / "transforms" / "clem_zfish1_to_zbrain_012524" / "ANTs_dfield",
+                                      transformation_prefix_path=root_path / "clem_zfish1" / "transforms" / "clem_zfish1_to_zbrain_022524" / "ANTs_dfield",
                                       input_limit_x=523776,  # (1024 x pixel - 1) * 512 nm x-resolution
                                       input_limit_y=327168,  # (640 y pixel - 1) * 512 nm x-resolution
                                       input_limit_z=120000,  # (251 planes - 1) * 480 nm z-resolution
