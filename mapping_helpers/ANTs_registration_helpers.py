@@ -1018,7 +1018,8 @@ class ANTsRegistrationHelpers():
                 meshes = meshes_mapped
 
             # Combine meshes
-            mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
+            #mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')  # Problem with new trimesh version
+            mesh_axon_dendrite = tm.util.concatenate([meshes["axon"], meshes["dendrite"]])
 
             # Get the location of the soma by averaging soma obj vertices
             soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
