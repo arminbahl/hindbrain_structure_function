@@ -46,7 +46,7 @@ class ANTsRegistrationHelpers():
                        "f": "8x4x2x1"},
 
             'SyN': {"use": True,
-                    "t": "SyN[0.1,6,0]",
+                    "t": "SyN[0.1,6,0]",  # 0.05,6,0.5 for live, and [0.1,6,0] for fixed (Marquart et al. 2017)
                     "m": "CC[$1,$2,1,2]",  # $1, $2, source and target path
                     "c": "[200x200x200x100,1e-7,10]",
                     "s": "4x3x2x1",
