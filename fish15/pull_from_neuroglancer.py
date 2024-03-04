@@ -12,10 +12,7 @@
 import navis
 import cloudvolume as cv
 import numpy as np
-import skeletor as sk
-import trimesh as tm
 import os
-import subprocess
 from pathlib import Path
 import pandas as pd
 
