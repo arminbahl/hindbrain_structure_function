@@ -1,3 +1,6 @@
+# This codes deforms segments to the reference brain
+# Install environnement using conda env create --file map_and_skeletonize.yaml
+
 from pathlib import Path
 from analysis_helpers.analysis.utils.ANTs_registration_helpers import ANTsRegistrationHelpers
 import os
