@@ -1,6 +1,10 @@
-# This codes uploads any segment and deforms it to the zbrain
-# Cloudvolume works on Python 3.10.11 and not on Python 3.11
+# This codes pulls segments from Neuroglancer for clem_zfish1
 # It requires a private Cloudvolume token to obtain it contact jonathan.boulanger.weill@gmail.com
+
+# Compatible with Python 3.10.11
+# cloud-volume can't be installed direcly within the environment, instead 
+# Install cloud-volume 8.30.0 with pip: pip install cloud-volume
+
 # Version: 0.2 / 29/02/2024 jbw
 
 ############################################################################################################################
