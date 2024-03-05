@@ -1000,6 +1000,13 @@ class ANTsRegistrationHelpers():
             # Save slightly simplified mapped meshes
             sk.pre.simplify(meshes_mapped[part_name], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_{part_name}_mapped.obj")
 
+        # Save the complete mapped neuron as a single .obj
+        #mesh_axon = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")    
+        #mesh_dendrite = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")  
+        #mesh_soma = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")  
+        #mesh_complete = tm.util.concatenate([mesh_axon, mesh_dendrite, mesh_soma])    
+        #sk.pre.simplify(mesh_complete, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
+
         # Make swcs for the original and mapped obj
         for mapped_i in [0, 1]:
 
