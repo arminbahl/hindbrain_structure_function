@@ -1,0 +1,205 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from analysis_helpers.analysis.personal_dirs.Florian.thesis_plot.Morphologies.utils.extract_traces_from_roi import *
+from skimage import exposure
+import pandas as pd
+import datetime
+import cv2
+
+#custom functions
+
+def calculate_dynamic(functional_name):
+    with h5py.File(rf"W:\Florian\function-neurotransmitter-morphology\functional\{functional_name}\{functional_name}_preprocessed_data.h5",'r') as f:
+        stimulus_aligned_F0 = np.array(f["z_plane0000/manual_segmentation/stimulus_aligned_dynamics/stimulus0000/F"])
+        stimulus_aligned_F1 = np.array(f["z_plane0000/manual_segmentation/stimulus_aligned_dynamics/stimulus0001/F"])
+
+    if np.nanmin([np.nanmin(stimulus_aligned_F0), np.nanmin(stimulus_aligned_F1)])<0:
+        stimulus_aligned_F0 = stimulus_aligned_F0 + np.abs(
+            np.nanmin([np.nanmin(stimulus_aligned_F0), np.nanmin(stimulus_aligned_F1)]))
+        stimulus_aligned_F1 = stimulus_aligned_F1 + np.abs(
+            np.nanmin([np.nanmin(stimulus_aligned_F0), np.nanmin(stimulus_aligned_F1)]))
+
+    df_f0_stim0 = (stimulus_aligned_F0[:, 0, :] - np.nanmean(stimulus_aligned_F0[:, 0, 0:20], axis=1)[:,
+                                                  np.newaxis]) / np.nanmean(stimulus_aligned_F0[:, 0, 0:20], axis=1)[:,
+                                                                 np.newaxis]
+    df_f0_stim1 = (stimulus_aligned_F1[:, 0, :] - np.nanmean(stimulus_aligned_F1[:, 0, 0:20], axis=1)[:,
+                                                  np.newaxis]) / np.nanmean(stimulus_aligned_F1[:, 0, 0:20], axis=1)[:,
+                                                                 np.newaxis]
+
+    average_dynamic0 = np.mean(df_f0_stim0, axis=0)
+    average_dynamic1 = np.mean(df_f0_stim1, axis=0)
+
+    return np.array(average_dynamic0),df_f0_stim0, np.array(average_dynamic1), df_f0_stim1
+clip_percentile = 1.2
+def get_hcr_image(hcr_gad_name,hcr_vglut_name, z_gad,z_vglut):
+    global clip_percentile
+    with h5py.File(rf"W:\Florian\function-neurotransmitter-morphology\HCR\{hcr_gad_name}\{hcr_gad_name}_preprocessed_data.h5", 'r') as f:
+        gad_gcamp = np.array(f["average_stack_green_channel"][z_gad[-1], :, :])
+        gad_gcamp = np.clip(gad_gcamp, np.percentile(gad_gcamp, clip_percentile), np.percentile(gad_gcamp, 100-clip_percentile))
+
+        gad_hcr = np.array(f["average_stack_red_channel"][z_gad[-1], :, :])
+        gad_hcr = np.clip(gad_hcr, np.percentile(gad_hcr, clip_percentile), np.percentile(gad_hcr, 100-clip_percentile))
+    with h5py.File(rf"W:\Florian\function-neurotransmitter-morphology\HCR\{hcr_vglut_name}\{hcr_vglut_name}_wv-800_preprocessed_data.h5", 'r') as f:
+        vglut = np.array(f["average_stack_green_channel"][z_vglut[-1], :, :])
+        vglut = np.clip(vglut, np.percentile(vglut, clip_percentile), np.percentile(vglut, 100-clip_percentile))
+
+    return gad_gcamp,gad_hcr,vglut
+def from_the_top(ypos,size_canvas=29.7):
+    return size_canvas- ypos
+
+
+#EA = Evidence Accumulator
+#example cells
+
+#Dynamic threshold DT
+
+dt_example = '2023-03-21_14-40-41'
+
+
+
+
+
+
+
+#paths parameters und dataframes
+path_to_cell_register = r"C:\Users\ag-bahl\Downloads\Table1.csv"
+cell_register = pd.read_csv(path_to_cell_register)
+cells_for_figure = cell_register[cell_register["in figure"] == "Y"]
+
+
+
+integrator_df = cells_for_figure[cells_for_figure["Manually evaluated cell type"] == "Integrator"]
+path_to_swc_integrator = rf'W:\Florian\function-neurotransmitter-morphology\{integrator_df["Volume"].values[0]}\{integrator_df["Volume"].values[0]+"-000.swc"}'
+swc_file_integrator = np.loadtxt(path_to_swc_integrator).astype(int)
+
+rebound_df = cells_for_figure[cells_for_figure["Manually evaluated cell type"] == "Rebound"]
+
+
+#create figure
+main_fig = Figure()
+
+
+#Dynamics
+#rebound
+ipsi_rebound,ipsi_all,contra_rebound,contra_all = calculate_dynamic(rebound_df["Function"].values[0])
+ymin = (np.nanmin(np.hstack([ipsi_rebound,contra_rebound])))
+ymax =(np.nanmax(np.hstack([ipsi_rebound,contra_rebound])))
+ymin = np.round(ymin-0.2*ymax,1)
+ymax = np.round(ymax+0.2*ymax,1)#rebound
+ipsi_rebound,ipsi_all,contra_rebound,contra_all = calculate_dynamic(rebound_df["Function"].values[0])
+ymin = (np.nanmin(np.hstack([ipsi_rebound,contra_rebound])))
+ymax =(np.nanmax(np.hstack([ipsi_rebound,contra_rebound])))
+ymin = np.round(ymin-0.2*ymax,1)
+ymax = np.round(ymax+0.2*ymax,1)
+
+show_rebound_dynamic_ipsi = main_fig.create_plot(xpos=1,
+                                            ypos=from_the_top(5),
+                                            plot_height=4,plot_width=2,
+                                            axis_off=False,plot_title='',plot_label="",
+                                            ymin=ymin,ymax=ymax,xticks=[0,20,100,120],xticklabels=["0",'10','50',"60"],
+                                            yticks=[0,np.round(np.nanmax([ipsi_rebound,contra_rebound]),1)],yticklabels=['0',str(np.round(np.nanmax([ipsi_rebound,contra_rebound]),1))])
+
+show_rebound_dynamic_ipsi.ax.axvspan(20, 100, facecolor='gray', alpha=0.14)
+show_rebound_dynamic_ipsi.ax.spines['right'].set_color('black')
+show_rebound_dynamic_ipsi.ax.spines['top'].set_color('black')
+show_rebound_dynamic_ipsi.ax.spines['top'].set_linewidth(0.5)
+show_rebound_dynamic_ipsi.ax.spines['right'].set_linewidth(0.5)
+
+show_rebound_dynamic_contra = main_fig.create_plot(xpos=3.25,
+                                            ypos=from_the_top(5),
+                                            plot_height=4,plot_width=2,
+                                            axis_off=False,plot_title='',plot_label="",
+                                            ymin=ymin,ymax=ymax,xticks=[0,20,100,120],xticklabels=["0",'10','50',"60"],
+                                            yticks=[],yticklabels=[])
+
+show_rebound_dynamic_contra.ax.axvspan(20, 100, facecolor='gray', alpha=0.14)
+show_rebound_dynamic_contra.ax.spines['right'].set_color('black')
+show_rebound_dynamic_contra.ax.spines['top'].set_color('black')
+show_rebound_dynamic_contra.ax.spines['top'].set_linewidth(0.5)
+show_rebound_dynamic_contra.ax.spines['right'].set_linewidth(0.5)
+
+show_rebound_dynamic_ipsi.draw_line(np.arange(len(ipsi_rebound)),ipsi_rebound.astype(float))
+for x in range(10):
+    show_rebound_dynamic_ipsi.draw_line(np.arange(len(ipsi_rebound)), ipsi_all[x,:],lc='gray',alpha=0.2)
+
+show_rebound_dynamic_contra.draw_line(np.arange(len(contra_rebound)), contra_rebound.astype(float))
+for x in range(10):
+    show_rebound_dynamic_contra.draw_line(np.arange(len(ipsi_rebound)), contra_all[x,:],lc='gray',alpha=0.2)
+
+timestamp = datetime.datetime.now()
+os.makedirs(fr"C:\Users\ag-bahl\Desktop\plot_diary\{timestamp.strftime('%Y_%m_%d')}", exist_ok=True)
+main_fig.save(fr"C:\Users\ag-bahl\Desktop\plot_diary\{timestamp.strftime('%Y_%m_%d')}\{timestamp.strftime('%Y_%m_%d_%H_%M_%S_%f')}.{'pdf'}", open_file=True)
+
+#HCR
+#hcr plot
+#integrator hcr
+gad_name = integrator_df['1020 nm with Gad1b'].values[0]
+vglut_name = integrator_df['800 nm with Vglut2a'].values[0].split(' ')[-1]
+gad_location = [int(x) for x in integrator_df['Location cell in HCR 1020'].values[0].split(',')]
+vglut_location = [int(x) for x in integrator_df['Location cell in HCR 800'].values[0].split(',')]
+
+gad_gcamp_integrator,gad_integrator,vglut_integrator = get_hcr_image(gad_name,vglut_name,gad_location,vglut_location)
+
+x_gad,y_gad = gad_location[:2]
+x_vglut,y_vglut = vglut_location[:2]
+imagesize = 100
+
+
+size_square = [(imagesize/2)*0.7,(imagesize/2)*1.3]
+xmin_gad, xmax_gad = x_gad-imagesize/2, x_gad+imagesize/2
+ymin_gad, ymax_gad = y_gad-imagesize/2, y_gad+imagesize/2
+xmin_vglut, xmax_vglut = x_vglut-imagesize/2, x_vglut+imagesize/2
+ymin_vglut, ymax_vglut = y_vglut-imagesize/2, y_vglut+imagesize/2
+
+
+show_gad_integrator = main_fig.create_plot(xpos=1,ypos=show_integrator_dynamic.plot_dict['ypos']-1-width_follow_neurites,
+                             plot_height=width_follow_neurites,plot_width=width_follow_neurites,
+                             axis_off=True,plot_title='',plot_label="d",xmin=0,xmax=imagesize,ymin=imagesize,ymax=0)
+
+show_gad_integrator.draw_image(gad_integrator[int(ymin_gad):int(ymax_gad),int(xmin_gad):int(xmax_gad)],colormap='gray',extent=None)
+show_gad_integrator.draw_polygon(y=[size_square[0],size_square[0],size_square[1],size_square[1],size_square[0]],
+                               x=[size_square[0],size_square[1],size_square[1],size_square[0],size_square[0]],alpha=0,lc='red',lw=2)
+
+
+show_vglut_integrator = main_fig.create_plot(xpos=follow_neurite_list[1].plot_dict['xpos'],ypos=show_gad_integrator.plot_dict['ypos'],
+                             plot_height=width_follow_neurites,plot_width=width_follow_neurites,
+                             axis_off=True,plot_title='',plot_label="",xmin=0,xmax=imagesize,ymin=imagesize,ymax=0)
+
+show_vglut_integrator.draw_image(vglut_integrator[int(ymin_vglut):int(ymax_vglut),int(xmin_vglut):int(xmax_vglut)],colormap='gray',extent=None)
+show_vglut_integrator.draw_polygon(y=[size_square[0],size_square[0],size_square[1],size_square[1],size_square[0]],
+                               x=[size_square[0],size_square[1],size_square[1],size_square[0],size_square[0]],alpha=0,lc='red',lw=2)
+
+
+show_gad_integrator = main_fig.create_plot(xpos=show_gad_integrator.plot_dict['xpos'],ypos=show_vglut_integrator.plot_dict['ypos']-distance_x-width_follow_neurites,
+                             plot_height=width_follow_neurites,plot_width=width_follow_neurites,
+                             axis_off=True,plot_title='',plot_label="",xmin=0,xmax=imagesize,ymin=imagesize,ymax=0)
+
+show_gad_integrator.draw_image(gad_gcamp_integrator[int(ymin_gad):int(ymax_gad),int(xmin_gad):int(xmax_gad)],colormap='gray',extent=None)
+show_gad_integrator.draw_polygon(y=[size_square[0],size_square[0],size_square[1],size_square[1],size_square[0]],
+                               x=[size_square[0],size_square[1],size_square[1],size_square[0],size_square[0]],alpha=0,lc='red',lw=2)
+
+show_composite_integrator = main_fig.create_plot(xpos=show_vglut_integrator.plot_dict['xpos'],ypos=show_vglut_integrator.plot_dict['ypos']-distance_x-width_follow_neurites,
+                             plot_height=width_follow_neurites,plot_width=width_follow_neurites,
+                             axis_off=True,plot_title='',plot_label="",xmin=0,xmax=imagesize,ymin=imagesize,ymax=0)
+
+gad = cv2.normalize(gad_integrator, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+vglut = cv2.normalize(vglut_integrator, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+merged_gad_vglut_integrator = cv2.merge([vglut, gad,vglut])
+
+show_composite_integrator.draw_image(merged_gad_vglut_integrator[int(ymin_gad):int(ymax_gad),int(xmin_gad):int(xmax_gad)],extent=None)
+show_composite_integrator.draw_polygon(y=[size_square[0],size_square[0],size_square[1],size_square[1],size_square[0]],
+                               x=[size_square[0],size_square[1],size_square[1],size_square[0],size_square[0]],alpha=0,lc='red',lw=2)
+
+
+
+
+
+
+
+
+
+
+
+timestamp = datetime.datetime.now()
+os.makedirs(fr"C:\Users\ag-bahl\Desktop\plot_diary\{timestamp.strftime('%Y_%m_%d')}", exist_ok=True)
+main_fig.save(fr"C:\Users\ag-bahl\Desktop\plot_diary\{timestamp.strftime('%Y_%m_%d')}\{timestamp.strftime('%Y_%m_%d_%H_%M_%S_%f')}.{'pdf'}", open_file=True)
