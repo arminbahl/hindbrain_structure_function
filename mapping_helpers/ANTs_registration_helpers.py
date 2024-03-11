@@ -46,7 +46,7 @@ class ANTsRegistrationHelpers():
                        "f": "8x4x2x1"},
 
             'SyN': {"use": True,
-                    "t": "SyN[0.1,6,0]",
+                    "t": "SyN[0.1,6,0]",  # 0.05,6,0.5 for live, and [0.1,6,0] for fixed (Marquart et al. 2017)
                     "m": "CC[$1,$2,1,2]",  # $1, $2, source and target path
                     "c": "[200x200x200x100,1e-7,10]",
                     "s": "4x3x2x1",
@@ -1000,6 +1000,13 @@ class ANTsRegistrationHelpers():
             # Save slightly simplified mapped meshes
             sk.pre.simplify(meshes_mapped[part_name], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_{part_name}_mapped.obj")
 
+        # Save the complete mapped neuron as a single .obj
+        #mesh_axon = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")    
+        #mesh_dendrite = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")  
+        #mesh_soma = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")  
+        #mesh_complete = tm.util.concatenate([mesh_axon, mesh_dendrite, mesh_soma])    
+        #sk.pre.simplify(mesh_complete, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
+
         # Make swcs for the original and mapped obj
         for mapped_i in [0, 1]:
 
@@ -1018,7 +1025,8 @@ class ANTsRegistrationHelpers():
                 meshes = meshes_mapped
 
             # Combine meshes
-            mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')
+            #mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')  # Problem with new trimesh version
+            mesh_axon_dendrite = tm.util.concatenate([meshes["axon"], meshes["dendrite"]])
 
             # Get the location of the soma by averaging soma obj vertices
             soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
