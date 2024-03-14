@@ -5,7 +5,9 @@ from skimage import exposure
 import pandas as pd
 import datetime
 import cv2
-
+from pathlib import Path
+import h5py
+from scipy.signal import savgol_filter
 #custom functions
 
 def calculate_dynamic(functional_name):
@@ -48,51 +50,85 @@ def from_the_top(ypos,size_canvas=29.7):
     return size_canvas- ypos
 
 
-#EA = Evidence Accumulator
-#example cells
-
-#Dynamic threshold DT
-
-dt_example = '2023-03-21_14-40-41'
 
 
+dt_example = '2023-04-24_20-26-09'
+motor_example = ''
+ipsi_integrator_example = ''
+contra_integrator_example = ''
 
-
-
-
-
-#paths parameters und dataframes
 path_to_cell_register = r"C:\Users\ag-bahl\Downloads\Table1.csv"
 cell_register = pd.read_csv(path_to_cell_register)
-cells_for_figure = cell_register[cell_register["in figure"] == "Y"]
+
+
+# for cell in [dt_example,motor_example,ipsi_integrator_example, contra_integrator_example]:
+for cell in cell_register['Volume']:
+    try:
+        temp_df = cell_register[cell_register["Volume"] == cell]
+        path_to_swc_integrator = Path(rf'W:\Florian\function-neurotransmitter-morphology\{temp_df["Volume"].values[0]}\{temp_df["Volume"].values[0]+"-000.swc"}')
+        functional = temp_df['Function'].iloc[0]
+
+
+        #create figure
+        main_fig = Figure()
+
+        path_to_dynamics = Path(fr'W:\Florian\function-neurotransmitter-morphology\export\{cell}\{cell}_dynamics.hdf5')
+        print(path_to_dynamics,path_to_dynamics.exists())
+        #Dynamics
+        with h5py.File(path_to_dynamics) as f:
+            single_trials_left = np.array(f['dF_F/single_trial_rdms_left'])[:,0,:]
+            single_trials_right = np.array(f['dF_F/single_trial_rdms_right'])[:,0,:]
+
+            average_left = np.array(f['dF_F/average_rdms_left_dF_F_calculated_on_single_trials'])
+            average_right = np.array(f['dF_F/average_rdms_right_dF_F_calculated_on_single_trials'])
+
+        # Smooth using a Savitzky-Golay filter
+        smooth_avg_activity_left = savgol_filter(average_left, 20, 3)
+        smooth_avg_activity_right = savgol_filter(average_right, 20, 3)
+        smooth_trials_left = savgol_filter(single_trials_left, 20, 3, axis=1)
+        smooth_trials_right = savgol_filter(single_trials_right, 20, 3, axis=1)
+
+
+        # ymin = (np.nanmin(np.hstack([smooth_trials_left,smooth_trials_right])))
+        # ymax =(np.nanmax(np.hstack([smooth_trials_left,smooth_trials_right])))
+        # ymin = np.round(ymin-0.2*ymax,1)
+        # ymax = np.round(ymax+0.2*ymax,1)#rebound
+
+        # Define time axis in seconds
+        dt = 0.5  # Time step is 0.5 seconds
+        time_axis = np.arange(len(smooth_avg_activity_left.flatten())) * dt
+        # Plot smoothed average activity with thin lines
+        fig, ax = plt.subplots()
+        plt.plot(time_axis, smooth_avg_activity_left, color="blue", alpha=0.7, linewidth=3, label="Smoothed Average Left")
+        plt.plot(time_axis, smooth_avg_activity_right, color="red", alpha=0.7, linestyle="--", linewidth=3, label="Smoothed Average Right")
+        # Plot individual trial data with thin black lines for left and dashed black lines for right
+        for trial_left, trial_right in zip(smooth_trials_left, smooth_trials_right):
+                # if np.max(trial_left) <= 300:
+                    plt.plot(time_axis, trial_left, color="black", alpha=0.3, linewidth=1)
+                # if np.min(trial_right) >= -300:
+                    plt.plot(time_axis, trial_right, color="black", alpha=0.3, linestyle="--", linewidth=1)
+        # Overlay shaded rectangle for stimulus epoch
+        plt.axvspan(10, 50, color="gray", alpha=0.1, label="Stimulus Epoch")
+        plt.title(f"Average and Individual Trial Activity Dynamics for Neuron {temp_df['Internal name'].iloc[0]}")
+        plt.xlabel("Time (seconds)")
+        plt.ylabel("Activity")
+        # Set font of legend text to Arial
+        legend = plt.legend()
+        for text in legend.get_texts():
+            text.set_fontfamily("Arial")
+        # Set aspect ratio to 1
+        ratio = 1.0
+        x_left, x_right = ax.get_xlim()
+        y_low, y_high = ax.get_ylim()
+        ax.set_aspect(abs((x_right-x_left)/(y_low-y_high))*ratio)
+        plt.show()
+    except:
+        pass
 
 
 
-integrator_df = cells_for_figure[cells_for_figure["Manually evaluated cell type"] == "Integrator"]
-path_to_swc_integrator = rf'W:\Florian\function-neurotransmitter-morphology\{integrator_df["Volume"].values[0]}\{integrator_df["Volume"].values[0]+"-000.swc"}'
-swc_file_integrator = np.loadtxt(path_to_swc_integrator).astype(int)
 
-rebound_df = cells_for_figure[cells_for_figure["Manually evaluated cell type"] == "Rebound"]
-
-
-#create figure
-main_fig = Figure()
-
-
-#Dynamics
-#rebound
-ipsi_rebound,ipsi_all,contra_rebound,contra_all = calculate_dynamic(rebound_df["Function"].values[0])
-ymin = (np.nanmin(np.hstack([ipsi_rebound,contra_rebound])))
-ymax =(np.nanmax(np.hstack([ipsi_rebound,contra_rebound])))
-ymin = np.round(ymin-0.2*ymax,1)
-ymax = np.round(ymax+0.2*ymax,1)#rebound
-ipsi_rebound,ipsi_all,contra_rebound,contra_all = calculate_dynamic(rebound_df["Function"].values[0])
-ymin = (np.nanmin(np.hstack([ipsi_rebound,contra_rebound])))
-ymax =(np.nanmax(np.hstack([ipsi_rebound,contra_rebound])))
-ymin = np.round(ymin-0.2*ymax,1)
-ymax = np.round(ymax+0.2*ymax,1)
-
-show_rebound_dynamic_ipsi = main_fig.create_plot(xpos=1,
+dynamics_figure = main_fig.create_plot(xpos=1,
                                             ypos=from_the_top(5),
                                             plot_height=4,plot_width=2,
                                             axis_off=False,plot_title='',plot_label="",
