@@ -83,38 +83,56 @@ def extract_and_df_f(functional_name, volume_name):
 
         with h5py.File(destination_hdf5_path, "w") as f:
 
-            # raw dynamics
-            f.create_dataset('raw/single_trial_rdms_left', data=data_stim0, dtype=data_stim0.dtype)
-            f.create_dataset('raw/single_trial_rdms_right', data=data_stim1, dtype=data_stim1.dtype)
-            f.create_dataset('raw/average_rdms_left', data=np.nanmean(data_stim0, axis=0).flatten(), dtype=data_stim0.dtype)
-            f.create_dataset('raw/average_rdms_right', data=np.nanmean(data_stim1, axis=0).flatten(), dtype=data_stim1.dtype)
+            # # raw dynamics
+            # f.create_dataset('raw/single_trial_rdms_left', data=data_stim0, dtype=data_stim0.dtype)
+            # f.create_dataset('raw/single_trial_rdms_right', data=data_stim1, dtype=data_stim1.dtype)
+            # f.create_dataset('raw/average_rdms_left', data=np.nanmean(data_stim0, axis=0).flatten(), dtype=data_stim0.dtype)
+            # f.create_dataset('raw/average_rdms_right', data=np.nanmean(data_stim1, axis=0).flatten(), dtype=data_stim1.dtype)
 
 
-            #normalized raw dynamics
-            f.create_dataset('normalized/single_trial_rdms_left', data=data_stim0/np.max(data_stim0,axis=2)[:,:,np.newaxis], dtype=data_stim0.dtype)
-            f.create_dataset('normalized/single_trial_rdms_right', data=data_stim1/np.max(data_stim1,axis=2)[:,:,np.newaxis], dtype=data_stim1.dtype)
-            f.create_dataset('normalized/average_rdms_left', data=np.nanmean(data_stim0/np.max(data_stim0,axis=2)[:,:,np.newaxis], axis=0).flatten(), dtype=data_stim0.dtype)
-            f.create_dataset('normalized/average_rdms_right', data=np.nanmean(data_stim1/np.max(data_stim1,axis=2)[:,:,np.newaxis], axis=0).flatten(), dtype=data_stim1.dtype)
+            # #normalized raw dynamics
+            # f.create_dataset('normalized/single_trial_rdms_left', data=data_stim0/np.max(data_stim0,axis=2)[:,:,np.newaxis], dtype=data_stim0.dtype)
+            # f.create_dataset('normalized/single_trial_rdms_right', data=data_stim1/np.max(data_stim1,axis=2)[:,:,np.newaxis], dtype=data_stim1.dtype)
+            # f.create_dataset('normalized/average_rdms_left', data=np.nanmean(data_stim0/np.max(data_stim0,axis=2)[:,:,np.newaxis], axis=0).flatten(), dtype=data_stim0.dtype)
+            # f.create_dataset('normalized/average_rdms_right', data=np.nanmean(data_stim1/np.max(data_stim1,axis=2)[:,:,np.newaxis], axis=0).flatten(), dtype=data_stim1.dtype)
 
 
-            # calculation dF/F on not normalized data of single trials
+            #calculation dF/F on not normalized data of single trials
             stim0_st_dF_F = ((data_stim0 - np.nanmean(data_stim0[:, :, 0:20], axis=2)[:, :, np.newaxis]) / np.nanmean(data_stim0[:, :, 0:20], axis=2)[:, :, np.newaxis])
             stim1_st_dF_F = ((data_stim1 - np.nanmean(data_stim1[:, :, 0:20], axis=2)[:, :, np.newaxis]) / np.nanmean(data_stim1[:, :, 0:20], axis=2)[:, :, np.newaxis])
 
             # calculation dF/F on not normalized data of avg trials
-            stim0_avg_dF_F = (np.nanmean(data_stim0, axis=0).flatten() - np.nanmean(np.nanmean(data_stim0, axis=0).flatten()[0:20])) / np.nanmean(np.nanmean(data_stim0, axis=0).flatten()[0:20])
-            stim1_avg_dF_F = (np.nanmean(data_stim1, axis=0).flatten() - np.nanmean(np.nanmean(data_stim1, axis=0).flatten()[0:20]) / np.nanmean(np.nanmean(data_stim1, axis=0).flatten()[0:20]))
+            # stim0_avg_dF_F = (np.nanmean(data_stim0, axis=0).flatten() - np.nanmean(np.nanmean(data_stim0, axis=0).flatten()[0:20])) / np.nanmean(np.nanmean(data_stim0, axis=0).flatten()[0:20])
+            # stim1_avg_dF_F = (np.nanmean(data_stim1, axis=0).flatten() - np.nanmean(np.nanmean(data_stim1, axis=0).flatten()[0:20]) / np.nanmean(np.nanmean(data_stim1, axis=0).flatten()[0:20]))
+
+
+            #calculation like jon
+            F_left_dots = data_stim0
+            F_right_dots = data_stim1
+            dt = 0.5
+            # Compute deltaF/F for each trial, for the 4 tested stimuli
+            F0_left_dots = np.nanmean(data_stim0[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
+            # F0_left_dots = np.nanmean(data_stim0[:,:, int(5/dt):int(10/dt)])
+            df_F_left_dots = 100 * (F_left_dots - F0_left_dots) / F0_left_dots
+            F0_right_dots = np.nanmean(F_right_dots[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
+            # F0_right_dots = np.nanmean(data_stim1[:,:, int(5/dt):int(10/dt)])
+
+            df_F_right_dots = 100 * (F_right_dots - F0_right_dots) / F0_right_dots
+            # Average over trials
+            avg_df_F_left_dots = np.nanmean(df_F_left_dots, axis=0)
+            avg_df_F_right_dots = np.nanmean(df_F_right_dots, axis=0)
+
 
 
             #create the datasets for dF/F
-            f.create_dataset('dF_F/single_trial_rdms_left', data=stim0_st_dF_F, dtype=stim0_st_dF_F.dtype)
-            f.create_dataset('dF_F/single_trial_rdms_right', data=stim1_st_dF_F, dtype=stim1_st_dF_F.dtype)
+            f.create_dataset('dF_F/single_trial_rdms_left', data=df_F_left_dots, dtype=df_F_left_dots.dtype)
+            f.create_dataset('dF_F/single_trial_rdms_right', data=df_F_right_dots, dtype=df_F_right_dots.dtype)
 
-            f.create_dataset('dF_F/average_rdms_left_dF_F_calculated_on_single_trials', data=np.nanmean(stim0_st_dF_F, axis=0).flatten(), dtype=stim0_st_dF_F.dtype)
-            f.create_dataset('dF_F/average_rdms_right_dF_F_calculated_on_single_trials', data=np.nanmean(stim1_st_dF_F, axis=0).flatten(), dtype=stim1_st_dF_F.dtype)
+            f.create_dataset('dF_F/average_rdms_left_dF_F_calculated_on_single_trials', data=avg_df_F_left_dots.flatten(), dtype=avg_df_F_left_dots.flatten().dtype)
+            f.create_dataset('dF_F/average_rdms_right_dF_F_calculated_on_single_trials', data=avg_df_F_right_dots.flatten(), dtype=avg_df_F_right_dots.flatten().dtype)
 
-            f.create_dataset('dF_F/average_rdms_left_dF_F_calculated_on_average', data=stim0_avg_dF_F, dtype=stim0_st_dF_F.dtype)
-            f.create_dataset('dF_F/average_rdms_right_dF_F_calculated_on_average', data=stim1_avg_dF_F.flatten(), dtype=stim1_st_dF_F.dtype)
+            # f.create_dataset('dF_F/average_rdms_left_dF_F_calculated_on_average', data=stim0_avg_dF_F, dtype=stim0_st_dF_F.dtype)
+            # f.create_dataset('dF_F/average_rdms_right_dF_F_calculated_on_average', data=stim1_avg_dF_F.flatten(), dtype=stim1_st_dF_F.dtype)
 
             plt.figure()
             for i in range(stim0_st_dF_F.shape[0]):
