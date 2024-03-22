@@ -62,7 +62,8 @@ cell_register = pd.read_csv(path_to_cell_register)
 
 
 # for cell in [dt_example,motor_example,ipsi_integrator_example, contra_integrator_example]:
-for cell in cell_register['Volume']:
+# for cell in cell_register['Volume']:
+for cell in ['2023-05-27_14-51-02']:
     try:
         temp_df = cell_register[cell_register["Volume"] == cell]
         path_to_swc_integrator = Path(rf'W:\Florian\function-neurotransmitter-morphology\{temp_df["Volume"].values[0]}\{temp_df["Volume"].values[0]+"-000.swc"}')
@@ -77,10 +78,14 @@ for cell in cell_register['Volume']:
         #Dynamics
         with h5py.File(path_to_dynamics) as f:
             single_trials_left = np.array(f['dF_F/single_trial_rdms_left'])[:,0,:]
-            single_trials_right = np.array(f['dF_F/single_trial_rdms_right'])[:,0,:]
+            single_trials_left = single_trials_left[~np.any((single_trials_left > np.nanpercentile(single_trials_left,99))|(single_trials_left < np.nanpercentile(single_trials_left,1)), axis=1),:]
 
-            average_left = np.array(f['dF_F/average_rdms_left_dF_F_calculated_on_single_trials'])
-            average_right = np.array(f['dF_F/average_rdms_right_dF_F_calculated_on_single_trials'])
+            single_trials_right = np.array(f['dF_F/single_trial_rdms_right'])[:,0,:]
+            single_trials_right = single_trials_right[~np.any((single_trials_right > np.nanpercentile(single_trials_right,99))|(single_trials_right < np.nanpercentile(single_trials_right,1)), axis=1),:]
+
+
+            average_left = np.nanmean(single_trials_left,axis=0)
+            average_right = np.nanmean(single_trials_right,axis=0)
 
         # Smooth using a Savitzky-Golay filter
         smooth_avg_activity_left = savgol_filter(average_left, 20, 3)
@@ -121,7 +126,9 @@ for cell in cell_register['Volume']:
         x_left, x_right = ax.get_xlim()
         y_low, y_high = ax.get_ylim()
         ax.set_aspect(abs((x_right-x_left)/(y_low-y_high))*ratio)
+        plt.savefig(rf"C:\Users\ag-bahl\Desktop\hindbrain_structure dynamics\{temp_df['Volume'].iloc[0]}.png")
         plt.show()
+
     except:
         pass
 

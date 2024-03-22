@@ -111,10 +111,10 @@ def extract_and_df_f(functional_name, volume_name):
             F_right_dots = data_stim1
             dt = 0.5
             # Compute deltaF/F for each trial, for the 4 tested stimuli
-            F0_left_dots = np.nanmean(data_stim0[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
+            F0_left_dots = np.nanmean(data_stim0[:, :, int(5 / dt):int(10 / dt)], axis=2, keepdims=True)
             # F0_left_dots = np.nanmean(data_stim0[:,:, int(5/dt):int(10/dt)])
             df_F_left_dots = 100 * (F_left_dots - F0_left_dots) / F0_left_dots
-            F0_right_dots = np.nanmean(F_right_dots[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
+            F0_right_dots = np.nanmean(F_right_dots[:, :, int(5 / dt):int(10 / dt)], axis=2, keepdims=True)
             # F0_right_dots = np.nanmean(data_stim1[:,:, int(5/dt):int(10/dt)])
 
             df_F_right_dots = 100 * (F_right_dots - F0_right_dots) / F0_right_dots
