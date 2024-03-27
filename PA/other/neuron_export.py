@@ -8,6 +8,7 @@ import navis
 import numpy as np
 import pandas as pd
 import trimesh as tm
+from scipy.signal import savgol_filter
 
 
 def check_registered_swc(file_name):  # drop rows where swc file is not registered
@@ -111,10 +112,10 @@ def extract_and_df_f(functional_name, volume_name):
             F_right_dots = data_stim1
             dt = 0.5
             # Compute deltaF/F for each trial, for the 4 tested stimuli
-            F0_left_dots = np.nanmean(data_stim0[:, :, int(5 / dt):int(10 / dt)], axis=2, keepdims=True)
+            F0_left_dots = np.nanmean(data_stim0[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
             # F0_left_dots = np.nanmean(data_stim0[:,:, int(5/dt):int(10/dt)])
             df_F_left_dots = 100 * (F_left_dots - F0_left_dots) / F0_left_dots
-            F0_right_dots = np.nanmean(F_right_dots[:, :, int(5 / dt):int(10 / dt)], axis=2, keepdims=True)
+            F0_right_dots = np.nanmean(F_right_dots[:, :, int(0 / dt):int(10 / dt)], axis=2, keepdims=True)
             # F0_right_dots = np.nanmean(data_stim1[:,:, int(5/dt):int(10/dt)])
 
             df_F_right_dots = 100 * (F_right_dots - F0_right_dots) / F0_right_dots
@@ -134,23 +135,52 @@ def extract_and_df_f(functional_name, volume_name):
             # f.create_dataset('dF_F/average_rdms_left_dF_F_calculated_on_average', data=stim0_avg_dF_F, dtype=stim0_st_dF_F.dtype)
             # f.create_dataset('dF_F/average_rdms_right_dF_F_calculated_on_average', data=stim1_avg_dF_F.flatten(), dtype=stim1_st_dF_F.dtype)
 
-            plt.figure()
-            for i in range(stim0_st_dF_F.shape[0]):
-                plt.plot(stim0_st_dF_F[i, 0, :], 'gray', alpha=0.3)
+            #select dynamics
+            single_trials_left = df_F_left_dots
+            single_trials_right = df_F_right_dots
+            average_left = np.nanmean(single_trials_left,axis=0)
+            average_right = np.nanmean(single_trials_right,axis=0)
 
-            plt.plot(np.nanmean(stim0_st_dF_F, axis=0).flatten())
-            plt.ylim(np.min(np.nanmean(stim0_st_dF_F, axis=0).flatten()) - 0.5, np.max(np.nanmean(stim0_st_dF_F, axis=0).flatten()) + 0.5)
+            smooth_avg_activity_left = savgol_filter(average_left, 20, 3)
+            smooth_avg_activity_right = savgol_filter(average_right, 20, 3)
+            smooth_trials_left = savgol_filter(single_trials_left[:,0,:], 20, 3, axis=1)
+            smooth_trials_right = savgol_filter(single_trials_right[:,0,:], 20, 3, axis=1)
 
-            plt.savefig(rf"W:\Florian\function-neurotransmitter-morphology\export\{volume_name}\{volume_name}_left_rdms.png")
+            # Define time axis in seconds
+            dt = 0.5  # Time step is 0.5 seconds
+            time_axis = np.arange(len(smooth_avg_activity_left.flatten())) * dt
 
-            plt.figure()
-            for i in range(stim1_st_dF_F.shape[0]):
-                plt.plot(stim1_st_dF_F[i, 0, :], 'gray', alpha=0.3)
+            # Plot smoothed average activity with thin lines
+            fig, ax = plt.subplots()
+            plt.plot(time_axis, smooth_avg_activity_left[0], color="blue", alpha=0.7, linewidth=3, label="Smoothed Average Left")
+            plt.plot(time_axis, smooth_avg_activity_right[0], color="red", alpha=0.7, linestyle="--", linewidth=3, label="Smoothed Average Right")
+            # Plot individual trial data with thin black lines for left and dashed black lines for right
+            for trial_left, trial_right in zip(smooth_trials_left, smooth_trials_right):
+                # if np.max(trial_left) <= 300:
+                plt.plot(time_axis, trial_left, color="black", alpha=0.3, linewidth=1)
+                # if np.min(trial_right) >= -300:
+                plt.plot(time_axis, trial_right, color="black", alpha=0.3, linestyle="--", linewidth=1)
+            # Overlay shaded rectangle for stimulus epoch
+            plt.axvspan(10, 50, color="gray", alpha=0.1, label="Stimulus Epoch")
+            plt.title(f"Average and Individual Trial Activity Dynamics\nNeuron {volume_name}")
+            plt.xlabel("Time (seconds)")
+            plt.ylabel("Activity")
+            # Set font of legend text to Arial
+            legend = plt.legend()
+            for text in legend.get_texts():
+                text.set_fontfamily("Arial")
+            # Set aspect ratio to 1
+            ratio = 1.0
+            x_left, x_right = ax.get_xlim()
+            y_low, y_high = ax.get_ylim()
+            ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
+            plt.savefig(rf"W:\Florian\function-neurotransmitter-morphology\export\{volume_name}\{volume_name}_rdms.png")
+            os.makedirs(r'W:\Florian\function-neurotransmitter-morphology\functional\all_dynamics',exist_ok=True)
+            plt.savefig(rf"W:\Florian\function-neurotransmitter-morphology\functional\all_dynamics\{volume_name}_rdms.png")
+            plt.show()
 
-            plt.plot(np.nanmean(stim1_st_dF_F, axis=0).flatten())
-            plt.ylim(np.min(np.nanmean(stim1_st_dF_F, axis=0).flatten()) - 0.5, np.max(np.nanmean(stim1_st_dF_F, axis=0).flatten()) + 0.5)
 
-            plt.savefig(rf"W:\Florian\function-neurotransmitter-morphology\export\{volume_name}\{volume_name}_right_rdms.png")
+
 
             destination_hdf5_path = rf"W:\Florian\function-neurotransmitter-morphology\export\{volume_name}\{volume_name}_dynamics.hdf5"
     except Exception as e:
