@@ -27,14 +27,14 @@ base_path_data = Path(rf"W:\Florian\function-neurotransmitter-morphology")
 #load dataframe with all cell information
 
 cell_table = pd.read_csv(rf"C:\Users\{user}\Desktop\photoactivation_cells_table.csv")
-cell_table = cell_table[(~cell_table['celltype_labels'].isna())&
+cell_table = cell_table[(~cell_table['cell_type_labels'].isna())&
                         (~cell_table['date_of_tracing'].isna())]
 #transform celltype labels to lists in df
 for i,cell in cell_table.iterrows():
-    cell_table.at[i,'celltype_labels'] = cell['celltype_labels'].replace("[","").replace("]","").replace('"',"").split(',')
+    cell_table.at[i,'cell_type_labels'] = cell['cell_type_labels'].replace("[","").replace("]","").replace('"',"").split(',')
 #remove all quote chars in strings
 for column in cell_table.columns:
-    if column != 'celltype_labels':
+    if column != 'cell_type_labels':
         cell_table[column] = cell_table[column].apply(lambda x: x.replace('"', '') if type(x) == str else x)
 
 #subset dataframe if in debug mode
@@ -76,7 +76,7 @@ for i,cell in cell_table.iterrows():
         # write metadata to swc
         neuron = navis.read_swc(base_path_data.joinpath(cell.photoactivation_ID).joinpath(cell.photoactivation_ID + "-000_registered.swc"),
                                 cellname=cell['cellname'],
-                                celltype_labels=str(cell['celltype_labels']),
+                                cell_type_labels=str(cell['cell_type_labels']),
                                 imaging_modality=cell['imaging_modality'],
                                 gad1b_ID=cell['gad1b_ID'],
                                 vglut2a_ID=cell['vglut2a_ID'],
