@@ -217,7 +217,7 @@ for cell_type,selected_cells in zip(['integrators_contra',"dynamic_threshold","m
 
 
 
-    fig = navis.plot3d(finished_cells_swc + meshes, backend='plotly',color=color_by_type+color_meshes,width=2500,height=1300)
+    fig = navis.plot3d(finished_cells_swc + meshes, backend='plotly',color=color_by_type+color_meshes,width=1920,height=1080)
     fig.update_layout(
         scene={
             'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
