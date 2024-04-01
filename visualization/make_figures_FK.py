@@ -13,127 +13,238 @@ from datetime import datetime
 import plotly
 import matplotlib
 matplotlib.use('TkAgg')
-
-#path settings
-
-path_to_data =  get_base_path() #path to clone of nextcloud, set your path in path_configuration.txt
-
-
-#settings
-
-modalities = ['clem','pa'] #modalities you want to query for your figure
-keywords = ['integrator','contralateral'] #keywords of cells you want to visualize
-
-#load pa  table
-if 'pa' in modalities:
-    pa_table = load_pa_table(path_to_data.joinpath("paGFP").joinpath("photoactivation_cells_table.csv"))
-#load clem table
-if 'clem' in modalities:
-    clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
-
-#TODO here the loading of gregor has to go
+class make_figures_FK:
+    def __init__(self,
+                 modalities = ['pa'],
+                 keywords = ['integrator','contralateral']):
+        
+        #set_name_time
+        self.name_time = datetime.now()
+        
+        #path settings
+        self.path_to_data =  get_base_path() #path to clone of nextcloud, set your path in path_configuration.txt
 
 
-#concat tables
-all_cells = pd.concat([eval(x+'_table') for x in modalities])
-all_cells = all_cells.reset_index(drop=True)
+        #load pa  table
+        if 'pa' in modalities:
+            pa_table = load_pa_table(self.path_to_data.joinpath("paGFP").joinpath("photoactivation_cells_table.csv"))
+        #load clem table
+        if 'clem' in modalities:
+            clem_table = load_clem_table(self.path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
 
-#subset dataset for keywords
-for keyword in keywords:
-    subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label else False)
-    all_cells = all_cells[subset_for_keyword]
-
-
-
-all_cells['soma_mesh'] = np.nan
-all_cells['dendrite_mesh'] = np.nan
-all_cells['axon_mesh'] = np.nan
-all_cells['neurites_mesh'] = np.nan
-
-all_cells['soma_mesh'] = all_cells['soma_mesh'].astype(object)
-all_cells['dendrite_mesh'] = all_cells['dendrite_mesh'].astype(object)
-all_cells['axon_mesh'] = all_cells['axon_mesh'].astype(object)
-all_cells['neurites_mesh'] = all_cells['neurites_mesh'].astype(object)
-
-#set imaging modality to clem if jon scored it
-all_cells.loc[all_cells['tracer_names']=='Jonathan Boulanger-Weill','imaging_modality'] = 'clem'
-
-#load the meshes for each cell that fits queries in selected modalities
-for i,cell in all_cells.iterrows():
-    all_cells.loc[i,:] = load_mesh(cell,path_to_data)
-
-#put all cell meshes into a long list
+        #TODO here the loading of gregor has to go
 
 
-color_cell_type_dict = {"integrator":"red",
-                        "dynamic threshold":"blue",
-                        "motor command":"purple"}
+        #concat tables
+        if len(modalities)>1:
+            all_cells = pd.concat([eval(x+'_table') for x in modalities])
+        elif len(modalities) ==1:
+            all_cells = eval(modalities[0]+"_table")
+        all_cells = all_cells.reset_index(drop=True)
+
+        #subset dataset for keywords
+        for keyword in keywords:
+            subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label else False)
+            all_cells = all_cells[subset_for_keyword]
 
 
 
-#load needed meshes into a list and assign colors
-#TODO this is stupid and convoluted, replace underscores cell trype labels for labels with spaces so datasets confirm with each other
-color_cells = []
-visualized_cells = []
-for i,cell in all_cells.iterrows():
+        all_cells['soma_mesh'] = np.nan
+        all_cells['dendrite_mesh'] = np.nan
+        all_cells['axon_mesh'] = np.nan
+        all_cells['neurites_mesh'] = np.nan
 
-           for label in cell.cell_type_labels:
-               if label.replace("_"," ") in color_cell_type_dict.keys():
-                   temp_color = color_cell_type_dict[label.replace("_"," ")]
-                   break
-           for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                if not type(cell[key]) == float:
-                   visualized_cells.append(cell[key])
-                   if key != "dendrite_mesh":
-                       color_cells.append(temp_color)
-                   elif key == "dendrite_mesh":
-                       color_cells.append("black")
+        all_cells['soma_mesh'] = all_cells['soma_mesh'].astype(object)
+        all_cells['dendrite_mesh'] = all_cells['dendrite_mesh'].astype(object)
+        all_cells['axon_mesh'] = all_cells['axon_mesh'].astype(object)
+        all_cells['neurites_mesh'] = all_cells['neurites_mesh'].astype(object)
+
+        #set imaging modality to clem if jon scored it
+        all_cells.loc[all_cells['tracer_names']=='Jonathan Boulanger-Weill','imaging_modality'] = 'clem' #TODO ask jonathan if we can write clem as imaging modality
+
+        #load the meshes for each cell that fits queries in selected modalities
+        for i,cell in all_cells.iterrows():
+            all_cells.loc[i,:] = load_mesh(cell,self.path_to_data)
+
+        self.all_cells = all_cells
+    def plot_z_projection(self,show_brs = False,force_new_cell_list=False,xlim=[-700, -200]):
+        #define colors for cells
+        color_cell_type_dict = {"integrator":"red",
+                                "dynamic threshold":"blue",
+                                "motor command":"purple",}
+
+        #load needed meshes into a list and assign colors
+
+        if not "visualized_cells" in self.__dir__() or force_new_cell_list:
+            self.visualized_cells = []
+            self.color_cells = []
+            for i,cell in self.all_cells.iterrows():
+
+                       for label in cell.cell_type_labels:
+                           if label.replace("_"," ") in color_cell_type_dict.keys():
+                               temp_color = color_cell_type_dict[label.replace("_"," ")]
+                               break
+                       for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                            if not type(cell[key]) == float:
+                               self.visualized_cells.append(cell[key])
+                               if key != "dendrite_mesh":
+                                   self.color_cells.append(temp_color)
+                               elif key == "dendrite_mesh":
+                                   self.color_cells.append("black")
 
 
 
-#here we start the plotting
-brain_meshes = load_brs(path_to_data,load_FK_regions=True)
-selected_meshes = ["Retina", 'Midbrain', "Forebrain", "Habenula", "Hindbrain", "Spinal Cord"]
-brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
-color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
+        #here we start the plotting
+        if show_brs:
+            brain_meshes = load_brs(self.path_to_data,load_FK_regions=True)
+            selected_meshes = ["Retina", 'Midbrain', "Forebrain", "Habenula", "Hindbrain", "Spinal Cord"]
+            brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
+            color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
 
 
 
 
 
-fig = navis.plot3d(visualized_cells + brain_meshes, backend='plotly', color=color_cells + color_meshes, width=1920, height=1080)
-fig.update_layout(
-    scene={
-        'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
-        'yaxis': {'range': (0, 1406 * 0.798)},
 
-        'zaxis': {'range': (0, 138 * 2)},
-    }
-)
+        #zprojection
+        if show_brs:
+            fig, ax = navis.plot2d(brain_meshes,color=color_meshes,alpha=0.2,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=True)
+            fig, ax = navis.plot2d(self.visualized_cells,color=self.color_cells,alpha=1,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=True,ax=ax)
+        else:
+            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d', view=('x', "-y"),
+                                   group_neurons=True, rasterize=True)
+        plt.xlim(xlim)
+        if show_brs:
+            brkw = "_with_brs_"
+        else:
+            brkw = "_without_brs_"
 
-os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html"),exist_ok=True)
+        #ax.set_ylim(-700, -200)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("PDF saved!")
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        print("PNG saved!")
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("SVG saved!")
 
-#plotly.offline.plot(fig, filename=str(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath("test.html")), auto_open=True, auto_play=False)
+    def plot_y_projection(self, show_brs=False, force_new_cell_list=False):
+        # define colors for cells
+        color_cell_type_dict = {"integrator": "red",
+                                "dynamic threshold": "blue",
+                                "motor command": "purple", }
 
-# zprojection
+        # load needed meshes into a list and assign colors
 
-fig, ax = navis.plot2d(visualized_cells,color=color_cells,alpha=1,linewidth=0.5,method='2d',view=('x', "-y"))
+        if not "visualized_cells" in self.__dir__() or force_new_cell_list:
+            self.visualized_cells = []
+            self.color_cells = []
+            for i, cell in self.all_cells.iterrows():
 
-fig, ax = navis.plot2d(brain_meshes,
-                       linewidth=0.5,
-                       ax=ax,
-                       alpha=0.2,
-                       c=color_meshes,
-                       method='2d',
-                       view=('x', "-y"),
-                       group_neurons=True,
-                       # volume_outlines=False,
-                       rasterize=False)
+                for label in cell.cell_type_labels:
+                    if label.replace("_", " ") in color_cell_type_dict.keys():
+                        temp_color = color_cell_type_dict[label.replace("_", " ")]
+                        break
+                for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                    if not type(cell[key]) == float:
+                        self.visualized_cells.append(cell[key])
+                        if key != "dendrite_mesh":
+                            self.color_cells.append(temp_color)
+                        elif key == "dendrite_mesh":
+                            self.color_cells.append("black")
 
-os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
-os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
-os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
-plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=300)
-plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=300)
-plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=300)
+        # here we start the plotting
+        if show_brs:
+            brkw = "_with_brs_"
+        else:
+            brkw = "_without_brs_"
 
+
+        if show_brs:
+            brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
+            selected_meshes = ["Retina", 'Midbrain', "Forebrain", "Habenula", "Hindbrain", "Spinal Cord"]
+            brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
+            color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
+
+
+        # zprojection
+        if show_brs:
+            fig, ax = navis.plot2d(brain_meshes, color=color_meshes, alpha=0.2, linewidth=0.5, method='2d',
+                                   view=('x', "z"), group_neurons=True, rasterize=True)
+            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
+                                   view=('x', "z"), group_neurons=True, rasterize=True, ax=ax)
+        else:
+            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
+                                   view=('x', "z"),
+                                   group_neurons=True, rasterize=True)
+
+        #define keyword used in filename if brainmeshes are plotted
+
+
+        # ax.set_ylim(-700, -200)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("PDF saved!")
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        print("PNG saved!")
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("SVG saved!")
+
+    def make_interactive(self,show_brs=True):
+        if show_brs:
+            brkw = "_with_brs_"
+        else:
+            brkw = "_without_brs_"
+        if show_brs:
+            brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
+            selected_meshes = ["Retina", 'Midbrain', "Forebrain", "Habenula", "Hindbrain", "Spinal Cord"]
+            brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
+            color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
+
+            fig = navis.plot3d(self.visualized_cells + brain_meshes, backend='plotly',
+                               color=self.color_cells + color_meshes, width=1920, height=1080)
+            fig.update_layout(
+                scene={
+                    'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
+                    'yaxis': {'range': (0, 1406 * 0.798)},
+
+                    'zaxis': {'range': (0, 138 * 2)},
+                }
+            )
+
+            os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
+
+            plotly.offline.plot(fig, filename=str(
+                Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath(
+                    f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html")),
+                                auto_open=False, auto_play=False)
+        else:
+            fig = navis.plot3d(self.visualized_cells, backend='plotly',
+                               color=self.color_cells, width=1920, height=1080)
+            fig.update_layout(
+                scene={
+                    'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
+                    'yaxis': {'range': (0, 1406 * 0.798)},
+
+                    'zaxis': {'range': (0, 138 * 2)},
+                }
+            )
+
+            os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
+
+            plotly.offline.plot(fig, filename=str(
+                Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath(
+                    f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html")),
+                                auto_open=False, auto_play=False)
+
+
+if __name__ == "__main__":
+    test_figure = make_figures_FK()
+    test_figure.plot_z_projection()
+    test_figure.plot_z_projection(show_brs=True)
+    test_figure.plot_y_projection()
+    test_figure.make_interactive()
