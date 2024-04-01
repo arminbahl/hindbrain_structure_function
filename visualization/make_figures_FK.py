@@ -1,5 +1,7 @@
 import os
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+
 import numpy as np
 import navis
 from pathlib import Path
@@ -101,11 +103,6 @@ class make_figures_FK:
             brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
             color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
 
-
-
-
-
-
         #zprojection
         if show_brs:
             fig, ax = navis.plot2d(brain_meshes,color=color_meshes,alpha=0.2,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=True)
@@ -187,11 +184,11 @@ class make_figures_FK:
         os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
         os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
         os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
         print("PDF saved!")
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
         print("PNG saved!")
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"y_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
         print("SVG saved!")
 
     def make_interactive(self,show_brs=True):
@@ -241,10 +238,55 @@ class make_figures_FK:
                     f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html")),
                                 auto_open=False, auto_play=False)
 
+    def plot_neurotransmitter(self, show_na = True):
+
+        inhibitory_count = 0
+        excitatory_count =0
+        na_count = 0
+
+        for i,cell in self.all_cells.iterrows():
+            if "inhibitory" in cell.cell_type_labels:
+                inhibitory_count += 1
+            elif "excitatory" in cell.cell_type_labels:
+                excitatory_count += 1
+            else:
+                na_count += 1
+        fig = plt.figure()
+        plt.bar([1], [inhibitory_count], color="orange")
+        plt.bar([2], [excitatory_count], color="blue")
+        plt.bar([3], [na_count], color="gray")
+        plt.xticks([1, 2, 3], ["I", "E", "NA"])
+        ax = plt.gca()
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf"),
+                    exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png"),
+                    exist_ok=True)
+        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg"),
+                    exist_ok=True)
+        fig.savefig(
+            Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf").joinpath(
+                rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("PDF saved!")
+        fig.savefig(
+            Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png").joinpath(
+                rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        print("PNG saved!")
+        fig.savefig(
+            Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg").joinpath(
+                rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        print("SVG saved!")
+        
+        
 
 if __name__ == "__main__":
     test_figure = make_figures_FK()
-    test_figure.plot_z_projection()
-    test_figure.plot_z_projection(show_brs=True)
-    test_figure.plot_y_projection()
-    test_figure.make_interactive()
+
+    test_figure.plot_neurotransmitter()
+
+    #test_figure.plot_z_projection()
+    #test_figure.plot_z_projection(show_brs=True)
+    #test_figure.plot_y_projection()
+    #test_figure.make_interactive()
