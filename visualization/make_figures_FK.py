@@ -252,9 +252,9 @@ class make_figures_FK:
             else:
                 na_count += 1
         fig = plt.figure()
-        plt.bar([1], [inhibitory_count], color="orange")
-        plt.bar([2], [excitatory_count], color="blue")
-        plt.bar([3], [na_count], color="gray")
+        plt.bar([1], [inhibitory_count], color="orange",width =0.9)
+        plt.bar([2], [excitatory_count], color="blue",width =0.9)
+        plt.bar([3], [na_count], color="gray",width =0.9)
         plt.xticks([1, 2, 3], ["I", "E", "NA"])
         ax = plt.gca()
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
