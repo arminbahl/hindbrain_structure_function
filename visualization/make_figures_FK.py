@@ -126,7 +126,7 @@ class make_figures_FK:
         - The visualization's focus is customizable through the `ylim` parameter, allowing users to adjust the view to specific areas of interest.
 
         Example usage:
-        >>> instance.plot_z_projection(show_brs=True, force_new_cell_list=False, ylim=[-700, -200])
+            instance.plot_z_projection(show_brs=True, force_new_cell_list=False, ylim=[-700, -200])
         This will generate and save a Z-axis projection plot including brain regions, with the specified y-axis limits.
         """
         #define colors for cells
@@ -215,7 +215,7 @@ class make_figures_FK:
           and brain region data within the class instance.
 
         Example usage:
-        >>> instance.plot_y_projection(show_brs=True, force_new_cell_list=False)
+            instance.plot_y_projection(show_brs=True, force_new_cell_list=False)
         This generates a 2D Y-axis projection plot including brain regions and saves it in specified formats.
         """
         # define colors for cells
@@ -298,7 +298,7 @@ class make_figures_FK:
         - The 3D plot is saved but not automatically opened, allowing users to view it at their convenience.
 
         Example usage:
-        >>> instance.make_interactive(show_brs=True)
+            instance.make_interactive(show_brs=True)
         This will generate a 3D plot including brain regions and save it as an HTML file.
         """
         if show_brs:
@@ -361,7 +361,7 @@ class make_figures_FK:
         - The function relies on matplotlib for plotting and assumes the presence of a 'all_cells' DataFrame attribute within the class instance, where cell types are categorized.
 
         Example usage:
-        >>> instance.plot_neurotransmitter(show_na=True)
+          instance.plot_neurotransmitter(show_na=True)
         This will generate and save a bar chart including the unspecified (NA) category, representing the count of cells by neurotransmitter type.
         """
 
@@ -396,11 +396,11 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    test_figure = make_figures_FK(modalities=['clem'])
+    figure = make_figures_FK(modalities=['clem'])
 
-    test_figure.plot_neurotransmitter()
+    figure.plot_neurotransmitter()
 
-    test_figure.plot_z_projection()
-    test_figure.plot_z_projection(show_brs=True)
-    test_figure.plot_y_projection()
-    test_figure.make_interactive()
+    figure.plot_z_projection()
+    figure.plot_z_projection(show_brs=True)
+    figure.plot_y_projection()
+    figure.make_interactive()
