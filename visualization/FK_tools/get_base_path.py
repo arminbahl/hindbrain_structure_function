@@ -17,7 +17,21 @@ def get_base_path():
                 user, path = parts
                 user_paths[user] = path
     try:
+        if user_paths[current_user] == "/YOUR/PATH/TO/CLEM_paper_data/HERE":
+            raise NotSetup(
+                f"Path isn't configured for user {current_user}. Please modify path_configuration.txt with your path to the CLEM_paper_data which you should download from the nextcloud. A user profile has been created for you.")
+    except:
+        pass
+
+
+    try:
         return Path(user_paths[current_user])
 
     except:
-        raise NotSetup(f"Path isn't configured for user {current_user}")
+        new_profile = f"{current_user} ?"
+
+        with open(Path(os.getcwd()).joinpath("FK_tools").joinpath('path_configuration.txt'), 'a') as log_file:
+            log_file.write(f"\n{current_user} /YOUR/PATH/TO/CLEM_paper_data/HERE")
+
+
+        raise NotSetup(f"Path isn't configured for user {current_user}. Please modify path_configuration.txt with your path to the CLEM_paper_data which you should download from the nextcloud. A user profile has been created for you.")
