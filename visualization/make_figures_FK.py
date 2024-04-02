@@ -179,12 +179,12 @@ class make_figures_FK:
             brkw = "_without_brs_"
 
         #ax.set_ylim(-700, -200)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Z projection saved!")
 
     def plot_y_projection(self, show_brs=False, force_new_cell_list=False):
@@ -268,12 +268,12 @@ class make_figures_FK:
                                    group_neurons=True, rasterize=True)
 
         # ax.set_ylim(-700, -200)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        plt.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
         print("Y projection saved!")
 
     def make_interactive(self, show_brs=True):
@@ -385,18 +385,18 @@ class make_figures_FK:
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
 
 
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png"),exist_ok=True)
-        os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg"),exist_ok=True)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png"),exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg"),exist_ok=True)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
         print("Neurotransmitter saved!")
         
         
 
 if __name__ == "__main__":
-    figure = make_figures_FK(modalities=['clem'])
+    figure = make_figures_FK(modalities=['pa'])
 
     figure.plot_neurotransmitter()
 
