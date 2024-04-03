@@ -13,19 +13,19 @@ def load_mesh(cell,path):
 
         
         if clem_path.joinpath(cell_name + '_axon_mapped.obj').exists():
-            cell['axon_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name  + '_axon_mapped.obj'))
+            cell['axon_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name  + '_axon_mapped.obj'),units="um")
         else:
             print(f"No axon found at {clem_path.joinpath(cell_name  + '_axon_mapped.obj')}")
             cell['axon_mesh'] = np.nan
 
         if clem_path.joinpath(cell_name  + '_dendrite_mapped.obj').exists():
-            cell['dendrite_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name  + '_dendrite_mapped.obj'))
+            cell['dendrite_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name  + '_dendrite_mapped.obj'),units="um")
         else:
             print(f"No dendrite found at {clem_path.joinpath(cell_name  + '_dendrite_mapped.obj')}")
             cell['dendrite_mesh'] = np.nan
 
         if clem_path.joinpath(cell_name  + '_soma_mapped.obj').exists():
-            cell['soma_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name + '_soma_mapped.obj'))
+            cell['soma_mesh'] = navis.read_mesh(clem_path.joinpath(cell_name + '_soma_mapped.obj'),units="um")
         else:
             print(f"No soma found at {clem_path.joinpath(cell_name  + '_soma_mapped.obj')}")
             cell['soma_mesh'] = np.nan
@@ -36,13 +36,13 @@ def load_mesh(cell,path):
 
 
         if pa_path.joinpath(cell.cell_name + '.obj').exists():
-            cell['neurites_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '.obj'))
+            cell['neurites_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '.obj'),units="um")
         else:
             cell['neurites_mesh'] = np.nan
 
 
         if pa_path.joinpath(cell.cell_name + '_soma.obj').exists():
-            cell['soma_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_soma.obj'))
+            cell['soma_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_soma.obj'),units="um")
         else:
             cell['soma_mesh'] = np.nan
         return cell

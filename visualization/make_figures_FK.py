@@ -107,7 +107,7 @@ class make_figures_FK:
 
         self.all_cells = all_cells
 
-    def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200]):
+    def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True):
         """
         Generates and saves a 2D Z-axis projection plot of visualized brain cells, with an option to include selected brain regions.
 
@@ -164,14 +164,20 @@ class make_figures_FK:
 
         #zprojection
         if show_brs:
-
-            fig, ax = navis.plot2d(brain_meshes,color=color_meshes,alpha=0.2,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=True)
-            fig, ax = navis.plot2d(self.visualized_cells,color=self.color_cells,alpha=1,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=True,ax=ax)
             plt.ylim(ylim)
+            fig, ax = navis.plot2d(brain_meshes,color=color_meshes,alpha=0.2,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=rasterize, scalebar="20 um")
+            ax.axvline(250, color='white', linestyle='--', alpha=0.5,lw=1)
+            fig, ax = navis.plot2d(self.visualized_cells,color=self.color_cells,alpha=1,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=rasterize,ax=ax, scalebar="20 um")
+
+
 
         else:
+
             fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d', view=('x', "-y"),
-                                   group_neurons=True, rasterize=True)
+                                   group_neurons=True, rasterize=rasterize, scalebar="10 um")
+            ax.axvline(250, color='gray', linestyle='--', alpha=0.5,zorder=0)
+
+
 
         if show_brs:
             brkw = "_with_brs_"
@@ -187,7 +193,7 @@ class make_figures_FK:
         fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Z projection saved!")
 
-    def plot_y_projection(self, show_brs=False, force_new_cell_list=False):
+    def plot_y_projection(self, show_brs=False, force_new_cell_list=False,rasterize = True):
         """
         Generates and saves a 2D Y-axis projection plot of visualized brain cells, optionally including selected brain regions.
 
@@ -259,13 +265,16 @@ class make_figures_FK:
         # yprojection
         if show_brs:
             fig, ax = navis.plot2d(brain_meshes, color=color_meshes, alpha=0.2, linewidth=0.5, method='2d',
-                                   view=('x', "z"), group_neurons=True, rasterize=True)
+                                   view=('x', "z"), group_neurons=True, rasterize=rasterize)
+            ax.axvline(250, color='white', linestyle='--', alpha=0.5)
             fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
-                                   view=('x', "z"), group_neurons=True, rasterize=True, ax=ax)
+                                   view=('x', "z"), group_neurons=True, rasterize=rasterize, ax=ax, scalebar="10 um")
+
         else:
             fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
                                    view=('x', "z"),
-                                   group_neurons=True, rasterize=True)
+                                   group_neurons=True, rasterize=rasterize, scalebar="10 um")
+            ax.axvline(248.379, color='gray', linestyle='--', alpha=0.5, zorder=0)
 
         # ax.set_ylim(-700, -200)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
@@ -397,10 +406,9 @@ class make_figures_FK:
 
 if __name__ == "__main__":
     figure = make_figures_FK(modalities=['pa'])
+    figure.plot_z_projection(show_brs=True, rasterize=True)
+    figure.plot_z_projection()
 
     figure.plot_neurotransmitter()
-
-    figure.plot_z_projection()
-    figure.plot_z_projection(show_brs=True)
     figure.plot_y_projection()
     figure.make_interactive()
