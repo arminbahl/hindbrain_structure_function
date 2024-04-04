@@ -107,7 +107,7 @@ class make_figures_FK:
 
         self.all_cells = all_cells
 
-    def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True):
+    def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True,black_neuron = True):
         """
         Generates and saves a 2D Z-axis projection plot of visualized brain cells, with an option to include selected brain regions.
 
@@ -139,19 +139,28 @@ class make_figures_FK:
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
             self.visualized_cells = []
             self.color_cells = []
-            for i,cell in self.all_cells.iterrows():
 
-                       for label in cell.cell_type_labels:
-                           if label.replace("_"," ") in color_cell_type_dict.keys():
-                               temp_color = color_cell_type_dict[label.replace("_"," ")]
-                               break
-                       for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                            if not type(cell[key]) == float:
-                               self.visualized_cells.append(cell[key])
-                               if key != "dendrite_mesh":
-                                   self.color_cells.append(temp_color)
-                               elif key == "dendrite_mesh":
-                                   self.color_cells.append("black")
+            for i,cell in self.all_cells.iterrows():
+                       if black_neuron==True and cell["imaging_modality"] == "photoactivation":
+                           self.color_cells.append("black")
+                           self.color_cells.append("black")
+                           black_neuron=False
+                       elif type(black_neuron) == str:
+                           if cell['cell_name'] == black_neuron:
+                               self.color_cells.append("black")
+                               self.color_cells.append("black")
+                       else:
+                           for label in cell.cell_type_labels:
+                               if label.replace("_", " ") in color_cell_type_dict.keys():
+                                   temp_color = color_cell_type_dict[label.replace("_", " ")]
+                                   break
+                           for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                               if not type(cell[key]) == float:
+                                   self.visualized_cells.append(cell[key])
+                                   if key != "dendrite_mesh":
+                                       self.color_cells.append(temp_color)
+                                   elif key == "dendrite_mesh":
+                                       self.color_cells.append("black")
 
 
 
@@ -193,7 +202,7 @@ class make_figures_FK:
         fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Z projection saved!")
 
-    def plot_y_projection(self, show_brs=False, force_new_cell_list=False,rasterize = True):
+    def plot_y_projection(self, show_brs=False, force_new_cell_list=False,rasterize = True,black_neuron=True):
         """
         Generates and saves a 2D Y-axis projection plot of visualized brain cells, optionally including selected brain regions.
 
@@ -235,18 +244,26 @@ class make_figures_FK:
             self.visualized_cells = []
             self.color_cells = []
             for i, cell in self.all_cells.iterrows():
-
-                for label in cell.cell_type_labels:
-                    if label.replace("_", " ") in color_cell_type_dict.keys():
-                        temp_color = color_cell_type_dict[label.replace("_", " ")]
-                        break
-                for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                    if not type(cell[key]) == float:
-                        self.visualized_cells.append(cell[key])
-                        if key != "dendrite_mesh":
-                            self.color_cells.append(temp_color)
-                        elif key == "dendrite_mesh":
-                            self.color_cells.append("black")
+                if black_neuron == True and cell["imaging_modality"] == "photoactivation":
+                    self.color_cells.append("black")
+                    self.color_cells.append("black")
+                    black_neuron = False
+                elif type(black_neuron) == str:
+                    if cell['cell_name'] == black_neuron:
+                        self.color_cells.append("black")
+                        self.color_cells.append("black")
+                else:
+                    for label in cell.cell_type_labels:
+                        if label.replace("_", " ") in color_cell_type_dict.keys():
+                            temp_color = color_cell_type_dict[label.replace("_", " ")]
+                            break
+                    for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                        if not type(cell[key]) == float:
+                            self.visualized_cells.append(cell[key])
+                            if key != "dendrite_mesh":
+                                self.color_cells.append(temp_color)
+                            elif key == "dendrite_mesh":
+                                self.color_cells.append("black")
 
         # here we start the plotting
         if show_brs:
@@ -407,8 +424,8 @@ class make_figures_FK:
 if __name__ == "__main__":
     figure = make_figures_FK(modalities=['pa'])
     figure.plot_z_projection(show_brs=True, rasterize=True)
-    figure.plot_z_projection()
+    figure.plot_z_projection(rasterize=False)
 
     figure.plot_neurotransmitter()
-    figure.plot_y_projection()
+    figure.plot_y_projection(rasterize=False)
     figure.make_interactive()
