@@ -9,6 +9,7 @@ import plotly
 from analysis_helpers.analysis.personal_dirs.Florian.clem_paper.create_metadata_swc import fix_duplicates
 import h5py
 
+
 def correct_swc(file_name):
     # Repair some strange swc coming from SNT
     f_swc = open(file_name, "r")

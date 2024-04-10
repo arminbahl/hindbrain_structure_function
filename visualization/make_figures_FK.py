@@ -107,6 +107,9 @@ class make_figures_FK:
 
         self.all_cells = all_cells
 
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
+        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False, header=None)
+
     def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True,black_neuron = True):
         """
         Generates and saves a 2D Z-axis projection plot of visualized brain cells, with an option to include selected brain regions.
@@ -422,7 +425,7 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    figure = make_figures_FK(modalities=['pa'])
+    figure = make_figures_FK(modalities=['clem'])
     figure.plot_z_projection(show_brs=True, rasterize=True)
     figure.plot_z_projection(rasterize=False)
 

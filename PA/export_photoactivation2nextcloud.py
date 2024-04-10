@@ -15,8 +15,8 @@ from scipy.signal import savgol_filter
 
 #settings
 force_new_all = True
-use_debug = True
-debug_cell = '20230327.1' #["20230324.1","20230327.1"]
+use_debug = False
+debug_cell =  "20240219.1"#["20240219.1","20240219.2"] #'20230327.1'
 fiji_dynamics = True
 
 #fetch user
@@ -39,7 +39,7 @@ for column in cell_table.columns:
 
 #subset dataframe if in debug mode
 if use_debug:
-    cell_table = cell_table[cell_table['cellname'] == debug_cell]
+    cell_table = cell_table[cell_table['cell_name'] == debug_cell]
 
 
 #create save space
@@ -50,9 +50,9 @@ base_export_folder = base_path.joinpath('export_photoactivation')
 #loop over cells
 for i,cell in cell_table.iterrows():
     #create home of export file
-    if not base_export_folder.joinpath(cell.cellname).exists() or force_new_all or use_debug:
-        os.makedirs(base_export_folder.joinpath(cell.cellname),exist_ok=True)
-        temp_cell_path = Path(base_export_folder.joinpath(cell.cellname))
+    if not base_export_folder.joinpath(cell.cell_name).exists() or force_new_all or use_debug:
+        os.makedirs(base_export_folder.joinpath(cell.cell_name),exist_ok=True)
+        temp_cell_path = Path(base_export_folder.joinpath(cell.cell_name))
 
         #read swc
         try:
@@ -75,7 +75,7 @@ for i,cell in cell_table.iterrows():
 
         # write metadata to swc
         neuron = navis.read_swc(base_path_data.joinpath(cell.photoactivation_ID).joinpath(cell.photoactivation_ID + "-000_registered.swc"),
-                                cellname=cell['cellname'],
+                                cell_name=cell['cell_name'],
                                 cell_type_labels=str(cell['cell_type_labels']),
                                 imaging_modality=cell['imaging_modality'],
                                 gad1b_ID=cell['gad1b_ID'],
@@ -84,8 +84,8 @@ for i,cell in cell_table.iterrows():
                                 verification_ID=cell['verification_ID'],
                                 function_ID=cell['function_ID'],
                                 date_of_tracing=cell['date_of_tracing'],
-                                tracer=cell['tracer'],
-                                comments=cell['comments'])
+                                tracer_names=cell['tracer_names'],
+                                comment=cell['comment'])
 
         #remove duplicated nodes and reattaches them for clean generation of obj
         if (swc.loc[:,['x','y','z']]).duplicated().sum() != 0:
@@ -97,9 +97,9 @@ for i,cell in cell_table.iterrows():
         neuron_mesh = navis.conversion.tree2meshneuron(neuron, use_normals=True, tube_points=20)
 
         #export neuron with meta data
-        neuron.to_swc(temp_cell_path.joinpath(cell.cellname + '.swc'), write_meta=dict(cell))
+        neuron.to_swc(temp_cell_path.joinpath(cell.cell_name + '.swc'), write_meta=dict(cell))
         #write obj
-        navis.write_mesh(neuron_mesh, temp_cell_path.joinpath(cell.cellname + '.obj'))
+        navis.write_mesh(neuron_mesh, temp_cell_path.joinpath(cell.cell_name + '.obj'))
         #write a soma obj
         x = neuron.nodes.loc[0, "x"]
         y = neuron.nodes.loc[0, "y"]
@@ -107,18 +107,18 @@ for i,cell in cell_table.iterrows():
 
         sphere = tm.creation.icosphere(radius=2, subdivisions=2)
         sphere.apply_translation((x, y, z))
-        sphere.export(temp_cell_path.joinpath(cell.cellname + '_soma.obj'))
+        sphere.export(temp_cell_path.joinpath(cell.cell_name + '_soma.obj'))
 
         # create fused mesh file with soma and neurites
-        neurites = tm.load_mesh(temp_cell_path.joinpath(cell.cellname + '.obj'))
-        soma = tm.load_mesh(temp_cell_path.joinpath(cell.cellname + '_soma.obj'))
+        neurites = tm.load_mesh(temp_cell_path.joinpath(cell.cell_name + '.obj'))
+        soma = tm.load_mesh(temp_cell_path.joinpath(cell.cell_name + '_soma.obj'))
         combined_list = [neurites, soma]
         scene = tm.Scene(combined_list)
-        scene.export(temp_cell_path.joinpath(cell.cellname + '_combined.obj'))
+        scene.export(temp_cell_path.joinpath(cell.cell_name + '_combined.obj'))
 
         # write metadata to txt
 
-        with open(temp_cell_path.joinpath(cell.cellname+'metadata.txt'), 'w') as convert_file:
+        with open(temp_cell_path.joinpath(cell.cell_name+'metadata.txt'), 'w') as convert_file:
             convert_file.write(format_dict(dict(cell)))
 
 
@@ -126,7 +126,7 @@ for i,cell in cell_table.iterrows():
 
 
         #there are two weird cells that I extracted manually with fiji
-        if cell.cellname in ["20230324.1","20230327.1"] and fiji_dynamics:
+        if cell.cell_name in ["20230324.1","20230327.1"] and fiji_dynamics:
             fiji_dynamics_array = np.array(pd.read_excel(base_path_data.joinpath('functional').joinpath(cell.function_ID).joinpath('fiji_dynamics.xlsx')))-10000
             F_left_dots = fiji_dynamics_array[:,0]
             F_right_dots = fiji_dynamics_array[:, 1]
@@ -144,7 +144,7 @@ for i,cell in cell_table.iterrows():
             avg_df_F_left_dots = df_F_left_dots
             avg_df_F_right_dots = df_F_right_dots
 
-            with h5py.File(temp_cell_path.joinpath(cell.cellname + '_dynamics.hdf5'), "w") as f:
+            with h5py.File(temp_cell_path.joinpath(cell.cell_name + '_dynamics.hdf5'), "w") as f:
                 f.create_dataset('dF_F/single_trial_dots_left', data=df_F_left_dots, dtype=df_F_left_dots.dtype)
                 f.create_dataset('dF_F/single_trial_dots_right', data=df_F_right_dots, dtype=df_F_right_dots.dtype)
 
@@ -174,7 +174,7 @@ for i,cell in cell_table.iterrows():
 
             # Overlay shaded rectangle for stimulus epoch
             plt.axvspan(10, 50, color='gray', alpha=0.1, label='Stimulus Epoch')
-            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cellname}\nDynamics from fiji')
+            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cell_name}\nDynamics from fiji')
             plt.xlabel('Time (seconds)')
             plt.ylabel('Activity')
             # Set font of legend text to Arial
@@ -187,10 +187,10 @@ for i,cell in cell_table.iterrows():
             y_low, y_high = ax.get_ylim()
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
-            plt.savefig(temp_cell_path.joinpath(cell.cellname+'_rdms_average_fiji.png'))
-            plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cellname + '_rdms_average_fiji.png'))
-            plt.savefig(temp_cell_path.joinpath(cell.cellname + '_rdms_average_and_single_trials_fiji.png'))
-            plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cellname + '_rdms_average_and_single_trials_fiji.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name+'_rdms_average_fiji.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cell_name + '_rdms_average_fiji.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name + '_rdms_average_and_single_trials_fiji.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cell_name + '_rdms_average_and_single_trials_fiji.png'))
             plt.show()
 
 
@@ -216,7 +216,7 @@ for i,cell in cell_table.iterrows():
             avg_df_F_left_dots = np.nanmean(df_F_left_dots, axis=0)
             avg_df_F_right_dots = np.nanmean(df_F_right_dots, axis=0)
 
-            with h5py.File(temp_cell_path.joinpath(cell.cellname+'_dynamics.hdf5'), "w") as f:
+            with h5py.File(temp_cell_path.joinpath(cell.cell_name+'_dynamics.hdf5'), "w") as f:
                 f.create_dataset('dF_F/single_trial_dots_left', data=df_F_left_dots, dtype=df_F_left_dots.dtype)
                 f.create_dataset('dF_F/single_trial_dots_right', data=df_F_right_dots, dtype=df_F_right_dots.dtype)
 
@@ -250,7 +250,7 @@ for i,cell in cell_table.iterrows():
 
             # Overlay shaded rectangle for stimulus epoch
             plt.axvspan(10, 50, color='gray', alpha=0.1, label='Stimulus Epoch')
-            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cellname}')
+            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cell_name}')
             plt.xlabel('Time (seconds)')
             plt.ylabel('Activity')
             # Set font of legend text to Arial
@@ -263,8 +263,8 @@ for i,cell in cell_table.iterrows():
             y_low, y_high = ax.get_ylim()
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
-            plt.savefig(temp_cell_path.joinpath(cell.cellname+'_rdms_average.png'))
-            plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cellname + '_rdms_average.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name+'_rdms_average.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cell_name + '_rdms_average.png'))
             plt.show()
             # Plot smoothed average activity with thin lines
             fig, ax = plt.subplots()
@@ -276,7 +276,7 @@ for i,cell in cell_table.iterrows():
                 plt.plot(time_axis, trial_right, color='black', alpha=0.3, linestyle='--', linewidth=1)
             # Overlay shaded rectangle for stimulus epoch
             plt.axvspan(10, 50, color='gray', alpha=0.1, label='Stimulus Epoch')
-            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cellname}')
+            plt.title(f'Average and Individual Trial Activity Dynamics\nNeuron {cell.cell_name}')
             plt.xlabel('Time (seconds)')
             plt.ylabel('Activity')
             # Set font of legend text to Arial
@@ -289,8 +289,8 @@ for i,cell in cell_table.iterrows():
             y_low, y_high = ax.get_ylim()
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
-            plt.savefig(temp_cell_path.joinpath(cell.cellname + '_rdms_average_and_single_trials.png'))
-            plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cellname + '_rdms_average_and_single_trials.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name + '_rdms_average_and_single_trials.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cell_name + '_rdms_average_and_single_trials.png'))
 
 
         plt.show()
