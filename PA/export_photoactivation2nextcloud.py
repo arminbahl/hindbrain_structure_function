@@ -14,7 +14,7 @@ from hindbrain_structure_function.PA.tools_for_export.format_dict4metadata impor
 from scipy.signal import savgol_filter
 
 #settings
-force_new_all = True
+force_new_all = False
 use_debug = False
 debug_cell =  "20240219.1"#["20240219.1","20240219.2"] #'20230327.1'
 fiji_dynamics = True
@@ -130,9 +130,13 @@ for i,cell in cell_table.iterrows():
             fiji_dynamics_array = np.array(pd.read_excel(base_path_data.joinpath('functional').joinpath(cell.function_ID).joinpath('fiji_dynamics.xlsx')))-10000
             F_left_dots = fiji_dynamics_array[:,0]
             F_right_dots = fiji_dynamics_array[:, 1]
+            try:
+                F_left_dots = (F_left_dots + abs(np.min(F_left_dots[:20], axis=0)))
+                F_right_dots = (F_right_dots + abs(np.min(F_right_dots[:20], axis=0)))
+            except:
 
-            F_left_dots = (F_left_dots + abs(np.min(F_left_dots[:20], axis=0)))
-            F_right_dots = (F_right_dots + abs(np.min(F_right_dots[:20], axis=0)))
+                F_left_dots = np.array(f[f'repeat00_tile000_z000_950nm/preprocessed_data/fish00/manual_segmentation/stimulus_aligned_dynamics/stimulus0000/F']).squeeze()
+                F_right_dots = np.array(f[f'repeat00_tile000_z000_950nm/preprocessed_data/fish00/manual_segmentation/stimulus_aligned_dynamics/stimulus0001/F']).squeeze()
 
             dt=0.5
             # Compute deltaF/F for each trial, for the 4 tested stimuli
@@ -198,9 +202,26 @@ for i,cell in cell_table.iterrows():
 
         else:
             path_functional_data = base_path_data.joinpath('functional').joinpath(cell.function_ID).joinpath(cell.function_ID+"_preprocessed_data.h5")
+
+            if cell.cell_name == '20230226.1':
+                z_plane = '0001'
+            else:
+                z_plane = '0000'
+
+            if cell.cell_name in ['20230226.1']:
+                left_name = '0002'
+                right_name = '0003'
+            else:
+                left_name = '0000'
+                right_name = '0001'
             with h5py.File(path_functional_data) as f:
-                F_left_dots  = np.array(f[f'z_plane0000/manual_segmentation/stimulus_aligned_dynamics/stimulus0000/F']).squeeze()
-                F_right_dots = np.array(f[f'z_plane0000/manual_segmentation/stimulus_aligned_dynamics/stimulus0001/F']).squeeze()
+                try:
+                    F_left_dots  = np.array(f[f'z_plane{z_plane}/manual_segmentation/stimulus_aligned_dynamics/stimulus{left_name}/F']).squeeze()
+                    F_right_dots = np.array(f[f'z_plane{z_plane}/manual_segmentation/stimulus_aligned_dynamics/stimulus{right_name}/F']).squeeze()
+                except:
+                    F_left_dots = np.array(f[f'repeat00_tile000_z000_950nm/preprocessed_data/fish00/manual_segmentation/stimulus_aligned_dynamics/stimulus0000/F']).squeeze()
+                    F_right_dots = np.array(f[f'repeat00_tile000_z000_950nm/preprocessed_data/fish00/manual_segmentation/stimulus_aligned_dynamics/stimulus0001/F']).squeeze()
+
 
             F_left_dots = (F_left_dots + abs(np.nanmean(F_left_dots[:20],axis=0)))
             F_right_dots = (F_right_dots + abs(np.nanmean(F_right_dots[:20],axis=0)))
