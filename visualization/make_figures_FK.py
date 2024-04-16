@@ -55,7 +55,7 @@ class make_figures_FK:
     """
     def __init__(self,
                  modalities = ['pa'],
-                 keywords = ['integrator','contralateral']):
+                 keywords = ['integrator','ipsilateral']):
         
         #set_name_time
         self.name_time = datetime.now()
@@ -82,9 +82,10 @@ class make_figures_FK:
         all_cells = all_cells.reset_index(drop=True)
 
         #subset dataset for keywords
-        for keyword in keywords:
-            subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label else False)
-            all_cells = all_cells[subset_for_keyword]
+        if keywords!='all':
+            for keyword in keywords:
+                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label else False)
+                all_cells = all_cells[subset_for_keyword]
 
 
 
@@ -330,6 +331,38 @@ class make_figures_FK:
             instance.make_interactive(show_brs=True)
         This will generate a 3D plot including brain regions and save it as an HTML file.
         """
+        black_neuron = False
+        color_cell_type_dict = {"integrator": "red",
+                                "dynamic threshold": "blue",
+                                "motor command": "purple", }
+
+        if not "visualized_cells" in self.__dir__():
+            self.visualized_cells = []
+            self.color_cells = []
+
+            for i,cell in self.all_cells.iterrows():
+                       if black_neuron==True and cell["imaging_modality"] == "photoactivation":
+                           self.color_cells.append("black")
+                           self.color_cells.append("black")
+                           black_neuron=False
+                       elif type(black_neuron) == str:
+                           if cell['cell_name'] == black_neuron:
+                               self.color_cells.append("black")
+                               self.color_cells.append("black")
+                       else:
+                           for label in cell.cell_type_labels:
+                               if label.replace("_", " ") in color_cell_type_dict.keys():
+                                   temp_color = color_cell_type_dict[label.replace("_", " ")]
+                                   break
+                           for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                               if not type(cell[key]) == float:
+                                   self.visualized_cells.append(cell[key])
+                                   if key != "dendrite_mesh":
+                                       self.color_cells.append(temp_color)
+                                   elif key == "dendrite_mesh":
+                                       self.color_cells.append("black")
+
+
         if show_brs:
             brkw = "_with_brs_"
         else:
@@ -351,12 +384,11 @@ class make_figures_FK:
                 }
             )
 
-            os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
+            os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
 
-            plotly.offline.plot(fig, filename=str(
-                Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath(
-                    f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html")),
-                                auto_open=False, auto_play=False)
+            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
+            print("Interactive saved!")
+
         else:
             fig = navis.plot3d(self.visualized_cells, backend='plotly',
                                color=self.color_cells, width=1920, height=1080)
@@ -368,10 +400,10 @@ class make_figures_FK:
                     'zaxis': {'range': (0, 138 * 2)},
                 }
             )
+            os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
 
-            os.makedirs(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
 
-            plotly.offline.plot(fig, filename=str(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html")),auto_open=False, auto_play=False)
+            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
             print("Interactive saved!")
 
     def plot_neurotransmitter(self, show_na=True):
@@ -425,10 +457,12 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    figure = make_figures_FK(modalities=['clem'])
+    figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral','excitatory'])
     figure.plot_z_projection(show_brs=True, rasterize=True)
     figure.plot_z_projection(rasterize=False)
 
     figure.plot_neurotransmitter()
     figure.plot_y_projection(rasterize=False)
+    figure.make_interactive()
+    figure = make_figures_FK(modalities=['pa'], keywords='all')
     figure.make_interactive()
