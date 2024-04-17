@@ -14,6 +14,9 @@ from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 from datetime import datetime
 import plotly
 import matplotlib
+import warnings
+warnings.filterwarnings("ignore")
+
 matplotlib.use('TkAgg')
 class make_figures_FK:
     """
@@ -55,11 +58,11 @@ class make_figures_FK:
     """
     def __init__(self,
                  modalities = ['pa'],
-                 keywords = ['integrator','ipsilateral']):
+                 keywords = ['integrator','ipsilateral'],use_smooth_pa=True):
         
         #set_name_time
         self.name_time = datetime.now()
-
+        self.use_smooth_pa = use_smooth_pa
         #path settings
         self.path_to_data =  get_base_path() #path to clone of nextcloud, set your path in path_configuration.txt
 
@@ -80,11 +83,11 @@ class make_figures_FK:
         elif len(modalities) ==1:
             all_cells = eval(modalities[0]+"_table")
         all_cells = all_cells.reset_index(drop=True)
-
+        self.keywords = keywords
         #subset dataset for keywords
         if keywords!='all':
             for keyword in keywords:
-                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label else False)
+                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label or keyword in current_label  else False)
                 all_cells = all_cells[subset_for_keyword]
 
 
@@ -104,12 +107,12 @@ class make_figures_FK:
 
         #load the meshes for each cell that fits queries in selected modalities
         for i,cell in all_cells.iterrows():
-            all_cells.loc[i,:] = load_mesh(cell,self.path_to_data)
+            all_cells.loc[i,:] = load_mesh(cell,self.path_to_data,use_smooth_pa=self.use_smooth_pa)
 
         self.all_cells = all_cells
 
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
-        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False, header=None)
+        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False, header=None)
 
     def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True,black_neuron = True):
         """
@@ -135,7 +138,7 @@ class make_figures_FK:
         """
         #define colors for cells
         color_cell_type_dict = {"integrator":"red",
-                                "dynamic threshold":"blue",
+                                "dynamic threshold":"cyan",
                                 "motor command":"purple",}
 
         #load needed meshes into a list and assign colors
@@ -201,9 +204,9 @@ class make_figures_FK:
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Z projection saved!")
 
     def plot_y_projection(self, show_brs=False, force_new_cell_list=False,rasterize = True,black_neuron=True):
@@ -239,7 +242,7 @@ class make_figures_FK:
         """
         # define colors for cells
         color_cell_type_dict = {"integrator": "red",
-                                "dynamic threshold": "blue",
+                                "dynamic threshold": "cyan",
                                 "motor command": "purple", }
 
         # load needed meshes into a list and assign colors
@@ -301,9 +304,9 @@ class make_figures_FK:
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Y projection saved!")
 
     def make_interactive(self, show_brs=True):
@@ -333,7 +336,7 @@ class make_figures_FK:
         """
         black_neuron = False
         color_cell_type_dict = {"integrator": "red",
-                                "dynamic threshold": "blue",
+                                "dynamic threshold": "cyan",
                                 "motor command": "purple", }
 
         if not "visualized_cells" in self.__dir__():
@@ -386,7 +389,7 @@ class make_figures_FK:
 
             os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
 
-            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
+            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
             print("Interactive saved!")
 
         else:
@@ -403,7 +406,7 @@ class make_figures_FK:
             os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
 
 
-            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
+            plotly.offline.plot(fig, filename=str(Path(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html").joinpath(f"interactive{brkw[-1]}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.html"))),auto_open=False, auto_play=False)
             print("Interactive saved!")
 
     def plot_neurotransmitter(self, show_na=True):
@@ -449,20 +452,38 @@ class make_figures_FK:
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png"),exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg"),exist_ok=True)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg").joinpath(rf"neurotransmitter{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("pdf").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("png").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("neurotransmitter").joinpath("svg").joinpath(rf"neurotransmitter_{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
         print("Neurotransmitter saved!")
         
         
 
 if __name__ == "__main__":
-    figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral','excitatory'])
-    figure.plot_z_projection(show_brs=True, rasterize=True)
-    figure.plot_z_projection(rasterize=False)
+    integrator_ipsi_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral',])
+    integrator_ipsi_figure.plot_z_projection(show_brs=True, rasterize=True)
+    integrator_ipsi_figure.plot_z_projection(rasterize=True)
+    integrator_ipsi_figure.plot_neurotransmitter()
+    integrator_ipsi_figure.plot_y_projection(rasterize=True)
+    integrator_ipsi_figure.make_interactive()
 
-    figure.plot_neurotransmitter()
-    figure.plot_y_projection(rasterize=False)
-    figure.make_interactive()
-    figure = make_figures_FK(modalities=['pa'], keywords='all')
-    figure.make_interactive()
+    integrator_contra_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
+    integrator_contra_figure.plot_z_projection(show_brs=True, rasterize=True)
+    integrator_contra_figure.plot_z_projection(rasterize=True)
+    integrator_contra_figure.plot_neurotransmitter()
+    integrator_contra_figure.plot_y_projection(rasterize=True)
+    integrator_contra_figure.make_interactive()
+    
+    dt_figure = make_figures_FK(modalities=['pa'],keywords=['dynamic_threshold'])
+    dt_figure.plot_z_projection(show_brs=True, rasterize=True)
+    dt_figure.plot_z_projection(rasterize=True)
+    dt_figure.plot_neurotransmitter()
+    dt_figure.plot_y_projection(rasterize=True)
+    dt_figure.make_interactive()
+    
+    mc_figure = make_figures_FK(modalities=['pa'],keywords=['motor_command'])
+    mc_figure.plot_z_projection(show_brs=True, rasterize=True)
+    mc_figure.plot_z_projection(rasterize=True)
+    mc_figure.plot_neurotransmitter()
+    mc_figure.plot_y_projection(rasterize=True)
+    mc_figure.make_interactive()
