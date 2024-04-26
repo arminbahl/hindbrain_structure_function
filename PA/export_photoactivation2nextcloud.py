@@ -12,6 +12,8 @@ import errno
 from hindbrain_structure_function.PA.tools_for_export.fix_duplicates import *
 from hindbrain_structure_function.PA.tools_for_export.format_dict4metadata import *
 from scipy.signal import savgol_filter
+import warnings
+warnings.filterwarnings("ignore")
 
 #settings
 force_new_all = False
@@ -51,6 +53,7 @@ base_export_folder = base_path.joinpath('export_photoactivation')
 for i,cell in cell_table.iterrows():
     #create home of export file
     if not base_export_folder.joinpath(cell.cell_name).exists() or force_new_all or use_debug:
+        print("Processing",cell.cell_name)
         os.makedirs(base_export_folder.joinpath(cell.cell_name),exist_ok=True)
         temp_cell_path = Path(base_export_folder.joinpath(cell.cell_name))
 
@@ -94,12 +97,20 @@ for i,cell in cell_table.iterrows():
         neuron.nodes = swc
         neuron.soma = 1                     #TODO maybe sync this with jonathan
         neuron.nodes.loc[:, 'radius'] = 0.3 #TODO maybe sync this with jonathan
+
+        smoothed_neuron = navis.smooth_skeleton(neuron,window=10)
+        smoothed_neuron.nodes.iloc[0, :] = neuron.nodes.iloc[0,:]
+
+
         neuron_mesh = navis.conversion.tree2meshneuron(neuron, use_normals=True, tube_points=20)
+        smoothed_neuron_mesh = navis.conversion.tree2meshneuron(smoothed_neuron, use_normals=True, tube_points=20)
 
         #export neuron with meta data
         neuron.to_swc(temp_cell_path.joinpath(cell.cell_name + '.swc'), write_meta=dict(cell))
+        smoothed_neuron.to_swc(temp_cell_path.joinpath(cell.cell_name + '_smoothed.swc'), write_meta=dict(cell))
         #write obj
         navis.write_mesh(neuron_mesh, temp_cell_path.joinpath(cell.cell_name + '.obj'))
+        navis.write_mesh(smoothed_neuron_mesh, temp_cell_path.joinpath(cell.cell_name + '_smoothed.obj'))
         #write a soma obj
         x = neuron.nodes.loc[0, "x"]
         y = neuron.nodes.loc[0, "y"]
@@ -315,3 +326,4 @@ for i,cell in cell_table.iterrows():
 
 
         plt.show()
+
