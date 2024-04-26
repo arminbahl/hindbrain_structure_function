@@ -142,3 +142,4 @@ if __name__ == "__main__":
 
     plotly.offline.plot(fig, filename=str(Path(os.getcwd()).joinpath("make_figures_FK_output").joinpath("html").joinpath("test.html")), auto_open=True,
                         auto_play=False)
+
