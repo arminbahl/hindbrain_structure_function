@@ -5,29 +5,40 @@ from pathlib import Path
 
 import warnings
 warnings.filterwarnings("ignore")
-def load_mesh(cell,path,swc=False):
+def load_mesh(cell,path,swc=False,use_smooth_pa=False):
     if swc:
-        if cell['imaging_modality'] == 'clem':
+        if use_smooth_pa:
+            if use_smooth_pa:
+                pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
 
-            cell_name = 'clem_zfish1_' + cell.type + '_' + str(cell.cell_name)
-            clem_path = path.joinpath('clem_zfish1').joinpath('all_cells').joinpath(cell_name).joinpath('mapped')
+                if pa_path.joinpath(cell.cell_name + '_smoothed.swc').exists():
+                    cell['neurites_mesh'] = navis.read_swc(pa_path.joinpath(cell.cell_name + '_smoothed.swc'), units="um")
+                else:
+                    cell['neurites_mesh'] = np.nan
 
-
-            if clem_path.joinpath(cell_name + '_mapped.swc').exists():
-                cell['swc'] = navis.read_swc(clem_path.joinpath(cell_name + '_mapped.swc'), units="um")
-            else:
-                print(f"No cell found at {clem_path.joinpath(cell_name + '_mapped.swc')}")
-                cell['swc'] = np.nan
-            return cell
-
-        if cell['imaging_modality'] == 'photoactivation':
-            pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
-
-            if pa_path.joinpath(cell.cell_name + '.swc').exists():
-                cell['swc'] = navis.read_swc(pa_path.joinpath(cell.cell_name + '.swc'), units="um")
-            else:
-                cell['swc'] = np.nan
-            return cell
+        
+        else:
+            if cell['imaging_modality'] == 'clem':
+    
+                cell_name = 'clem_zfish1_' + cell.type + '_' + str(cell.cell_name)
+                clem_path = path.joinpath('clem_zfish1').joinpath('all_cells').joinpath(cell_name).joinpath('mapped')
+    
+    
+                if clem_path.joinpath(cell_name + '_mapped.swc').exists():
+                    cell['swc'] = navis.read_swc(clem_path.joinpath(cell_name + '_mapped.swc'), units="um")
+                else:
+                    print(f"No cell found at {clem_path.joinpath(cell_name + '_mapped.swc')}")
+                    cell['swc'] = np.nan
+                return cell
+    
+            if cell['imaging_modality'] == 'photoactivation':
+                pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
+    
+                if pa_path.joinpath(cell.cell_name + '.swc').exists():
+                    cell['swc'] = navis.read_swc(pa_path.joinpath(cell.cell_name + '.swc'), units="um")
+                else:
+                    cell['swc'] = np.nan
+                return cell
         
     else:
         if cell['imaging_modality'] == 'clem':
@@ -56,18 +67,33 @@ def load_mesh(cell,path,swc=False):
             return cell
     
         if cell['imaging_modality'] == 'photoactivation':
-            pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
-    
-    
-            if pa_path.joinpath(cell.cell_name + '.obj').exists():
-                cell['neurites_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '.obj'),units="um")
+            if use_smooth_pa:
+                pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
+
+                if pa_path.joinpath(cell.cell_name + '.obj').exists():
+                    cell['neurites_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_smoothed.obj'), units="um")
+                else:
+                    cell['neurites_mesh'] = np.nan
+
+                if pa_path.joinpath(cell.cell_name + '_soma.obj').exists():
+                    cell['soma_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_soma.obj'), units="um")
+                else:
+                    cell['soma_mesh'] = np.nan
+                return cell
+
             else:
-                cell['neurites_mesh'] = np.nan
-    
-    
-            if pa_path.joinpath(cell.cell_name + '_soma.obj').exists():
-                cell['soma_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_soma.obj'),units="um")
-            else:
-                cell['soma_mesh'] = np.nan
-            return cell
+                pa_path = path.joinpath('paGFP').joinpath(cell.cell_name)
+
+
+                if pa_path.joinpath(cell.cell_name + '.obj').exists():
+                    cell['neurites_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '.obj'),units="um")
+                else:
+                    cell['neurites_mesh'] = np.nan
+
+
+                if pa_path.joinpath(cell.cell_name + '_soma.obj').exists():
+                    cell['soma_mesh'] = navis.read_mesh(pa_path.joinpath(cell.cell_name + '_soma.obj'),units="um")
+                else:
+                    cell['soma_mesh'] = np.nan
+                return cell
 
