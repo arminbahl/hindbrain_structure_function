@@ -410,10 +410,12 @@ class make_figures_FK:
                                color=self.color_cells + color_meshes, width=1920, height=1080)
             fig.update_layout(
                 scene={
-                    'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
-                    'yaxis': {'range': (0, 1406 * 0.798)},
+                    'xaxis': {'autorange': 'reversed'},  # reverse !!!
+                    'yaxis': {'autorange': True},
 
-                    'zaxis': {'range': (0, 138 * 2)},
+                    'zaxis': {'autorange': True},
+                    'aspectmode': "data",
+                    'aspectratio': {"x": 1, "y": 1, "z": 1}
                 }
             )
 
@@ -427,10 +429,12 @@ class make_figures_FK:
                                color=self.color_cells, width=1920, height=1080)
             fig.update_layout(
                 scene={
-                    'xaxis': {'autorange': 'reversed', 'range': (0, 621 * 0.798)},  # reverse !!!
-                    'yaxis': {'range': (0, 1406 * 0.798)},
+                    'xaxis': {'autorange': 'reversed'},  # reverse !!!
+                    'yaxis': {'autorange': True},
 
-                    'zaxis': {'range': (0, 138 * 2)},
+                    'zaxis': {'autorange': True},
+                    'aspectmode': "data",
+                    'aspectratio': {"x": 1, "y": 1, "z": 1}
                 }
             )
             os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("html"), exist_ok=True)
