@@ -51,17 +51,27 @@ class make_figures_FK:
     figure_maker = make_figures_FK(modalities=['pa', 'clem'], keywords=['integrator'])
     figure_maker.plot_neurotransmitter()
     figure_maker.plot_z_projection(show_brs=True)
-    ```
-
-    Note:
-    - This class relies on external libraries such as `navis`, `matplotlib`, `plotly`, and `pandas` for data processing and visualization.
-    - Ensure that the path to the data directory is correctly set up in the `path_configuration.txt` file to successfully load the cell and mesh data.
     """
-    def __init__(self,
-                 modalities = ['pa'],
-                 keywords = ['integrator','ipsilateral'],
-                 use_smooth_pa=True,
-                 mirror=True):
+
+    def __init__(self, modalities=['pa'], keywords=['integrator', 'ipsilateral'], use_smooth_pa=True, mirror=True, only_soma=False):
+        """
+        Initializes the make_figures_FK class, setting up necessary parameters, loading datasets, and preparing data for visualization.
+
+        This constructor sets up the data path based on a configuration file, loads cell data according to specified modalities, and filters this data based on given keywords. It also initializes various settings that affect the visualization such as whether to use smoothed photoactivation data, whether to mirror mesh data across a midline, and whether to visualize only the soma part of the cells.
+
+        Parameters:
+        - modalities (list of str): List of modalities from which to load cell data, such as 'pa' for photoactivation or 'clem' for correlative light and electron microscopy. Defaults to ['pa'].
+        - keywords (list of str): List of keywords to filter cells by type, which could include terms like 'integrator', 'ipsilateral', or other specific labels found within the cell data. Defaults to ['integrator', 'ipsilateral'].
+        - use_smooth_pa (bool): Whether to use smoothed representations for photoactivation data. Defaults to True.
+        - mirror (bool): Whether to mirror cell mesh data across the specified midline to ensure correct orientation. Defaults to True.
+        - only_soma (bool): Whether to limit the visualization to only the soma part of each cell, ignoring other components like dendrites or axons. Defaults to False.
+
+        The function automatically handles the creation of directories needed for output based on specified parameters and ensures that all cell data is prepared and loaded for subsequent visualization tasks. Additionally, it saves a list of used cells based on the filtering criteria to facilitate reproducibility and further analysis.
+
+        Example usage:
+            instance = make_figures_FK(modalities=['pa', 'clem'], keywords=['integrator', 'contralateral'])
+            This instance will be ready to plot cells based on photoactivation and CLEM modalities, specifically those labeled as 'integrator' or 'contralateral'.
+        """
         
         #set_name_time
         self.name_time = datetime.now()
@@ -69,6 +79,12 @@ class make_figures_FK:
         #path settings
         self.path_to_data =  get_base_path() #path to clone of nextcloud, set your path in path_configuration.txt
 
+        #color dict
+
+        self.color_cell_type_dict = {"integrator_ipsi": (254, 179, 38, 0.7),
+                                     "integrator_contra": (232, 77, 138, 0.7),
+                                "dynamic threshold": (100, 197, 235, 0.7),
+                                "motor command": (127, 88, 175, 0.7), }
 
         #load pa  table
         if 'pa' in modalities:
@@ -131,64 +147,91 @@ class make_figures_FK:
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
         all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False, header=None)
 
-    def plot_z_projection(self, show_brs=False, force_new_cell_list=False, ylim=[-700, -200],rasterize=True,black_neuron = True,standard_size=True,volume_outlines=True,background_gray=True):
+    def plot_projection(self, projection='z', show_brs=False, force_new_cell_list=False, rasterize=True,
+                        black_neuron=True, standard_size=True, volume_outlines=True, background_gray=True,
+                        only_soma=False, midline=True):
         """
-        Generates and saves a 2D Z-axis projection plot of visualized brain cells, with an option to include selected brain regions.
+        Generates and saves a 2D projection plot of visualized brain cells, optionally including selected brain regions and other visual enhancements.
 
-        This function creates a 2D plot showing the Z-axis projection of brain cells, differentiating cell types by color. It allows for the optional inclusion of specific brain regions in the visualization. If `force_new_cell_list` is True, or no list of visualized cells exists, it compiles a new list based on the cell types present in the dataset and their corresponding meshes.
+        This method allows for the creation of either a Z-axis or Y-axis projection plot of the brain cells. It includes options to include brain regions, adjust the appearance of neurons, and apply various visual effects such as volume outlines and a midline indicator.
 
         Parameters:
-        - show_brs (bool): If True, selected brain regions will be included in the plot alongside the brain cells. Defaults to False.
-        - force_new_cell_list (bool): If True, forces the creation of a new list of visualized cells and their colors, ignoring any pre-existing list. Defaults to False.
-        - ylim (list of int): A two-element list specifying the y-axis limits for the plot. This controls the vertical extent of the visualization. Defaults to [-700, -200].
+        - projection (str): Specifies the axis for the projection. Can be 'z' or 'y' to indicate Z-axis or Y-axis projection, respectively. Defaults to 'z'.
+        - show_brs (bool): Whether to include selected brain regions in the plot. Defaults to False.
+        - force_new_cell_list (bool): Forces the generation of a new list of visualized cells if set to True. Useful if updates to cell data are made after initialization. Defaults to False.
+        - rasterize (bool): Whether to rasterize components of the plot to improve rendering performance. Defaults to True.
+        - black_neuron (bool or str): Can be set to True to color all neurons black or can be a string specifying the name of a specific neuron to color black. Defaults to True.
+        - standard_size (bool): If True, standardizes the size of the plot for consistent presentation. Defaults to True.
+        - volume_outlines (bool): Whether to draw outlines around brain volume components in the plot. Defaults to True.
+        - background_gray (bool): If True, fills the background of brain regions with a light gray color to make neurons stand out. Defaults to True.
+        - only_soma (bool): If True, only the soma part of neurons is visualized. Defaults to False.
+        - midline (bool): Whether to include a midline indicator on the plot. Defaults to True.
 
-        The function automatically creates the necessary directories for saving the plots and saves the plot in PNG, PDF, and SVG formats. The saved files include a timestamp and an indicator of whether brain regions were included, ensuring unique filenames for each execution.
-
-        Notes:
-        - The cell type and their corresponding colors are defined within the function in a dictionary.
-        - This function relies on the 'navis' library for generating the plot.
-        - The visualization's focus is customizable through the `ylim` parameter, allowing users to adjust the view to specific areas of interest.
+        The method loads brain region meshes if `show_brs` is True, applies specified visual settings, and generates the plot. The resulting plot is saved in PDF, PNG, and SVG formats in specifically named directories that reflect the projection type and settings used.
 
         Example usage:
-            instance.plot_z_projection(show_brs=True, force_new_cell_list=False, ylim=[-700, -200])
-        This will generate and save a Z-axis projection plot including brain regions, with the specified y-axis limits.
-        """
-        #define colors for cells
-        color_cell_type_dict = {"integrator": (255, 0, 0.7),
-                                "dynamic threshold": (0, 255, 255, 0.7),
-                                "motor command": (128, 0, 128, 0.7), }
+            instance.plot_projection(projection='y', show_brs=True, black_neuron='specific_neuron_name')
+            This will generate a Y-axis projection including brain regions, with the specific neuron colored black.
 
-        #load needed meshes into a list and assign colors
+        Note:
+        - The function assumes that all necessary data and mesh files are pre-loaded and available through the class's attributes. If `force_new_cell_list` is True, it will re-generate the list of visualized cells based on current class data.
+        """
+
+        if projection == "z":
+            view = ('x', "-y")
+            ylim = [-850, -50]
+        elif projection == 'y':
+            view = ('x', "z")
+            ylim = [-630, 270]
+        projection_string = projection + "_projection"
 
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
             self.visualized_cells = []
             self.color_cells = []
 
-            for i,cell in self.all_cells.iterrows():
-                       if black_neuron==True and cell["imaging_modality"] == "photoactivation":
-                           self.color_cells.append("black")
-                           self.color_cells.append("black")
-                           black_neuron=False
-                       elif type(black_neuron) == str:
-                           if cell['cell_name'] == black_neuron:
-                               self.color_cells.append("black")
-                               self.color_cells.append("black")
-                       else:
-                           for label in cell.cell_type_labels:
-                               if label.replace("_", " ") in color_cell_type_dict.keys():
-                                   temp_color = color_cell_type_dict[label.replace("_", " ")]
-                                   break
-                           for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                               if not type(cell[key]) == float:
-                                   self.visualized_cells.append(cell[key])
-                                   if key != "dendrite_mesh":
-                                       self.color_cells.append(temp_color)
-                                   elif key == "dendrite_mesh":
-                                       self.color_cells.append("black")
+            for i, cell in self.all_cells.iterrows():
+                if black_neuron == True and cell["imaging_modality"] == "photoactivation":
+                    self.color_cells.append("black")
+                    self.color_cells.append("black")
+                    black_neuron = False
+                elif type(black_neuron) == str:
+                    if cell['cell_name'] == black_neuron:
+                        self.color_cells.append("black")
+                        self.color_cells.append("black")
+                else:
+                    for label in cell.cell_type_labels:
+                        if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
 
+                        elif label == "integrator" and "contralateral" in cell.cell_type_labels:
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                        elif label.replace("_", " ") in self.color_cell_type_dict.keys():
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ")]
+                            break
+                    for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
+                        if only_soma:
+                            if not type(cell[key]) == float and key == "soma_mesh":
+                                self.visualized_cells.append(cell[key])
+                                if key != "dendrite_mesh":
+                                    self.color_cells.append(temp_color)
+                                elif key == "dendrite_mesh":
+                                    self.color_cells.append("black")
+                        else:
+                            if not type(cell[key]) == float:
+                                self.visualized_cells.append(cell[key])
+                                if key != "dendrite_mesh":
+                                    self.color_cells.append(temp_color)
+                                elif key == "dendrite_mesh":
+                                    self.color_cells.append("black")
 
+        # here we start the plotting
+        if show_brs:
+            brkw = "_with_brs_"
+        else:
+            brkw = "_without_brs_"
 
-        #here we start the plotting
+        # load brain regions
+
         if show_brs:
             brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
             brain_meshes_with_vertices = load_brs(self.path_to_data, load_FK_regions=True, as_volume=False)
@@ -201,99 +244,153 @@ class make_figures_FK:
                 brain_meshes[i]._vertices = brain_meshes_with_vertices[i]._vertices
                 brain_meshes[i]._faces = brain_meshes_with_vertices[i]._faces
 
-        #zprojection
+        # start plotting the projection
+
         if show_brs:
 
-            plt.ylim(ylim)
+            fig, ax = navis.plot2d(brain_meshes,
+                                   color=color_meshes,
+                                   volume_outlines=volume_outlines,
+                                   alpha=0.2,
+                                   linewidth=0.5,
+                                   method='2d',
+                                   view=view,
+                                   group_neurons=True,
+                                   rasterize=rasterize)
 
-
-
-            fig, ax = navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines, alpha=0.2, linewidth=0.5, method='2d', view=('x', "-y"), group_neurons=True, rasterize=rasterize)
             if background_gray:
 
-
                 for mesh in brain_meshes:
-                     temp_convex_hull = np.array(mesh.to_2d(view=('x', "-y")))
+                    temp_convex_hull = np.array(mesh.to_2d(view=view))
 
-                     ax.fill(temp_convex_hull[:,0],temp_convex_hull[:,1],c='#F7F7F7',zorder=-1,alpha=1,ec=None)
+                    ax.fill(temp_convex_hull[:, 0], temp_convex_hull[:, 1],
+                            c='#F7F7F7',
+                            zorder=-1,
+                            alpha=1,
+                            ec=None)
 
-            ax.axvline(250, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5,lw=1)
-            fig, ax = navis.plot2d(self.visualized_cells,color=self.color_cells,alpha=1,linewidth=0.5,method='2d',view=('x', "-y"),group_neurons=True,rasterize=rasterize,ax=ax, scalebar="20 um")
+            fig, ax = navis.plot2d(self.visualized_cells,
+                                   color=self.color_cells,
+                                   alpha=1,
+                                   linewidth=1,
+                                   method='2d',
+                                   view=view,
+                                   group_neurons=True,
+                                   rasterize=rasterize,
+                                   ax=ax,
+                                   scalebar="20 um")
 
 
-            if standard_size:
-                width_brain = 495.56
-                plt.xlim(0,width_brain)
-                plt.ylim( -850,-50) #minimum of forebrain and maximum of hindbrain
 
 
         else:
+            fig, ax = navis.plot2d(self.visualized_cells,
+                                   color=self.color_cells,
+                                   alpha=1,
+                                   linewidth=1,
+                                   method='2d',
+                                   view=view,
+                                   group_neurons=True,
+                                   rasterize=rasterize,
+                                   scalebar="20 um")
 
-            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d', view=('x', "-y"),
-                                   group_neurons=True, rasterize=rasterize, scalebar="10 um")
-            ax.axvline(250, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5,zorder=0)
-            if standard_size:
-                width_brain = 495.56
-                plt.xlim(0,width_brain)
-                plt.ylim( -850,-50) #minimum of forebrain and maximum of hindbrain
+        if midline:
+            ax.axvline(250,
+                       color=(0.85, 0.85, 0.85, 0.2),
+                       linestyle='--',
+                       alpha=0.5,
+                       zorder=0)
+        if standard_size:
+            plt.xlim(0, 500)
+            plt.ylim(ylim[0], ylim[1])  # minimum of forebrain and maximum of hindbrain
+            ax.set_facecolor('white')
 
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf"), exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png"), exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg"), exist_ok=True)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
+        print(f"{projection_string} saved!")
 
-
-        if show_brs:
-            brkw = "_with_brs_"
-        else:
-            brkw = "_without_brs_"
-
-        #ax.set_ylim(-700, -200)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf"),exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png"),exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg"),exist_ok=True)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("png").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("pdf").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("z_projection").joinpath("svg").joinpath(rf"z_projection{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
-        print("Z projection saved!")
-
-    def plot_y_projection(self, show_brs=False, force_new_cell_list=False,rasterize = True,black_neuron=True,standard_size=True,volume_outlines=True,background_gray=True):
+    def plot_y_projection(self, **kwargs):
         """
-        Generates and saves a 2D Y-axis projection plot of visualized brain cells, optionally including selected brain regions.
+        Convenience method to generate and save a Y-axis projection plot of visualized brain cells using predefined settings.
 
-        This function creates a 2D plot representing the Y-axis projection of brain cells and, if specified, selected brain regions.
-        The plot differentiates cell types based on color coding specified in a dictionary within the function. If `force_new_cell_list`
-        is True, or if no cell list is pre-loaded, the function will generate a new list of visualized cells and their associated colors
-        based on cell type labels.
-
-        The inclusion of brain regions in the plot is controlled by the `show_brs` flag. If enabled, specific brain regions are loaded
-        and visualized alongside the brain cells. The plot is saved in multiple formats (PDF, PNG, SVG) within a structured directory
-        hierarchy based on the plot type and timestamp.
+        This method serves as a wrapper for the `plot_projection` function, specifically setting the projection to the Y-axis. It forwards any additional keyword arguments to customize the plot according to the user’s requirements, such as including brain regions, applying visual enhancements, or modifying neuron appearance.
 
         Parameters:
-        - show_brs (bool): Controls whether selected brain regions are included in the plot alongside the visualized cells.
-                           Defaults to False.
-        - force_new_cell_list (bool): Forces the generation of a new list of visualized cells and their colors if True, regardless
-                                      of whether a list already exists. Defaults to False.
+        - **kwargs: Variable keyword arguments that are passed directly to the `plot_projection` method to customize the plot. Common parameters include `show_brs` for displaying brain regions, `force_new_cell_list` for refreshing the data, and visual settings like `rasterize`, `black_neuron`, and `background_gray`.
 
-        The function creates necessary directories if they do not exist and saves the plot in PDF, PNG, and SVG formats, each
-        within its respective sub-directory under "make_figures_FK_output/y_projection". The filenames include a timestamp, ensuring
-        unique filenames for each execution.
-
-        Note:
-        - This function relies on the 'navis' library for plotting and assumes the presence of a pre-defined structure of cell data
-          and brain region data within the class instance.
+        This method simplifies the process of creating a Y-axis projection by encapsulating the projection parameter, making the function call more intuitive for specific visualization needs.
 
         Example usage:
-            instance.plot_y_projection(show_brs=True, force_new_cell_list=False)
-        This generates a 2D Y-axis projection plot including brain regions and saves it in specified formats.
-        """
-        # define colors for cells
-        color_cell_type_dict = {"integrator": (255,0,0.7),
-                                "dynamic threshold": (0,255,255,0.7),
-                                "motor command": (128,0,128,0.7), }
+            instance.plot_y_projection(show_brs=True, black_neuron=False)
+            This will generate a Y-axis projection plot including brain regions, without coloring neurons black.
 
-        # load needed meshes into a list and assign colors
+        Note:
+        - For a detailed explanation of all customizable parameters, refer to the docstring of the `plot_projection` method.
+        """
+        self.plot_projection(projection='y', **kwargs)
+
+    def plot_z_projection(self, **kwargs):
+        """
+        Convenience method to generate and save a Z-axis projection plot of visualized brain cells using predefined settings.
+
+        This method serves as a wrapper for the `plot_projection` function, setting the projection specifically to the Z-axis. It accepts any additional keyword arguments to tailor the plot, such as including brain regions, adjusting visual settings, or specifying which parts of the neurons to visualize.
+
+        Parameters:
+        - **kwargs: Variable keyword arguments that are passed directly to the `plot_projection` method to customize the plot. Common parameters might include `show_brs` to display brain regions, `force_new_cell_list` to refresh the data before plotting, and other visual enhancements like `rasterize`, `black_neuron`, and `volume_outlines`.
+
+        This method simplifies the process of creating a Z-axis projection by encapsulating the projection parameter. It provides a more straightforward interface for generating specific visualizations tailored to user needs.
+
+        Example usage:
+            instance.plot_z_projection(show_brs=True, only_soma=True)
+            This will generate a Z-axis projection plot including brain regions, displaying only the somas of the neurons.
+
+        Note:
+        - For detailed descriptions of all customizable parameters, refer to the docstring of the `plot_projection` method.
+        """
+        self.plot_projection(projection='z', **kwargs)
+
+
+
+
+    def make_interactive(self, show_brs=True,force_new_cell_list=False):
+        """
+        Generates and saves an interactive 3D plot of visualized brain cells, optionally including selected brain regions.
+
+        This function leverages the Plotly library to create a dynamic, interactive 3D visualization of brain cells. Users can
+        choose to include a predefined set of brain regions in the visualization, enhancing the contextual understanding of the
+        spatial arrangement of cells. The plot settings such as orientation and scaling of axes are optimized for clarity and
+        ease of interaction.
+
+        Parameters:
+        - show_brs (bool): Determines whether to include brain regions in the visualization. If True, brain regions are
+                           loaded and visualized alongside the brain cells. If False, only the brain cells are visualized.
+                           Defaults to True.
+        - force_new_cell_list (bool): If True, forces the regeneration of the list of cells to be visualized based on the
+                                      current configuration. This is useful if updates to cell data or visualization preferences
+                                      have occurred since the last plot generation. Defaults to False.
+
+        The generated 3D plot is saved as an HTML file in a predefined directory structure, which includes a timestamp in the
+        filename to ensure that each visualization is uniquely identifiable and does not overwrite previous files.
+
+        Example usage:
+            instance.make_interactive(show_brs=True)
+            This call will generate a 3D plot including brain regions, enhancing the visualization with additional anatomical context.
+
+        Note:
+        - The function ensures all necessary directories exist before saving the plot, using standard file management routines
+          to organize output effectively.
+        - The interactive plot is saved but not automatically opened, allowing users to open it manually at their convenience.
+        """
+        black_neuron = False
 
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
             self.visualized_cells = []
             self.color_cells = []
+
             for i, cell in self.all_cells.iterrows():
                 if black_neuron == True and cell["imaging_modality"] == "photoactivation":
                     self.color_cells.append("black")
@@ -305,8 +402,13 @@ class make_figures_FK:
                         self.color_cells.append("black")
                 else:
                     for label in cell.cell_type_labels:
-                        if label.replace("_", " ") in color_cell_type_dict.keys():
-                            temp_color = color_cell_type_dict[label.replace("_", " ")]
+                        if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
+
+                        elif label == "integrator" and "contralateral" in cell.cell_type_labels:
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                        elif label.replace("_", " ") in self.color_cell_type_dict.keys():
+                            temp_color = self.color_cell_type_dict[label.replace("_", " ")]
                             break
                     for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
                         if not type(cell[key]) == float:
@@ -315,122 +417,6 @@ class make_figures_FK:
                                 self.color_cells.append(temp_color)
                             elif key == "dendrite_mesh":
                                 self.color_cells.append("black")
-
-        # here we start the plotting
-        if show_brs:
-            brkw = "_with_brs_"
-        else:
-            brkw = "_without_brs_"
-
-
-        if show_brs:
-            brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
-            brain_meshes_with_vertices = load_brs(self.path_to_data, load_FK_regions=True,as_volume=False)
-            selected_meshes = self.selected_meshes
-            brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
-            brain_meshes_with_vertices = [mesh for mesh in brain_meshes_with_vertices if mesh.name in selected_meshes]
-            color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
-
-            for i,mesh in enumerate(brain_meshes):
-                brain_meshes[i]._vertices = brain_meshes_with_vertices[i]._vertices
-                brain_meshes[i]._faces = brain_meshes_with_vertices[i]._faces
-
-        # yprojection
-        if show_brs:
-
-
-            fig, ax = navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines, alpha=0.2, linewidth=0.5, method='2d', view=('x', "z"), group_neurons=True, rasterize=rasterize)
-
-            if background_gray:
-
-                for mesh in brain_meshes:
-                    temp_convex_hull = np.array(mesh.to_2d(view=('x', "z")))
-
-                    ax.fill(temp_convex_hull[:, 0], temp_convex_hull[:, 1], c='#F7F7F7', zorder=-1, alpha=1,ec=None)
-            ax.axvline(250, color='white', linestyle='--', alpha=0.5)
-            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
-                                   view=('x', "z"), group_neurons=True, rasterize=rasterize, ax=ax, scalebar="20 um")
-
-            if standard_size:
-                width_brain = 495.56
-                plt.xlim(0,width_brain)
-                plt.ylim(0, 270)
-            ax.axvline(250, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5)
-
-        else:
-            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5, method='2d',
-                                   view=('x', "z"),
-                                   group_neurons=True, rasterize=rasterize, scalebar="10 um")
-            ax.axvline(248.379, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5, zorder=0)
-            if standard_size:
-                width_brain = 495.56
-                plt.xlim(0,width_brain)
-                plt.ylim(0, 270)
-
-        # ax.set_ylim(-700, -200)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf"),exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png"),exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg"),exist_ok=True)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("pdf").joinpath(rf"{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("png").joinpath(rf"{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        plt.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath("y_projection").joinpath("svg").joinpath(rf"{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
-        print("Y projection saved!")
-
-    def make_interactive(self, show_brs=True):
-        """
-        Generates and saves an interactive 3D plot of visualized brain cells, with an option to include selected brain regions.
-
-        This function uses the Plotly library to create a dynamic, interactive 3D visualization of brain cells. Users can
-        opt to include a predefined set of brain regions (e.g., Retina, Midbrain, Forebrain) in the visualization. The
-        appearance of the plot, including the orientation and scale of the axes, is configured for optimal viewing. The
-        generated plot is saved as an HTML file, facilitating easy sharing and viewing in web browsers.
-
-        Parameters:
-        - show_brs (bool): A flag to determine whether to include brain regions in the visualization. If True, the function
-                           loads and visualizes selected brain regions alongside the brain cells. If False, only brain cells
-                           are visualized. Defaults to True.
-
-        The output file is saved in a directory named "make_figures_FK_output/html" within the current working directory.
-        The filename includes a timestamp and indicates whether brain regions were included in the plot.
-
-        Note:
-        - The function creates the necessary directories if they do not exist.
-        - The 3D plot is saved but not automatically opened, allowing users to view it at their convenience.
-
-        Example usage:
-            instance.make_interactive(show_brs=True)
-        This will generate a 3D plot including brain regions and save it as an HTML file.
-        """
-        black_neuron = False
-        color_cell_type_dict = {"integrator": (255, 0, 0.7),
-                                "dynamic threshold": (0, 255, 255, 0.7),
-                                "motor command": (128, 0, 128, 0.7), }
-
-        if not "visualized_cells" in self.__dir__():
-            self.visualized_cells = []
-            self.color_cells = []
-
-            for i,cell in self.all_cells.iterrows():
-                       if black_neuron==True and cell["imaging_modality"] == "photoactivation":
-                           self.color_cells.append("black")
-                           self.color_cells.append("black")
-                           black_neuron=False
-                       elif type(black_neuron) == str:
-                           if cell['cell_name'] == black_neuron:
-                               self.color_cells.append("black")
-                               self.color_cells.append("black")
-                       else:
-                           for label in cell.cell_type_labels:
-                               if label.replace("_", " ") in color_cell_type_dict.keys():
-                                   temp_color = color_cell_type_dict[label.replace("_", " ")]
-                                   break
-                           for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                               if not type(cell[key]) == float:
-                                   self.visualized_cells.append(cell[key])
-                                   if key != "dendrite_mesh":
-                                       self.color_cells.append(temp_color)
-                                   elif key == "dendrite_mesh":
-                                       self.color_cells.append("black")
 
 
         if show_brs:
@@ -478,22 +464,33 @@ class make_figures_FK:
 
     def plot_neurotransmitter(self, show_na=True):
         """
-        Generates and saves a bar chart representing the count of cells classified by neurotransmitter type: inhibitory, excitatory, or unspecified (NA).
+        Generates and saves a bar chart representing the distribution of cells classified by neurotransmitter type: inhibitory,
+        excitatory, or unspecified (NA).
 
-        This function counts the number of cells labeled as 'inhibitory', 'excitatory', or not specified (NA) within the dataset. It then generates a bar chart visualizing these counts. The bars are colored distinctly to differentiate between the categories: orange for inhibitory, blue for excitatory, and gray for unspecified. The chart includes an option to include or exclude the NA category based on the `show_na` parameter. After plotting, the figure is saved in PDF, PNG, and SVG formats within designated subdirectories.
+        This method counts the number of cells labeled as 'inhibitory', 'excitatory', or not specified (NA) within the dataset
+        and visualizes these counts in a bar chart. The bars are distinctly colored to differentiate between the categories,
+        enhancing the visual distinction between cell types. Users can opt to include or exclude the NA category in the visualization
+        through the `show_na` parameter.
 
         Parameters:
-        - show_na (bool): Controls the inclusion of the NA (not specified) category in the plot. If True, the NA category is included; if False, it is excluded from the visualization. Defaults to True.
+        - show_na (bool): Determines whether to include the 'Not Applicable' (NA) category in the bar chart. If set to True,
+                          the NA category is included, which represents cells that are not specified as either inhibitory or excitatory.
+                          Defaults to True.
 
-        The function ensures that the necessary directories for saving the figures are created if they do not already exist. The saved figures include a timestamp in their filenames to avoid overwriting previous files.
-
-        Notes:
-        - The Y-axis of the bar chart is set to display integer values only to enhance readability.
-        - The function relies on matplotlib for plotting and assumes the presence of a 'all_cells' DataFrame attribute within the class instance, where cell types are categorized.
+        The function saves the chart in multiple formats (PDF, PNG, SVG) within designated subdirectories to ensure accessibility and
+        usability across different platforms and uses. The saved files include a timestamp and keyword designations to avoid
+        overwriting previous plots and to facilitate easy identification.
 
         Example usage:
-          instance.plot_neurotransmitter(show_na=True)
-        This will generate and save a bar chart including the unspecified (NA) category, representing the count of cells by neurotransmitter type.
+            instance.plot_neurotransmitter(show_na=False)
+            This will generate and save a bar chart that excludes the unspecified neurotransmitter category, focusing only on
+            inhibitory and excitatory cells.
+
+        Note:
+        - This function relies on matplotlib for generating the bar chart. Ensure that this library is installed and properly configured
+          in your environment.
+        - The directory structure for saving the outputs is automatically managed by the method, which checks for existing paths
+          and creates them if necessary.
         """
 
         inhibitory_count = 0
@@ -578,23 +575,27 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    integrator_ipsi_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral',])
-    integrator_ipsi_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    integrator_ipsi_figure.plot_y_projection(show_brs=True, rasterize=True)
-    integrator_ipsi_figure.plot_neurotransmitter()
+    # integrator_ipsi_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral',])
+    # integrator_ipsi_figure.plot_z_projection(rasterize=True, show_brs=True, )
+    # integrator_ipsi_figure.plot_y_projection(show_brs=True, rasterize=True)
+    # integrator_ipsi_figure.plot_neurotransmitter()
+    #
+    # integrator_contra_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
+    # integrator_contra_figure.plot_z_projection(rasterize=True, show_brs=True, )
+    # integrator_contra_figure.plot_y_projection(show_brs=True, rasterize=True)
+    # integrator_contra_figure.plot_neurotransmitter()
+    #
+    # dt_figure = make_figures_FK(modalities=['pa'],keywords=['dynamic_threshold'],mirror=True)
+    # dt_figure.plot_z_projection(rasterize=True,show_brs=True,)
+    # dt_figure.plot_y_projection(show_brs=True, rasterize=True)
+    # dt_figure.plot_neurotransmitter()
+    #
+    #
+    # mc_figure = make_figures_FK(modalities=['pa'],keywords=['motor_command'])
+    # mc_figure.plot_z_projection(rasterize=True, show_brs=True, )
+    # mc_figure.plot_y_projection(show_brs=True, rasterize=True)
+    # mc_figure.plot_neurotransmitter()
 
-    integrator_contra_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
-    integrator_contra_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    integrator_contra_figure.plot_y_projection(show_brs=True, rasterize=True)
-    integrator_contra_figure.plot_neurotransmitter()
-    
-    dt_figure = make_figures_FK(modalities=['pa'],keywords=['dynamic_threshold'],mirror=True)
-    dt_figure.plot_z_projection(rasterize=True,show_brs=True,)
-    dt_figure.plot_y_projection(show_brs=True, rasterize=True)
-    dt_figure.plot_neurotransmitter()
-
-    
-    mc_figure = make_figures_FK(modalities=['pa'],keywords=['motor_command'])
-    mc_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    mc_figure.plot_y_projection(show_brs=True, rasterize=True)
-    mc_figure.plot_neurotransmitter()
+    all_cells_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
+    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
+    all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=False,black_neuron=False)
