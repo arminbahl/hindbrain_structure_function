@@ -72,80 +72,82 @@ class make_figures_FK:
             instance = make_figures_FK(modalities=['pa', 'clem'], keywords=['integrator', 'contralateral'])
             This instance will be ready to plot cells based on photoactivation and CLEM modalities, specifically those labeled as 'integrator' or 'contralateral'.
         """
-        
-        #set_name_time
+
+        # Record the current datetime to timestamp outputs for uniqueness and tracking.
         self.name_time = datetime.now()
+        # Set the flag for applying smoothing to photoactivation data based on the constructor argument.
         self.use_smooth_pa = use_smooth_pa
-        #path settings
-        self.path_to_data =  get_base_path() #path to clone of nextcloud, set your path in path_configuration.txt
+        # Set the base path for data by reading from a configuration file; ensures correct data location is used.
+        self.path_to_data = get_base_path()  # Ensure this path is set in path_configuration.txt
 
-        #color dict
+        # Define a dictionary mapping cell types to specific RGBA color codes for consistent visual representation.
+        self.color_cell_type_dict = {
+            "integrator_ipsi": (254, 179, 38, 0.7),
+            "integrator_contra": (232, 77, 138, 0.7),
+            "dynamic threshold": (100, 197, 235, 0.7),
+            "motor command": (127, 88, 175, 0.7),
+        }
 
-        self.color_cell_type_dict = {"integrator_ipsi": (254, 179, 38, 0.7),
-                                     "integrator_contra": (232, 77, 138, 0.7),
-                                "dynamic threshold": (100, 197, 235, 0.7),
-                                "motor command": (127, 88, 175, 0.7), }
-
-        #load pa  table
+        # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
         if 'pa' in modalities:
             pa_table = load_pa_table(self.path_to_data.joinpath("paGFP").joinpath("photoactivation_cells_table.csv"))
-        #load clem table
+
+        # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
         if 'clem' in modalities:
             clem_table = load_clem_table(self.path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
 
         #TODO here the loading of gregor has to go
 
-
-        #concat tables
-        if len(modalities)>1:
-            all_cells = pd.concat([eval(x+'_table') for x in modalities])
-        elif len(modalities) ==1:
-            all_cells = eval(modalities[0]+"_table")
+        # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
+        if len(modalities) > 1:
+            all_cells = pd.concat([eval(x + '_table') for x in modalities])
+        elif len(modalities) == 1:
+            all_cells = eval(modalities[0] + "_table")
         all_cells = all_cells.reset_index(drop=True)
+
         self.keywords = keywords
-        #subset dataset for keywords
-        if keywords!='all':
+        # Filter the concatenated cell data based on specified keywords.
+        if keywords != 'all':
             for keyword in keywords:
-                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda current_label: True if keyword.replace("_"," ") in current_label or keyword in current_label  else False)
+                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda label: keyword.replace("_", " ") in label or keyword in label)
                 all_cells = all_cells[subset_for_keyword]
 
+        # Set specific brain regions to be included in visualizations.
+        self.selected_meshes = ["Retina", 'Midbrain', "Olfactory Bulb", "Forebrain", "Habenula", "Hindbrain", "Spinal Cord", "raphe", 'eye1', 'eye2', 'cerebellar_neuropil', 'Rhombencephalon - Rhombomere 1',
+                                'Rhombencephalon - Rhombomere 2', "cn1", "cn2", 'Mesencephalon - Tectum Stratum Periventriculare']
 
-        self.selected_meshes = ["Retina", 'Midbrain',"Olfactory Bulb", "Forebrain", "Habenula", "Hindbrain", "Spinal Cord","raphe",'eye1','eye2','cerebellar_neuropil','Rhombencephalon - Rhombomere 1','Rhombencephalon - Rhombomere 2',"cn1","cn2",'Mesencephalon - Tectum Stratum Periventriculare']
-        all_cells['soma_mesh'] = np.nan
-        all_cells['dendrite_mesh'] = np.nan
-        all_cells['axon_mesh'] = np.nan
-        all_cells['neurites_mesh'] = np.nan
+        # Initialize columns for different types of mesh data, setting default as NaN.
+        for mesh_type in ['soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh']:
+            all_cells[mesh_type] = np.nan
+            all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
-        all_cells['soma_mesh'] = all_cells['soma_mesh'].astype(object)
-        all_cells['dendrite_mesh'] = all_cells['dendrite_mesh'].astype(object)
-        all_cells['axon_mesh'] = all_cells['axon_mesh'].astype(object)
-        all_cells['neurites_mesh'] = all_cells['neurites_mesh'].astype(object)
+        # If a cell was scored by Jonathan Boulanger-Weill, set its imaging modality to 'clem'.
+        all_cells.loc[all_cells['tracer_names'] == 'Jonathan Boulanger-Weill', 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
 
-        #set imaging modality to clem if jon scored it
-        all_cells.loc[all_cells['tracer_names']=='Jonathan Boulanger-Weill','imaging_modality'] = 'clem' #TODO ask jonathan if we can write clem as imaging modality
+        # Load mesh data for each cell based on selected modalities and smoothing setting.
+        for i, cell in all_cells.iterrows():
+            all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa)
 
-        #load the meshes for each cell that fits queries in selected modalities
-        for i,cell in all_cells.iterrows():
-            all_cells.loc[i,:] = load_mesh(cell,self.path_to_data,use_smooth_pa=self.use_smooth_pa)
-
-        width_brain = 495.56
+        # Mirror cell data if specified, adjusting for anatomical accuracy.
+        width_brain = 495.56  # The width of the brain for mirror transformations.
         if mirror:
-            for i,cell in all_cells.iterrows():
-                if np.mean(cell['soma_mesh']._vertices[:,0]) > (width_brain/2): #check which hemisphere
+            for i, cell in all_cells.iterrows():
+                if np.mean(cell['soma_mesh']._vertices[:, 0]) > (width_brain / 2):  # Determine if the cell is in the right hemisphere.
+                    # Mirror various mesh data based on imaging modality.
                     all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
                     if cell['imaging_modality'] == 'photoactivation':
-                        all_cells.loc[i,'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices,width_brain,'x')
+                        all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
                     if cell['imaging_modality'] == 'clem':
-                        all_cells.loc[i,'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices,width_brain,'x')
+                        all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                         all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
 
-
-
-
+        # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
         self.all_cells = all_cells
 
+        # Create a directory for storing information on the used cells and save the list of cell names.
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
-        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False, header=None)
+        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False,
+                                      header=None)
 
     def plot_projection(self, projection='z', show_brs=False, force_new_cell_list=False, rasterize=True,
                         black_neuron=True, standard_size=True, volume_outlines=True, background_gray=True,
@@ -177,37 +179,43 @@ class make_figures_FK:
         - The function assumes that all necessary data and mesh files are pre-loaded and available through the class's attributes. If `force_new_cell_list` is True, it will re-generate the list of visualized cells based on current class data.
         """
 
+        # Determine the view settings based on the projection type ('z' or 'y').
         if projection == "z":
-            view = ('x', "-y")
-            ylim = [-850, -50]
+            view = ('x', "-y")  # Set the 2D view to the X-Y plane for Z projection.
+            ylim = [-850, -50]  # Define the Y-axis limits for the Z projection.
         elif projection == 'y':
-            view = ('x', "z")
-            ylim = [-630, 270]
-        projection_string = projection + "_projection"
+            view = ('x', "z")  # Set the 2D view to the X-Z plane for Y projection.
+            ylim = [-630, 270]  # Define the Y-axis limits for the Y projection.
+        projection_string = projection + "_projection"  # Create a string to denote the type
 
+        # Rebuild the list of visualized cells and their colors if necessary.
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
-            self.visualized_cells = []
-            self.color_cells = []
+            self.visualized_cells = []  # Reset the list of cells to be visualized.
+            self.color_cells = []  # Reset the list of colors corresponding to the cells.
 
+            # Iterate over all cells to determine their colors based on their types and specific conditions.
             for i, cell in self.all_cells.iterrows():
                 if black_neuron == True and cell["imaging_modality"] == "photoactivation":
+                    # Color all photoactivation modality cells black if specified.
                     self.color_cells.append("black")
                     self.color_cells.append("black")
                     black_neuron = False
                 elif type(black_neuron) == str:
+                    # Color a specific neuron black if its name matches the specified string.
                     if cell['cell_name'] == black_neuron:
                         self.color_cells.append("black")
                         self.color_cells.append("black")
                 else:
+                    # Assign colors based on cell type labels using a predefined color dictionary.
                     for label in cell.cell_type_labels:
                         if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
                             temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
-
                         elif label == "integrator" and "contralateral" in cell.cell_type_labels:
                             temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
                         elif label.replace("_", " ") in self.color_cell_type_dict.keys():
                             temp_color = self.color_cell_type_dict[label.replace("_", " ")]
                             break
+                    # Append visualized cells and their colors.
                     for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
                         if only_soma:
                             if not type(cell[key]) == float and key == "soma_mesh":
@@ -224,94 +232,60 @@ class make_figures_FK:
                                 elif key == "dendrite_mesh":
                                     self.color_cells.append("black")
 
-        # here we start the plotting
+        # Load brain regions and initialize settings for plot if selected brain regions should be shown.
         if show_brs:
             brkw = "_with_brs_"
-        else:
-            brkw = "_without_brs_"
-
-        # load brain regions
-
-        if show_brs:
             brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
             brain_meshes_with_vertices = load_brs(self.path_to_data, load_FK_regions=True, as_volume=False)
             selected_meshes = self.selected_meshes
             brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
             brain_meshes_with_vertices = [mesh for mesh in brain_meshes_with_vertices if mesh.name in selected_meshes]
             color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
-
             for i, mesh in enumerate(brain_meshes):
                 brain_meshes[i]._vertices = brain_meshes_with_vertices[i]._vertices
                 brain_meshes[i]._faces = brain_meshes_with_vertices[i]._faces
+        else:
+            brkw = "_without_brs_"
 
-        # start plotting the projection
-
+        # Begin plotting the projection using navis plot2d, applying color settings and other parameters.
         if show_brs:
-
-            fig, ax = navis.plot2d(brain_meshes,
-                                   color=color_meshes,
-                                   volume_outlines=volume_outlines,
-                                   alpha=0.2,
-                                   linewidth=0.5,
-                                   method='2d',
-                                   view=view,
-                                   group_neurons=True,
+            fig, ax = navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines,
+                                   alpha=0.2, linewidth=0.5, method='2d', view=view, group_neurons=True,
                                    rasterize=rasterize)
-
             if background_gray:
-
+                # Optionally fill the background of brain regions with gray for better visibility.
                 for mesh in brain_meshes:
                     temp_convex_hull = np.array(mesh.to_2d(view=view))
-
-                    ax.fill(temp_convex_hull[:, 0], temp_convex_hull[:, 1],
-                            c='#F7F7F7',
-                            zorder=-1,
-                            alpha=1,
-                            ec=None)
-
-            fig, ax = navis.plot2d(self.visualized_cells,
-                                   color=self.color_cells,
-                                   alpha=1,
-                                   linewidth=1,
-                                   method='2d',
-                                   view=view,
-                                   group_neurons=True,
-                                   rasterize=rasterize,
-                                   ax=ax,
+                    ax.fill(temp_convex_hull[:, 0], temp_convex_hull[:, 1], c='#F7F7F7', zorder=-1, alpha=1, ec=None)
+            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=1,
+                                   method='2d', view=view, group_neurons=True, rasterize=rasterize, ax=ax,
                                    scalebar="20 um")
-
-
-
-
         else:
-            fig, ax = navis.plot2d(self.visualized_cells,
-                                   color=self.color_cells,
-                                   alpha=1,
-                                   linewidth=1,
-                                   method='2d',
-                                   view=view,
-                                   group_neurons=True,
-                                   rasterize=rasterize,
+            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=1,
+                                   method='2d', view=view, group_neurons=True, rasterize=rasterize,
                                    scalebar="20 um")
 
+        # Include a midline indicator if specified.
         if midline:
-            ax.axvline(250,
-                       color=(0.85, 0.85, 0.85, 0.2),
-                       linestyle='--',
-                       alpha=0.5,
-                       zorder=0)
+            ax.axvline(250, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5, zorder=0)
         if standard_size:
-            plt.xlim(0, 500)
-            plt.ylim(ylim[0], ylim[1])  # minimum of forebrain and maximum of hindbrain
-            ax.set_facecolor('white')
+            plt.xlim(0, 500)  # Standardize the plot dimensions.
+            plt.ylim(ylim[0], ylim[1])  # Set specific limits for the Y-axis based on the projection.
+            ax.set_facecolor('white')  # Set the background color of the plot to white for clarity.
 
+        # Create directories for saving the output files if they do not already exist.
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf"), exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png"), exist_ok=True)
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg"), exist_ok=True)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg").joinpath(rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
-        print(f"{projection_string} saved!")
+
+        # Save the figure in different formats at the specified resolution.
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf").joinpath(
+            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png").joinpath(
+            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg").joinpath(
+            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
+        print(f"{projection_string} saved!")  # Notify the user that the plot has been saved successfully.
 
     def plot_y_projection(self, **kwargs):
         """
@@ -331,7 +305,8 @@ class make_figures_FK:
         Note:
         - For a detailed explanation of all customizable parameters, refer to the docstring of the `plot_projection` method.
         """
-        self.plot_projection(projection='y', **kwargs)
+        self.plot_projection(projection='y', **kwargs)  # Directly calls the plot_projection method with 'y' axis setting
+
 
     def plot_z_projection(self, **kwargs):
         """
@@ -351,7 +326,8 @@ class make_figures_FK:
         Note:
         - For detailed descriptions of all customizable parameters, refer to the docstring of the `plot_projection` method.
         """
-        self.plot_projection(projection='z', **kwargs)
+        self.plot_projection(projection='z', **kwargs)  # Directly calls the plot_projection method with 'x' axis setting
+
 
 
 
@@ -385,6 +361,7 @@ class make_figures_FK:
           to organize output effectively.
         - The interactive plot is saved but not automatically opened, allowing users to open it manually at their convenience.
         """
+        # Initialize a flag to manage conditional coloring of neurons, default is no special coloring.
         black_neuron = False
 
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
@@ -599,3 +576,5 @@ if __name__ == "__main__":
     all_cells_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
     all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
     all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=False,black_neuron=False)
+    all_cells_figure.make_interactive()
+    all_cells_figure.plot_neurotransmitter()
