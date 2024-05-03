@@ -132,14 +132,15 @@ class make_figures_FK:
         width_brain = 495.56  # The width of the brain for mirror transformations.
         if mirror:
             for i, cell in all_cells.iterrows():
-                if np.mean(cell['soma_mesh']._vertices[:, 0]) > (width_brain / 2):  # Determine if the cell is in the right hemisphere.
-                    # Mirror various mesh data based on imaging modality.
-                    all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
-                    if cell['imaging_modality'] == 'photoactivation':
-                        all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
-                    if cell['imaging_modality'] == 'clem':
-                        all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
-                        all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
+                if type(cell['soma_mesh']) != float and type(cell['soma_mesh']) != type(None):
+                    if np.mean(cell['soma_mesh']._vertices[:, 0]) > (width_brain / 2):  # Determine if the cell is in the right hemisphere.
+                        # Mirror various mesh data based on imaging modality.
+                        all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
+                        if cell['imaging_modality'] == 'photoactivation':
+                            all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
+                        if cell['imaging_modality'] == 'clem':
+                            all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
+                            all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
 
         # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
         self.all_cells = all_cells
@@ -219,11 +220,9 @@ class make_figures_FK:
                     for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
                         if only_soma:
                             if not type(cell[key]) == float and key == "soma_mesh":
-                                self.visualized_cells.append(cell[key])
-                                if key != "dendrite_mesh":
-                                    self.color_cells.append(temp_color)
-                                elif key == "dendrite_mesh":
-                                    self.color_cells.append("black")
+                                self.visualized_cells.append(navis.MeshNeuron(navis.Volume(cell[key]).resize(2)))
+                                self.visualized_cells[-1].units = 'micrometer'
+                                self.color_cells.append(temp_color)
                         else:
                             if not type(cell[key]) == float:
                                 self.visualized_cells.append(cell[key])
@@ -577,8 +576,8 @@ if __name__ == "__main__":
     # mc_figure.plot_y_projection(show_brs=True, rasterize=True)
     # mc_figure.plot_neurotransmitter()
 
-    all_cells_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
-    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
-    all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=False,black_neuron=False)
-    all_cells_figure.make_interactive()
-    all_cells_figure.plot_neurotransmitter()
+    all_cells_figure = make_figures_FK(modalities=['clem'],keywords='all')
+    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=True,black_neuron=False)
+    all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
+    # all_cells_figure.make_interactive()
+    # all_cells_figure.plot_neurotransmitter()
