@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore")
 #settings
 force_new_all = False
 use_debug = False
-debug_cell =  "20240219.1"#["20240219.1","20240219.2"] #'20230327.1'
+debug_cell =  "20240513.2"#["20240219.1","20240219.2"] #'20230327.1'
 fiji_dynamics = True
 
 #fetch user
@@ -296,7 +296,9 @@ for i,cell in cell_table.iterrows():
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
             plt.savefig(temp_cell_path.joinpath(cell.cell_name+'_rdms_average.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name + '_rdms_average.pdf'))
             plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cell_name + '_rdms_average.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average').joinpath(cell.cell_name + '_rdms_average.pdf'))
             plt.show()
             # Plot smoothed average activity with thin lines
             fig, ax = plt.subplots()
@@ -322,7 +324,9 @@ for i,cell in cell_table.iterrows():
             ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)) * ratio)
 
             plt.savefig(temp_cell_path.joinpath(cell.cell_name + '_rdms_average_and_single_trials.png'))
+            plt.savefig(temp_cell_path.joinpath(cell.cell_name + '_rdms_average_and_single_trials.pdf'))
             plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cell_name + '_rdms_average_and_single_trials.png'))
+            plt.savefig(base_export_folder.joinpath('all_dynamics_average_and_single_trials').joinpath(cell.cell_name + '_rdms_average_and_single_trials.pdf'))
 
 
         plt.show()
