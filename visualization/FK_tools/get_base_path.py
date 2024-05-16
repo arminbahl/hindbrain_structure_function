@@ -10,7 +10,7 @@ def get_base_path():
     current_user = Path(os.path.expanduser('~')).name
     user_paths = dict()
 
-    with open(Path(os.getcwd()).joinpath("FK_tools").joinpath('path_configuration.txt'), 'r') as f:
+    with open(Path(os.getcwd()).joinpath("FK_tools").joinpath('../../functional_type_prediction/FK_tools/path_configuration.txt'), 'r') as f:
         for line in f:
             parts = line.strip().rstrip().split(' ', 1)
             if len(parts) == 2:
@@ -30,7 +30,7 @@ def get_base_path():
     except:
         new_profile = f"{current_user} ?"
 
-        with open(Path(os.getcwd()).joinpath("FK_tools").joinpath('path_configuration.txt'), 'a') as log_file:
+        with open(Path(os.getcwd()).joinpath("FK_tools").joinpath('../../functional_type_prediction/FK_tools/path_configuration.txt'), 'a') as log_file:
             log_file.write(f"\n{current_user} /YOUR/PATH/TO/CLEM_paper_data/HERE")
 
 
