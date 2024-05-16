@@ -12,6 +12,7 @@ from hindbrain_structure_function.visualization.FK_tools.load_clem_table import 
 from hindbrain_structure_function.visualization.FK_tools.load_mesh import *
 from hindbrain_structure_function.visualization.FK_tools.load_brs import *
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
+from hindbrain_structure_function.visualization.FK_tools.load_em_table import *
 from datetime import datetime
 import plotly
 import matplotlib
@@ -96,6 +97,12 @@ class make_figures_FK:
         if 'clem' in modalities:
             clem_table = load_clem_table(self.path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
 
+        if 'em' in modalities:
+
+            em_table1 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
+            em_table2 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
+            em_table = pd.concat([em_table1,em_table2])
+
         #TODO here the loading of gregor has to go
 
         # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
@@ -113,7 +120,7 @@ class make_figures_FK:
                 all_cells = all_cells[subset_for_keyword]
 
         # Set specific brain regions to be included in visualizations.
-        self.selected_meshes = ["Retina", 'Midbrain', "Olfactory Bulb", "Forebrain", "Habenula", "Hindbrain", "Spinal Cord", "raphe", 'eye1', 'eye2', 'cerebellar_neuropil', 'Rhombencephalon - Rhombomere 1',
+        self.selected_meshes = ["Retina", 'Midbrain', "Olfactory Bulb", "Forebrain", "Habenula", "Hindbrain","Hindbrain_line", "Spinal Cord", "raphe", 'eye1', 'eye2', 'cerebellar_neuropil', 'Rhombencephalon - Rhombomere 1',
                                 'Rhombencephalon - Rhombomere 2', "cn1", "cn2", 'Mesencephalon - Tectum Stratum Periventriculare']
 
         # Initialize columns for different types of mesh data, setting default as NaN.
@@ -143,7 +150,9 @@ class make_figures_FK:
                             all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
 
         # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
+        all_cells = all_cells.dropna(how='all')
         self.all_cells = all_cells
+
 
         # Create a directory for storing information on the used cells and save the list of cell names.
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
@@ -211,11 +220,16 @@ class make_figures_FK:
                     for label in cell.cell_type_labels:
                         if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
                             temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
+                            break
                         elif label == "integrator" and "contralateral" in cell.cell_type_labels:
                             temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                            break
                         elif label.replace("_", " ") in self.color_cell_type_dict.keys():
                             temp_color = self.color_cell_type_dict[label.replace("_", " ")]
                             break
+                        else:
+                            temp_color = 'k'
+
                     # Append visualized cells and their colors.
                     for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
                         if only_soma:
@@ -250,7 +264,7 @@ class make_figures_FK:
         if show_brs:
             fig, ax = navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines,
                                    alpha=0.2, linewidth=0.5, method='2d', view=view, group_neurons=True,
-                                   rasterize=rasterize)
+                                   rasterize=False)
             if background_gray:
                 # Optionally fill the background of brain regions with gray for better visibility.
                 for mesh in brain_meshes:
@@ -576,8 +590,8 @@ if __name__ == "__main__":
     # mc_figure.plot_y_projection(show_brs=True, rasterize=True)
     # mc_figure.plot_neurotransmitter()
 
-    all_cells_figure = make_figures_FK(modalities=['clem'],keywords='all')
-    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=True,black_neuron=False)
+    all_cells_figure = make_figures_FK(modalities=['clem'],keywords=['integrator','ipsilateral',])
+    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
     all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
     # all_cells_figure.make_interactive()
     # all_cells_figure.plot_neurotransmitter()
