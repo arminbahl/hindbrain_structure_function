@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 #settings
-force_new_all = False
+force_new_all = True
 use_debug = False
 debug_cell =  "20240513.2"#["20240219.1","20240219.2"] #'20230327.1'
 fiji_dynamics = True
@@ -98,7 +98,7 @@ for i,cell in cell_table.iterrows():
         neuron.soma = 1                     #TODO maybe sync this with jonathan
         neuron.nodes.loc[:, 'radius'] = 0.3 #TODO maybe sync this with jonathan
 
-        smoothed_neuron = navis.smooth_skeleton(neuron,window=10)
+        smoothed_neuron = navis.smooth_skeleton(neuron,window=7)
         smoothed_neuron.nodes.iloc[0, :] = neuron.nodes.iloc[0,:]
 
 
