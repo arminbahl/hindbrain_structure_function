@@ -50,8 +50,11 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
     # If a cell was scored by Jonathan Boulanger-Weill, set its imaging modality to 'clem'.
-    all_cells.loc[all_cells['tracer_names'] == 'Jonathan Boulanger-Weill', 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
-    all_cells.loc[all_cells['functional_id'] == 'not functionally imaged', 'imaging_modality'] = 'clem'
+    try:
+        all_cells.loc[all_cells['tracer_names'] == 'Jonathan Boulanger-Weill', 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
+        all_cells.loc[all_cells['functional_id'] == 'not functionally imaged', 'imaging_modality'] = 'clem'
+    except:
+        pass
 
 
     # Load mesh data for each cell based on selected modalities and smoothing setting.
