@@ -46,7 +46,7 @@ class ANTsRegistrationHelpers():
                        "f": "8x4x2x1"},
 
             'SyN': {"use": True,
-                    "t": "SyN[0.1,6,0]",  # 0.05,6,0.5 for live, and [0.1,6,0] for fixed (Marquart et al. 2017)
+                    "t": "SyN[0.1,6,0]",
                     "m": "CC[$1,$2,1,2]",  # $1, $2, source and target path
                     "c": "[200x200x200x100,1e-7,10]",
                     "s": "4x3x2x1",
@@ -967,217 +967,358 @@ class ANTsRegistrationHelpers():
         meshes_original = dict({})
         meshes_mapped = dict({})
 
-        # Mape dendrite, axon, and soma
+        # Map dendrite, axon, and soma
         for part_name in ["soma", "dendrite", "axon"]:
 
             print("Mapping mesh", part_name)
 
             # Use trimesh to load vertices and faces
-            mesh = tm.load(root_path / cell_name / f"{cell_name}_{part_name}.obj")
-            meshes_original[part_name] = mesh.copy()
+            part_path=root_path / cell_name / f"{cell_name}_{part_name}.obj"
 
-            meshes_original[part_name].vertices *= 0.001 # make it ym
+            if os.path.isfile(part_path): 
+                mesh = tm.load(root_path / cell_name / f"{cell_name}_{part_name}.obj")
+                meshes_original[part_name] = mesh.copy()
 
-            mesh.vertices = self.ANTs_applytransform_to_points(mesh.vertices,
-                                                               transformation_prefix_path,
-                                                               use_forward_transformation=use_forward_transformation,
-                                                               ANTs_dim=3,
-                                                               input_limit_x=input_limit_x,
-                                                               input_limit_y=input_limit_y,
-                                                               input_limit_z=input_limit_z,
-                                                               input_shift_x=input_shift_x, input_scale_x=input_scale_x,
-                                                               input_shift_y=input_shift_y, input_scale_y=input_scale_y,
-                                                               input_shift_z=input_shift_z, input_scale_z=input_scale_z,
-                                                               input_swap_xy=input_swap_xy,
-                                                               output_shift_x=output_shift_x, output_scale_x=output_scale_x,
-                                                               output_shift_y=output_shift_y, output_scale_y=output_scale_y,
-                                                               output_shift_z=output_shift_z, output_scale_z=output_scale_z,
-                                                               output_swap_xy=output_swap_xy)
+                meshes_original[part_name].vertices *= 0.001 # make it ym
 
-            # Fix problems after mapping and store in dictionary
-            meshes_mapped[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
+                mesh.vertices = self.ANTs_applytransform_to_points(mesh.vertices,
+                                                                transformation_prefix_path,
+                                                                use_forward_transformation=use_forward_transformation,
+                                                                ANTs_dim=3,
+                                                                input_limit_x=input_limit_x,
+                                                                input_limit_y=input_limit_y,
+                                                                input_limit_z=input_limit_z,
+                                                                input_shift_x=input_shift_x, input_scale_x=input_scale_x,
+                                                                input_shift_y=input_shift_y, input_scale_y=input_scale_y,
+                                                                input_shift_z=input_shift_z, input_scale_z=input_scale_z,
+                                                                input_swap_xy=input_swap_xy,
+                                                                output_shift_x=output_shift_x, output_scale_x=output_scale_x,
+                                                                output_shift_y=output_shift_y, output_scale_y=output_scale_y,
+                                                                output_shift_z=output_shift_z, output_scale_z=output_scale_z,
+                                                                output_swap_xy=output_swap_xy)
 
-            # Save slightly simplified mapped meshes
-            sk.pre.simplify(meshes_mapped[part_name], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_{part_name}_mapped.obj")
+                # Fix problems after mapping and store in dictionary
+                meshes_mapped[part_name] = sk.pre.fix_mesh(mesh, fix_normals=True, inplace=False)
 
-        # Save the complete mapped neuron as a single .obj
-        #mesh_axon = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")    
-        #mesh_dendrite = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")  
-        #mesh_soma = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")  
-        #mesh_complete = tm.util.concatenate([mesh_axon, mesh_dendrite, mesh_soma])    
-        #sk.pre.simplify(mesh_complete, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
+                # Save slightly simplified mapped meshes
+                sk.pre.simplify(meshes_mapped[part_name], 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_{part_name}_mapped.obj")
 
+        if "cell" in cell_name:
+            # Save the complete mapped neuron as a single .obj
+            mesh_axon = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")    
+            mesh_dendrite = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_dendrite_mapped.obj")  
+            mesh_soma = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_soma_mapped.obj")  
+            mesh_complete = tm.util.concatenate([mesh_axon, mesh_dendrite, mesh_soma])    
+            sk.pre.simplify(mesh_complete, 0.75).export(root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj")
+        else: 
+            mesh_axon = tm.load(root_path / cell_name / "mapped" / f"{cell_name}_axon_mapped.obj")   
+            
         # Make swcs for the original and mapped obj
-        for mapped_i in [0, 1]:
+        if "cell" in cell_name:    
+            for mapped_i in [0, 1]:
 
-            neurite_radius = 0.5
-            soma_radius = 2
-            skeletonize_inv_dist = 1.5
+                neurite_radius = 0.5
+                soma_radius = 2
+                skeletonize_inv_dist = 1.5
 
-            if mapped_i == 0:
-                suffix_str = ""
-                folder_str = ""
-                meshes = meshes_original
+                if mapped_i == 0:
+                    suffix_str = ""
+                    folder_str = ""
+                    meshes = meshes_original
 
-            else:
-                suffix_str = "_mapped"
-                folder_str = "mapped"
-                meshes = meshes_mapped
-
-            # Combine meshes
-            #mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')  # Problem with new trimesh version
-            mesh_axon_dendrite = tm.util.concatenate([meshes["axon"], meshes["dendrite"]])
-
-            # Get the location of the soma by averaging soma obj vertices
-            soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
-
-            # Skeletonize the axons and dendrites at 1.5 um precision
-            skel = sk.skeletonize.by_teasar(mesh_axon_dendrite, inv_dist=skeletonize_inv_dist)
-
-            # Remove some potential perpedicular branches that should not be there
-            skel = sk.post.clean_up(skel)
-            skel = skel.reindex()
-
-            # Continue with the swc as a pandas dataframe
-            df_swc = skel.swc
-
-            # Make a standard axon/dendrite radius everywhere
-            df_swc["radius"] = neurite_radius
-            df_swc["label"] = 0
-
-            # Repair gaps in the skeleton using navis
-            x = navis.read_swc(df_swc)
-            x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
-
-            # Save as a temporary swc
-            f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
-            f_swc_temp.close()
-
-            x.to_swc(f_swc_temp.name)
-
-            # Read it as a dataframe for further processing
-            df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
-
-            # Delete temporary file
-            os.remove(f_swc_temp.name)
-
-            # Add the soma. For this need to move parent ids and node ids
-            df_swc.loc[:, "node_id"] += 1
-            df_swc.loc[df_swc["parent_id"] > -1, "parent_id"] += 1
-
-            # Find the row that is closest to the soma
-            i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
-
-            # If that node does not have a parent, then set the new soma as the parent
-            if df_swc.loc[i_min, "parent_id"] == -1:
-                df_swc.loc[i_min, "parent_id"] = 0
-
-                # Soma always has node_id = 1
-                soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": -1}, index=[0])
-            else:
-                # Otherwise make the soma the child of that node
-                node_id = df_swc.loc[i_min, "node_id"]
-
-                # Soma always has node_id = 1
-                soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": node_id}, index=[0])
-
-            # Add soma to the beginning, make sure this does not produce double indices
-            df_swc = pd.concat([soma_row, df_swc], ignore_index=True)
-
-            # Label what is dendrite or axon, bases on minimal distances to the provided meshes
-            for i, row in df_swc.iterrows():
-
-                # Ignore the soma, it is already labeled with = 1
-                if row["node_id"] == 1:
-                    continue
-
-                d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
-                                     (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
-                                     (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
-
-                d_min_dendrite = np.sqrt((meshes["dendrite"].vertices[:, 0] - row["x"]) ** 2 +
-                                         (meshes["dendrite"].vertices[:, 1] - row["y"]) ** 2 +
-                                         (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
-
-                if d_min_axon < d_min_dendrite:
-                    df_swc.loc[i, "label"] = 2  # Axon
                 else:
-                    df_swc.loc[i, "label"] = 3  # Dendrite
+                    suffix_str = "_mapped"
+                    folder_str = "mapped"
+                    meshes = meshes_mapped
 
-            # Load the mapped synapses
-            pre_synapses = []
-            post_synapses = []
+                # Combine meshes
+                #mesh_axon_dendrite = meshes["axon"].union(meshes["dendrite"], engine='blender')  # Problem with new trimesh version
+                mesh_axon_dendrite = tm.util.concatenate([meshes["axon"], meshes["dendrite"]])
 
-            if (root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv").exists():
+                # Get the location of the soma by averaging soma obj vertices
+                soma_x, soma_y, soma_z = np.mean(meshes["soma"].triangles_center, axis=0)
 
-                df_presynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv",
-                                             comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
+                # Skeletonize the axons and dendrites at 1.5 um precision
+                skel = sk.skeletonize.by_teasar(mesh_axon_dendrite, inv_dist=skeletonize_inv_dist)
 
-                # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
-                if mapped_i == 0:
-                    df_presynapses.loc[:, "x"] = df_presynapses["x"] * input_scale_x
-                    df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
-                    df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
+                # Remove some potential perpedicular branches that should not be there
+                skel = sk.post.clean_up(skel)
+                skel = skel.reindex()
 
-                # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
-                for i, row in df_presynapses.iterrows():
+                # Continue with the swc as a pandas dataframe
+                df_swc = skel.swc
 
-                    dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
-                                   (df_swc["y"] - row["y"]) ** 2 +
-                                   (df_swc["z"] - row["z"]) ** 2)
+                # Make a standard axon/dendrite radius everywhere
+                df_swc["radius"] = neurite_radius
+                df_swc["label"] = 0
 
-                    i_min = dist.argmin()
+                # Repair gaps in the skeleton using navis
+                x = navis.read_swc(df_swc)
+                x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
 
-                    # Minimal distance needs to be small
-                    if dist[i_min] < 10 * neurite_radius:
-                        df_swc.loc[i_min, "label"] = 4  # Pre synapse
-                        pre_synapses.append([int(row["postsynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                # Save as a temporary swc
+                f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
+                f_swc_temp.close()
+
+                x.to_swc(f_swc_temp.name)
+
+                # Read it as a dataframe for further processing
+                df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
+
+                # Delete temporary file
+                os.remove(f_swc_temp.name)
+
+                # Add the soma. For this need to move parent ids and node ids
+                df_swc.loc[:, "node_id"] += 1
+                df_swc.loc[df_swc["parent_id"] > -1, "parent_id"] += 1
+
+                # Find the row that is closest to the soma
+                i_min = ((df_swc["x"] - soma_x) ** 2 + (df_swc["y"] - soma_y) ** 2 + (df_swc["z"] - soma_z) ** 2).argmin()
+
+                # If that node does not have a parent, then set the new soma as the parent
+                if df_swc.loc[i_min, "parent_id"] == -1:
+                    df_swc.loc[i_min, "parent_id"] = 0
+
+                    # Soma always has node_id = 1
+                    soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": -1}, index=[0])
+                else:
+                    # Otherwise make the soma the child of that node
+                    node_id = df_swc.loc[i_min, "node_id"]
+
+                    # Soma always has node_id = 1
+                    soma_row = pd.DataFrame({"node_id": 1, "label": 1, "x": soma_x, "y": soma_y, "z": soma_z, "radius": soma_radius, "parent_id": node_id}, index=[0])
+
+                # Add soma to the beginning, make sure this does not produce double indices
+                df_swc = pd.concat([soma_row, df_swc], ignore_index=True)
+
+                # Label what is dendrite or axon, bases on minimal distances to the provided meshes
+                for i, row in df_swc.iterrows():
+
+                    # Ignore the soma, it is already labeled with = 1
+                    if row["node_id"] == 1:
+                        continue
+
+                    d_min_axon = np.sqrt((meshes["axon"].vertices[:, 0] - row["x"]) ** 2 +
+                                        (meshes["axon"].vertices[:, 1] - row["y"]) ** 2 +
+                                        (meshes["axon"].vertices[:, 2] - row["z"]) ** 2).min()
+
+                    d_min_dendrite = np.sqrt((meshes["dendrite"].vertices[:, 0] - row["x"]) ** 2 +
+                                            (meshes["dendrite"].vertices[:, 1] - row["y"]) ** 2 +
+                                            (meshes["dendrite"].vertices[:, 2] - row["z"]) ** 2).min()
+
+                    if d_min_axon < d_min_dendrite:
+                        df_swc.loc[i, "label"] = 2  # Axon
                     else:
-                        print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
-                        pre_synapses.append([int(row["postsynaptic_cell_id"]), -1])
+                        df_swc.loc[i, "label"] = 3  # Dendrite
 
-            if (root_path / cell_name / f"{cell_name}_postsynapses_mapped.csv").exists():
+                # Load the mapped synapses
+                pre_synapses = []
+                post_synapses = []
 
-                df_postsynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_postsynapses{suffix_str}.csv",
-                                              comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
+                if (root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv").exists():
 
-                # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                    print('Presynapses found')
+
+                    df_presynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv",
+                                                comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
+
+                    # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                    if mapped_i == 0:
+                        df_presynapses.loc[:, "x"] = df_presynapses["x"] * input_scale_x
+                        df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
+                        df_presynapses.loc[:, "z"] = df_presynapses["z"] * input_scale_z
+
+                    # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
+                    for i, row in df_presynapses.iterrows():
+
+                        dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                    (df_swc["y"] - row["y"]) ** 2 +
+                                    (df_swc["z"] - row["z"]) ** 2)
+
+                        i_min = dist.argmin()
+
+                        # Minimal distance needs to be small
+                        if dist[i_min] < 10 * neurite_radius:
+                            df_swc.loc[i_min, "label"] = 4  # Pre synapse
+                            pre_synapses.append([int(row["postsynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                        else:
+                            print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
+                            pre_synapses.append([int(row["postsynaptic_cell_id"]), -1])
+
+                if (root_path / cell_name / folder_str / f"{cell_name}_postsynapses_mapped.csv").exists():
+
+                    print('Postsynapses found')
+
+                    df_postsynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_postsynapses{suffix_str}.csv",
+                                                comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
+
+                    # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                    if mapped_i == 0:
+                        df_postsynapses.loc[:, "x"] = df_postsynapses["x"] * input_scale_x
+                        df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
+                        df_postsynapses.loc[:, "z"] = df_postsynapses["z"] * input_scale_z
+
+                    for i, row in df_postsynapses.iterrows():
+
+                        dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                    (df_swc["y"] - row["y"]) ** 2 +
+                                    (df_swc["z"] - row["z"]) ** 2)
+
+                        i_min = dist.argmin()
+
+                        # Minimal distance needs to be small
+                        if dist[i_min] < 10 * neurite_radius:
+                            df_swc.loc[i_min, "label"] = 5  # Postsynapse
+                            post_synapses.append([int(row["presynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                        else:
+                            print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
+                            post_synapses.append([int(row["presynaptic_cell_id"]), -1])
+
+                # Reorder columns for proper storage
+                df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+
+                metadata["presynapses"] = pre_synapses
+                metadata["postsynapses"] = post_synapses
+
+                # Save the swc
+                header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
+                        f"# Generated by 'map_and_skeletonize_cell' of the ANTs registration helper library developed by the Bahl lab Konstanz.\n"
+                        f"# Metadata: {str(metadata)}\n"
+                        f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
+
+                with open(root_path / cell_name / folder_str / f"{cell_name}{suffix_str}.swc", 'w') as fp:
+                    fp.write(header)
+                    df_swc.to_csv(fp, index=False, sep=' ', header=None)
+
+        #Case we are just mapping an axon     
+        else:  
+            for mapped_i in [0, 1]:
+
+                neurite_radius = 0.5
+                soma_radius = 2
+                skeletonize_inv_dist = 1.5
+
                 if mapped_i == 0:
-                    df_postsynapses.loc[:, "x"] = df_postsynapses["x"] * input_scale_x
-                    df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
-                    df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
+                    suffix_str = ""
+                    folder_str = ""
+                    meshes = meshes_original
 
-                for i, row in df_postsynapses.iterrows():
+                else:
+                    suffix_str = "_mapped"
+                    folder_str = "mapped"
+                    meshes = meshes_mapped
 
-                    dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
-                                   (df_swc["y"] - row["y"]) ** 2 +
-                                   (df_swc["z"] - row["z"]) ** 2)
+                # Skeletonize the axons s at 1.5 um precision
+                skel = sk.skeletonize.by_teasar(meshes["axon"], inv_dist=skeletonize_inv_dist)
 
-                    i_min = dist.argmin()
+                # Remove some potential perpedicular branches that should not be there
+                skel = sk.post.clean_up(skel)
+                skel = skel.reindex()
 
-                    # Minimal distance needs to be small
-                    if dist[i_min] < 10 * neurite_radius:
-                        df_swc.loc[i_min, "label"] = 5  # Postsynapse
-                        post_synapses.append([int(row["presynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
-                    else:
-                        print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
-                        post_synapses.append([int(row["presynaptic_cell_id"]), -1])
+                # Continue with the swc as a pandas dataframe
+                df_swc = skel.swc
 
-            # Reorder columns for proper storage
-            df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+                # Make a standard axon/dendrite radius everywhere
+                df_swc["radius"] = neurite_radius
+                df_swc["label"] = 0
 
-            metadata["presynapses"] = pre_synapses
-            metadata["postsynapses"] = post_synapses
+                # Repair gaps in the skeleton using navis
+                x = navis.read_swc(df_swc)
+                x = navis.heal_skeleton(x, method='ALL', max_dist=None, min_size=None, drop_disc=False, mask=None, inplace=False)
 
-            # Save the swc
-            header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
-                      f"# Generated by 'map_and_skeletonize_cell' of the ANTs registration helper library developed by the Bahl lab Konstanz.\n"
-                      f"# Metadata: {str(metadata)}\n"
-                      f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
+                # Save as a temporary swc
+                f_swc_temp = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.swc')
+                f_swc_temp.close()
 
-            with open(root_path / cell_name / folder_str / f"{cell_name}{suffix_str}.swc", 'w') as fp:
-                fp.write(header)
-                df_swc.to_csv(fp, index=False, sep=' ', header=None)
+                x.to_swc(f_swc_temp.name)
+
+                # Read it as a dataframe for further processing
+                df_swc = pd.read_csv(f_swc_temp.name, sep=" ", names=["node_id", 'label', 'x', 'y', 'z', 'radius', 'parent_id'], comment='#', header=None)
+
+                # Delete temporary file
+                os.remove(f_swc_temp.name)
+
+                for i, row in df_swc.iterrows():
+                    df_swc.loc[i, "label"] = 2  # Axon
+
+                # Load the mapped synapses
+                pre_synapses = []
+                post_synapses = []
+
+                if (root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv").exists():
+
+                    print('Presynapses found')
+
+                    df_presynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_presynapses{suffix_str}.csv",
+                                                comment='#', sep=' ', header=None, names=["postsynaptic_cell_id", "x", "y", "z", "radius"])
+
+                    # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                    if mapped_i == 0:
+                        df_presynapses.loc[:, "x"] = df_presynapses["x"] * input_scale_x
+                        df_presynapses.loc[:, "y"] = df_presynapses["y"] * input_scale_y
+                        df_presynapses.loc[:, "z"] = df_presynapses["z"] * input_scale_z
+
+                    # Find the points in the swc list with the minimal distance to the synapse location, and make them a synapse
+                    for i, row in df_presynapses.iterrows():
+
+                        dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                    (df_swc["y"] - row["y"]) ** 2 +
+                                    (df_swc["z"] - row["z"]) ** 2)
+
+                        i_min = dist.argmin()
+
+                        # Minimal distance needs to be small
+                        if dist[i_min] < 10 * neurite_radius:
+                            df_swc.loc[i_min, "label"] = 4  # Pre synapse
+                            pre_synapses.append([int(row["postsynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                        else:
+                            print("Postsynaptic cell not connected to swc. Presynapse too far away:", int(row["postsynaptic_cell_id"]), dist[i_min])
+                            pre_synapses.append([int(row["postsynaptic_cell_id"]), -1])
+
+                if (root_path / cell_name / folder_str / f"{cell_name}_postsynapses_mapped.csv").exists():
+
+                    print('Postsynapses found')
+
+                    df_postsynapses = pd.read_csv(root_path / cell_name / folder_str / f"{cell_name}_postsynapses{suffix_str}.csv",
+                                                comment='#', sep=' ', header=None, names=["presynaptic_cell_id", "x", "y", "z", "radius"])
+
+                    # If we do this in the original make sure to scale the synpapse locations (which usally are in nm)
+                    if mapped_i == 0:
+                        df_postsynapses.loc[:, "x"] = df_postsynapses["x"] * input_scale_x
+                        df_postsynapses.loc[:, "y"] = df_postsynapses["y"] * input_scale_y
+                        df_postsynapses.loc[:, "z"] = df_postsynapses["z"] * input_scale_z
+
+                    for i, row in df_postsynapses.iterrows():
+
+                        dist = np.sqrt((df_swc["x"] - row["x"]) ** 2 +
+                                    (df_swc["y"] - row["y"]) ** 2 +
+                                    (df_swc["z"] - row["z"]) ** 2)
+
+                        i_min = dist.argmin()
+
+                        # Minimal distance needs to be small
+                        if dist[i_min] < 10 * neurite_radius:
+                            df_swc.loc[i_min, "label"] = 5  # Postsynapse
+                            post_synapses.append([int(row["presynaptic_cell_id"]), int(df_swc.loc[i_min, "node_id"])])
+                        else:
+                            print("Presynaptic cell not connected to swc. Postsynapse too far away.", int(row["presynaptic_cell_id"]), dist[i_min])
+                            post_synapses.append([int(row["presynaptic_cell_id"]), -1])
+
+                # Reorder columns for proper storage
+                df_swc = df_swc.reindex(columns=['node_id', 'label', "x", "y", "z", 'radius', 'parent_id'])
+
+                metadata["presynapses"] = pre_synapses
+                metadata["postsynapses"] = post_synapses
+
+                # Save the swc
+                header = (f"# SWC format file based on specifications at http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html\n"
+                        f"# Generated by 'map_and_skeletonize_cell' of the ANTs registration helper library developed by the Bahl lab Konstanz.\n"
+                        f"# Metadata: {str(metadata)}\n"
+                        f"# Labels: 0 = undefined; 1 = soma; 2 = axon; 3 = dendrite; 4 = Presynapse; 5 = Postsynapse\n")
+
+                with open(root_path / cell_name / folder_str / f"{cell_name}{suffix_str}.swc", 'w') as fp:
+                    fp.write(header)
+                    df_swc.to_csv(fp, index=False, sep=' ', header=None)
 
     def convert_synapse_file(self, root_path, cell_name,
                              shift_x,
