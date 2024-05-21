@@ -148,6 +148,9 @@ class make_figures_FK:
                         if cell['imaging_modality'] == 'clem':
                             all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                             all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
+                if type(cell['swc']) != float and type(cell['swc']) != type(None):
+                    if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
+                        all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
 
         # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
         all_cells = all_cells.dropna(how='all')
