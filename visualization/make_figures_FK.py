@@ -128,8 +128,10 @@ class make_figures_FK:
             all_cells[mesh_type] = np.nan
             all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
+
+        list_of_clem_tracers = ['Jay Hareshbhai Savaliya','Jonathan Boulanger-Weill']
         # If a cell was scored by Jonathan Boulanger-Weill, set its imaging modality to 'clem'.
-        all_cells.loc[all_cells['tracer_names'] == 'Jonathan Boulanger-Weill', 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
+        all_cells.loc[all_cells['tracer_names'].isin(list_of_clem_tracers), 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
 
         # Load mesh data for each cell based on selected modalities and smoothing setting.
         for i, cell in all_cells.iterrows():
@@ -148,9 +150,10 @@ class make_figures_FK:
                         if cell['imaging_modality'] == 'clem':
                             all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                             all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
-                if type(cell['swc']) != float and type(cell['swc']) != type(None):
-                    if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
-                        all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                if 'swc' in cell.index:
+                    if type(cell['swc']) != float and type(cell['swc']) != type(None):
+                        if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
+                            all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
 
         # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
         all_cells = all_cells.dropna(how='all')
@@ -593,7 +596,7 @@ if __name__ == "__main__":
     # mc_figure.plot_y_projection(show_brs=True, rasterize=True)
     # mc_figure.plot_neurotransmitter()
 
-    all_cells_figure = make_figures_FK(modalities=['clem'],keywords=['integrator','ipsilateral',])
+    all_cells_figure = make_figures_FK(modalities=['clem'],keywords='all')
     all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
     all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
     # all_cells_figure.make_interactive()
