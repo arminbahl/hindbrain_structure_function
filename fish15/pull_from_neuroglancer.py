@@ -1,9 +1,10 @@
 
 # This codes pulls segments and synapses from Neuroglancer for clem_zfish1
+# Store connectome information in the metadata
 # It requires a private Cloudvolume token to obtain it contact jonathan.boulanger.weill@gmail.com
 # Compatible with Python 3.10.13
 # Install environnement using conda env create --file pull_from_neuroglancer.yaml
-# Version: 0.4 / 05/20/2024 jbw
+# Version: 0.5 / 05/22/2024 jbw
 
 ############################################################################################################################
 ############################################################################################################################
@@ -34,6 +35,8 @@ client = CAVEclient(
 )
 import datetime
 
+import warnings
+warnings.filterwarnings("ignore")
 ############################################################################################################################
 ############################################################################################################################
 
@@ -83,6 +86,13 @@ print("Problematic axons:", problematic_axons)
 print("Problematic dendrites:", problematic_dendrites)
 
 # Generate metadata 
+
+# Function to format synapse data
+def format_synapse(segment_id, position, id, size):
+    segment_str = str(segment_id)
+    position_str = ','.join(map(str, position))
+    return f"{segment_str},{position_str},{id},{size}"
+
 for element_idx in range(0, num_cells[0]):
     print(element_idx)
 
@@ -110,6 +120,33 @@ for element_idx in range(0, num_cells[0]):
         date_of_tracing = str(df.iloc[element_idx, 12])
         tracer_names = str(df.iloc[element_idx, 13])
         neuroglancer_link = str(df.iloc[element_idx, 10])
+
+        #Find inputs and outputs 
+        #Outputs 
+        column_to_search = 'Comment'
+        mask = df[column_to_search].str.contains(functional_id +' output', na=False)
+        result = df.loc[mask, 'nucleus_id'] 
+        outputs_list = result.tolist()
+        outputs_list = str(outputs_list)
+
+        #Inputs cells
+        first_column_to_search = 'type'
+        mask = df[first_column_to_search].str.contains('cell', na=False)
+        cell_df = df[mask]
+        mask = cell_df[column_to_search].str.contains(functional_id +' input', na=False)
+        result = cell_df.loc[mask, 'nucleus_id'] 
+        inputs_cells_list = result.tolist()
+
+        #Input axons 
+        first_column_to_search = 'type'
+        mask = df[first_column_to_search].str.contains('axon', na=False)
+        axon_df = df[mask]
+        mask = axon_df[column_to_search].str.contains(functional_id +' input', na=False)
+        result = axon_df.loc[mask, 'axon_id'] 
+        inputs_axons_list = result.tolist()
+
+        #Merge input lists 
+        inputs_list=str(inputs_cells_list + inputs_axons_list)
 
     # Case element is an axon 
     else:
@@ -150,6 +187,8 @@ for element_idx in range(0, num_cells[0]):
             "dendrites_id = " + dendrites_id,
             "functional_id = \"" + functional_id + "\"", 
             "cell_type_labels = [" + "\"" + functional_classifier + "\"" + ", " + "\"" + neurotransmitter_classifier + "\"" + ", " + "\"" + projection_classifier + "\"" + "]",
+            "input cells and axons = \"" + inputs_list + "\"",
+            "output cells = \"" + outputs_list + "\"",
             "imaging_modality = \"" + imaging_modality + "\"",
             "date_of_tracing = " + " " + date_of_tracing,
             "tracer_names = \"" + tracer_names + "\"",
@@ -211,23 +250,20 @@ for element_idx in range(0, num_cells[0]):
                                     filter_equal_dict = {'post_pt_root_id': int(dendrites_id)}) 
 
         output_segment=output_synapses.post_pt_root_id
-
-        output_position=output_synapses.pre_pt_position
-        #Synapses are pulled at 16*16*30nm resolution, correct to match to 8*8*30nm
-        output_position = output_position.apply(lambda x: [16 * x[0], 16 * x[1], 30 * x[2]])
+        output_position=output_synapses.ctr_pt_position
+        #Synapses are pulled at 16*16*30nm resolution, correct to match to 8*8*30nm for normal browsing
+        #output_position = output_position.apply(lambda x: [16 * x[0], 16 * x[1], 30 * x[2]]) #pull at 1,1,1nm
+        output_position = output_position.apply(lambda x: [2 * x[0], 2 * x[1], x[2]]) #pulled at 8,8,30nm
+        output_synapse_id=output_synapses.id
         output_size=output_synapses.iloc[:, 4]
 
         input_segment=input_synapses.pre_pt_root_id
-        input_position=input_synapses.post_pt_position
-        #Synapses are pulled at 8*8*30nm resolution, correct to match to 4*4*30nm
-        input_position = input_position.apply(lambda x: [16 * x[0], 16 * x[1], 30 * x[2]])
+        input_position=input_synapses.ctr_pt_position
+        #Synapses are pulled at 16*16*30nm resolution, correct to match to 8*8*30nm for normal browsing
+        #input_position = input_position.apply(lambda x: [16 * x[0], 16 * x[1], 30 * x[2]]) #pull at 1,1,1nm
+        input_position = input_position.apply(lambda x: [2 * x[0], 2 * x[1], x[2]]) #pulled at 8,8,30nm
+        input_synapse_id=input_synapses.id
         input_size=input_synapses.iloc[:, 4]
-
-        # Function to format synapse data
-        def format_synapse(segment_id, position, size):
-            segment_str = str(segment_id)
-            position_str = ','.join(map(str, position))
-            return f"{segment_str},{position_str},{size}"
 
         # Write formatted synapses to file
         path_text_syp_file = str(root_path) + "/" + segment_id + "/" + segment_id + "_synapses.txt"
@@ -235,12 +271,12 @@ for element_idx in range(0, num_cells[0]):
 
         with open(path_text_syp_file, "w") as file:
             file.write("(presynaptic: [")
-            for segment, position, size in zip(output_segment, output_position, output_size):
-                file.write("'" + format_synapse(segment, position, size) + "', ")   
+            for segment, position, id, size in zip(output_segment, output_position, output_synapse_id, output_size):
+                file.write("'" + format_synapse(segment, position, id, size) + "', ")   
             file.write("]")       
             file.write(",postsynaptic: [")
-            for segment, position, size in zip(input_segment, input_position, input_size):
-                file.write("'" + format_synapse(segment, position, size) + "', ") 
+            for segment, position, id, size in zip(input_segment, input_position, input_synapse_id, input_size):
+                file.write("'" + format_synapse(segment, position, id, size) + "', ") 
             file.write("]") 
 
         #Activity plots and hdf5 if functionally recorded
