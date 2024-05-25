@@ -13,6 +13,7 @@ from hindbrain_structure_function.visualization.FK_tools.load_mesh import *
 from hindbrain_structure_function.visualization.FK_tools.load_brs import *
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 from hindbrain_structure_function.visualization.FK_tools.load_em_table import *
+from hindbrain_structure_function.visualization.FK_tools.load_synapse import *
 from datetime import datetime
 import plotly
 import matplotlib
@@ -99,9 +100,13 @@ class make_figures_FK:
 
         if 'em' in modalities:
 
-            em_table1 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
-            em_table2 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
-            em_table = pd.concat([em_table1,em_table2])
+
+                em_table1 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
+                em_table2 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
+                em_table3 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'))
+                em_table3 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
+                em_table = pd.concat([em_table1, em_table2, em_table3])
+
 
         #TODO here the loading of gregor has to go
 
@@ -124,7 +129,7 @@ class make_figures_FK:
                                 'Rhombencephalon - Rhombomere 2', "cn1", "cn2", 'Mesencephalon - Tectum Stratum Periventriculare']
 
         # Initialize columns for different types of mesh data, setting default as NaN.
-        for mesh_type in ['soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh']:
+        for mesh_type in ["all_mesh",'soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh','pre_synapse','post_synapse','swc']:
             all_cells[mesh_type] = np.nan
             all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
@@ -135,7 +140,12 @@ class make_figures_FK:
 
         # Load mesh data for each cell based on selected modalities and smoothing setting.
         for i, cell in all_cells.iterrows():
-            all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa)
+            all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa,load_both=True)
+
+        # Load synapse data for each cell based on selected modalities and smoothing setting.
+        for i, cell in all_cells.iterrows():
+            if cell['imaging_modality'] == "clem":
+                all_cells.loc[i, :] = load_synapse_clem(cell, self.path_to_data)
 
         # Mirror cell data if specified, adjusting for anatomical accuracy.
         width_brain = 495.56  # The width of the brain for mirror transformations.
@@ -597,7 +607,7 @@ if __name__ == "__main__":
     # mc_figure.plot_neurotransmitter()
 
     all_cells_figure = make_figures_FK(modalities=['clem'],keywords='all')
-    all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
-    all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
+    # all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
+    # all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
     # all_cells_figure.make_interactive()
     # all_cells_figure.plot_neurotransmitter()
