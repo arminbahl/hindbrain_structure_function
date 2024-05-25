@@ -26,7 +26,9 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     if 'em' in modalities:
         em_table1 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
         em_table2 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
-        em_table = pd.concat([em_table1, em_table2])
+        em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'))
+        em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
+        em_table = pd.concat([em_table1, em_table2,em_table3,em_table4])
         table_list.append(em_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
