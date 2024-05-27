@@ -19,6 +19,7 @@ from datetime import datetime
 import plotly
 import matplotlib
 import warnings
+from matplotlib.lines import Line2D
 warnings.filterwarnings("ignore")
 
 # matplotlib.use('qt5agg')
@@ -351,6 +352,7 @@ class make_figures_FK:
         gs = plt.GridSpec(2, 2, width_ratios=[4, 1], height_ratios=[1, 4])
         ax = plt.subplot(gs[1, 0])
         ax_top = plt.subplot(gs[0, 0], sharex=ax)
+        ax_legend = plt.subplot(gs[0, 1])
         ax_right = plt.subplot(gs[1, 1], sharey=ax)
         ax_top.axis('off')
         ax_right.axis('off')
@@ -415,8 +417,8 @@ class make_figures_FK:
             # ax_right.axis('auto')
             ax_top.set_position((pos_main[0], pos_main[1] + pos_main[3] + 0.01, pos_main[2], pos_main[3] * 0.15))
             # ax_right.set_position((pos_main[0] + pos_main[2] + 0.01, pos_main[1], pos_main[3] * 0.15, pos_main[3]))
-            ax_top.plot(ax0_values, kde_values_post_ax0, color='blue', alpha=0.5)
-            ax_top.plot(ax0_values, kde_values_pre_ax0, color='orange', alpha=0.5)
+            ax_top.plot(ax0_values, kde_values_post_ax0, color='blue', alpha=0.5,label='pre-synapse')
+            ax_top.plot(ax0_values, kde_values_pre_ax0, color='orange', alpha=0.5,label='post-synapse')
             ax_right.plot(kde_values_post_ax1, ax1_values, color='blue', alpha=0.5)
             ax_right.plot(kde_values_pre_ax1, ax1_values, color='orange', alpha=0.5)
             ax_top.fill_between(ax0_values, kde_values_post_ax0, color='blue', alpha=0.1)
@@ -453,6 +455,14 @@ class make_figures_FK:
             pos_main = ax.get_position().bounds
             ax_top.set_position((pos_main[0], pos_main[1] + pos_main[3] + 0.01, pos_main[2], pos_main[3] * 0.15))
             ax_right.set_position((pos_main[0] + pos_main[2] + 0.01, pos_main[1], pos_main[3] * 0.15, pos_main[3]))
+
+
+            legend_elements = [Line2D([0], [0], color='blue', lw=4, label='Post-synapse'),
+                               Line2D([0], [0], color='orange',lw=4, label='Pre-synapse')]
+            ax_legend.legend(handles=legend_elements, loc='center',frameon=False)
+            ax_legend.axis('off')
+
+
         ax.axis('off')
 
 
