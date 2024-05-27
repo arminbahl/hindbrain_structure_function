@@ -7,6 +7,7 @@ import navis
 from pathlib import Path
 import pandas as pd
 import matplotlib as mpl
+from scipy.stats import gaussian_kde
 from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
 from hindbrain_structure_function.visualization.FK_tools.load_clem_table import *
 from hindbrain_structure_function.visualization.FK_tools.load_mesh import *
@@ -20,7 +21,7 @@ import matplotlib
 import warnings
 warnings.filterwarnings("ignore")
 
-matplotlib.use('TkAgg')
+# matplotlib.use('qt5agg')
 class make_figures_FK:
     """
     A class for generating and saving various visualizations of brain cells based on neurotransmitter types, spatial projections, and interactive 3D models.
@@ -55,7 +56,12 @@ class make_figures_FK:
     figure_maker.plot_z_projection(show_brs=True)
     """
 
-    def __init__(self, modalities=['pa'], keywords=['integrator', 'ipsilateral'], use_smooth_pa=True, mirror=True, only_soma=False):
+    def __init__(self, modalities=['pa'],
+                 keywords=['integrator', 'ipsilateral'],
+                 use_smooth_pa=True,
+                 mirror=True,
+                 only_soma=False,
+                 load_what='swc'):
         """
         Initializes the make_figures_FK class, setting up necessary parameters, loading datasets, and preparing data for visualization.
 
@@ -104,8 +110,9 @@ class make_figures_FK:
                 em_table1 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
                 em_table2 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
                 em_table3 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'))
-                em_table3 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
-                em_table = pd.concat([em_table1, em_table2, em_table3])
+                em_table4 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
+                em_table5 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
+                em_table = pd.concat([em_table1, em_table2, em_table3,em_table4,em_table5])
 
 
         #TODO here the loading of gregor has to go
@@ -129,7 +136,7 @@ class make_figures_FK:
                                 'Rhombencephalon - Rhombomere 2', "cn1", "cn2", 'Mesencephalon - Tectum Stratum Periventriculare']
 
         # Initialize columns for different types of mesh data, setting default as NaN.
-        for mesh_type in ["all_mesh",'soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh','pre_synapse','post_synapse','swc']:
+        for mesh_type in ["all_mesh",'soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh','swc']:
             all_cells[mesh_type] = np.nan
             all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
@@ -140,12 +147,18 @@ class make_figures_FK:
 
         # Load mesh data for each cell based on selected modalities and smoothing setting.
         for i, cell in all_cells.iterrows():
-            all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa,load_both=True)
+            if load_what=='mesh':
+                all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa)
+            if load_what == 'swc':
+                all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa, swc=True)
+            if load_what == 'both':
+                all_cells.loc[i, :] = load_mesh(cell, self.path_to_data, use_smooth_pa=self.use_smooth_pa,load_both=True)
 
         # Load synapse data for each cell based on selected modalities and smoothing setting.
         for i, cell in all_cells.iterrows():
             if cell['imaging_modality'] == "clem":
                 all_cells.loc[i, :] = load_synapse_clem(cell, self.path_to_data)
+                print(f'Synapses loaded for cell {cell["cell_name"]}')
 
         # Mirror cell data if specified, adjusting for anatomical accuracy.
         width_brain = 495.56  # The width of the brain for mirror transformations.
@@ -157,13 +170,19 @@ class make_figures_FK:
                         all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
                         if cell['imaging_modality'] == 'photoactivation':
                             all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
-                        if cell['imaging_modality'] == 'clem':
+                            all_cells.loc[i, 'all_mesh']._vertices = navis.transforms.mirror(cell['all_mesh']._vertices, width_brain, 'x')
+                        if cell['imaging_modality'] == 'clem' or cell['imaging_modality'] == 'em':
                             all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                             all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
+                            all_cells.loc[i, 'all_mesh'].connectors.loc[:,["x",'y','z']] = navis.transforms.mirror(np.array(cell['all_mesh'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                        print(f"MESHES of cell {cell['cell_name']} mirrored")
+
                 if 'swc' in cell.index:
                     if type(cell['swc']) != float and type(cell['swc']) != type(None):
                         if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
                             all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                            all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                            print(f"SWC of cell {cell['cell_name']} mirrored")
 
         # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
         all_cells = all_cells.dropna(how='all')
@@ -177,7 +196,7 @@ class make_figures_FK:
 
     def plot_projection(self, projection='z', show_brs=False, force_new_cell_list=False, rasterize=True,
                         black_neuron=True, standard_size=True, volume_outlines=True, background_gray=True,
-                        only_soma=False, midline=True):
+                        only_soma=False, midline=True,plot_synapse_distribution=True,which_brs='raphe'):
         """
         Generates and saves a 2D projection plot of visualized brain cells, optionally including selected brain regions and other visual enhancements.
 
@@ -211,8 +230,8 @@ class make_figures_FK:
             ylim = [-850, -50]  # Define the Y-axis limits for the Z projection.
         elif projection == 'y':
             view = ('x', "z")  # Set the 2D view to the X-Z plane for Y projection.
-            ylim = [-630, 270]  # Define the Y-axis limits for the Y projection.
-        projection_string = projection + "_projection"  # Create a string to denote the type
+            ylim = [-30, 300]  # Define the Y-axis limits for the Y projection.
+        projection_string = projection +"_"+ which_brs + "_projection"  # Create a string to denote the type
 
         # Rebuild the list of visualized cells and their colors if necessary.
         if not "visualized_cells" in self.__dir__() or force_new_cell_list:
@@ -255,17 +274,61 @@ class make_figures_FK:
                                 self.color_cells.append(temp_color)
                         else:
                             if not type(cell[key]) == float:
-                                self.visualized_cells.append(cell[key])
-                                if key != "dendrite_mesh":
-                                    self.color_cells.append(temp_color)
-                                elif key == "dendrite_mesh":
-                                    self.color_cells.append("black")
+                                if not type(cell[key]) == float:
+                                    self.visualized_cells.append(cell[key])
+                                    if key != "dendrite_mesh":
+                                        self.color_cells.append(temp_color)
+                                    elif key == "dendrite_mesh":
+                                        self.color_cells.append("black")
+        if self.visualized_cells == []:
+            self.visualized_cells = []  # Reset the list of cells to be visualized.
+            self.color_cells = []  # Reset the list of colors corresponding to the cells.
+
+            # Iterate over all cells to determine their colors based on their types and specific conditions.
+            for i, cell in self.all_cells.iterrows():
+                if not type(cell['swc']) == float:
+                    if black_neuron == True and cell["imaging_modality"] == "photoactivation":
+                        # Color all photoactivation modality cells black if specified.
+                        self.color_cells.append("black")
+                        self.color_cells.append("black")
+                        black_neuron = False
+                    elif type(black_neuron) == str:
+                        # Color a specific neuron black if its name matches the specified string.
+                        if cell['cell_name'] == black_neuron:
+                            self.color_cells.append("black")
+                            self.color_cells.append("black")
+                    else:
+                        # Assign colors based on cell type labels using a predefined color dictionary.
+                        for label in cell.cell_type_labels:
+                            if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
+                                break
+                            elif label == "integrator" and "contralateral" in cell.cell_type_labels:
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                                break
+                            elif label.replace("_", " ") in self.color_cell_type_dict.keys():
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ")]
+                                break
+                            else:
+                                temp_color = 'k'
+
+
+
+
+                    self.visualized_cells.append(cell['swc'])
+                    self.visualized_cells[-1].units = 'micrometer'
+                    self.color_cells.append(temp_color)
+
+
+
+
+
 
         # Load brain regions and initialize settings for plot if selected brain regions should be shown.
         if show_brs:
             brkw = "_with_brs_"
-            brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
-            brain_meshes_with_vertices = load_brs(self.path_to_data, load_FK_regions=True, as_volume=False)
+            brain_meshes = load_brs(self.path_to_data, which_brs=which_brs)
+            brain_meshes_with_vertices = load_brs(self.path_to_data, which_brs=which_brs, as_volume=False)
             selected_meshes = self.selected_meshes
             brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
             brain_meshes_with_vertices = [mesh for mesh in brain_meshes_with_vertices if mesh.name in selected_meshes]
@@ -276,24 +339,41 @@ class make_figures_FK:
         else:
             brkw = "_without_brs_"
 
+        #gridspec
+        #
+        #
+        #
+        #
+        #
+        #
+
+        fig = plt.figure(figsize=(8, 8))
+        gs = plt.GridSpec(2, 2, width_ratios=[4, 1], height_ratios=[1, 4])
+        ax = plt.subplot(gs[1, 0])
+        ax_top = plt.subplot(gs[0, 0], sharex=ax)
+        ax_right = plt.subplot(gs[1, 1], sharey=ax)
+        ax_top.axis('off')
+        ax_right.axis('off')
+
         # Begin plotting the projection using navis plot2d, applying color settings and other parameters.
         if show_brs:
-            fig, ax = navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines,
-                                   alpha=0.2, linewidth=0.5, method='2d', view=view, group_neurons=True,
-                                   rasterize=False)
+            navis.plot2d(brain_meshes, color=color_meshes, volume_outlines=volume_outlines,
+                         alpha=0.2, linewidth=0.5, method='2d', view=view, group_neurons=True,
+                         rasterize=False, ax=ax)
             if background_gray:
                 # Optionally fill the background of brain regions with gray for better visibility.
                 for mesh in brain_meshes:
                     temp_convex_hull = np.array(mesh.to_2d(view=view))
                     ax.fill(temp_convex_hull[:, 0], temp_convex_hull[:, 1], c='#F7F7F7', zorder=-1, alpha=1, ec=None)
-            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=1,
-                                   method='2d', view=view, group_neurons=True, rasterize=rasterize, ax=ax,
-                                   scalebar="20 um")
+            navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5,
+                         method='2d', view=view, group_neurons=True, rasterize=rasterize, ax=ax,
+                         scalebar="20 um")
         else:
-            fig, ax = navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=1,
-                                   method='2d', view=view, group_neurons=True, rasterize=rasterize,
-                                   scalebar="20 um")
+            navis.plot2d(self.visualized_cells, color=self.color_cells, alpha=1, linewidth=0.5,
+                         method='2d', view=view, group_neurons=True, rasterize=rasterize,
+                         scalebar="20 um", ax=ax)
 
+        ax.set_aspect('equal')
         # Include a midline indicator if specified.
         if midline:
             ax.axvline(250, color=(0.85, 0.85, 0.85, 0.2), linestyle='--', alpha=0.5, zorder=0)
@@ -301,6 +381,80 @@ class make_figures_FK:
             plt.xlim(0, 500)  # Standardize the plot dimensions.
             plt.ylim(ylim[0], ylim[1])  # Set specific limits for the Y-axis based on the projection.
             ax.set_facecolor('white')  # Set the background color of the plot to white for clarity.
+        # plot synapse_distribution
+        if plot_synapse_distribution and (np.unique(self.all_cells['imaging_modality']) == ['clem']).all():
+            ax4synapses = [x.replace('-', "") for x in list(view)]
+            try:
+                self.all_synapses = pd.concat([x.connectors for x in self.all_cells.loc[:, 'swc']])
+            except:
+                self.all_synapses = pd.concat([x.connectors for x in self.all_cells.loc[:, 'all_mesh']])
+            # extract synapses for plotted axis
+            post_ax0 = self.all_synapses.loc[self.all_synapses['type'] == 'post', ax4synapses[0]].to_list()
+            pre_ax0 = self.all_synapses.loc[self.all_synapses['type'] == 'pre', ax4synapses[0]].to_list()
+            post_ax1 = self.all_synapses.loc[self.all_synapses['type'] == 'post', ax4synapses[1]].to_list()
+            pre_ax1 = self.all_synapses.loc[self.all_synapses['type'] == 'pre', ax4synapses[1]].to_list()
+            if np.max(ylim) < 0:
+                post_ax1 = [-x for x in post_ax1]
+                pre_ax1 = [-x for x in pre_ax1]
+            # kde estimation
+            kde_post_ax0 = gaussian_kde(post_ax0)
+            kde_pre_ax0 = gaussian_kde(pre_ax0)
+            kde_post_ax1 = gaussian_kde(post_ax1)
+            kde_pre_ax1 = gaussian_kde(pre_ax1)
+            # evaluate kde
+            ax0_values = np.linspace(min(plt.xlim()), max(plt.xlim()), 1000)
+            ax1_values = np.linspace(min(plt.ylim()), max(plt.ylim()), 1000)
+            kde_values_post_ax0 = kde_post_ax0(ax0_values)
+            kde_values_pre_ax0 = kde_pre_ax0(ax0_values)
+            kde_values_post_ax1 = kde_post_ax1(ax1_values)
+            kde_values_pre_ax1 = kde_pre_ax1(ax1_values)
+
+            gs.update(left=0.05, right=0.95, top=0.95, bottom=0.05, wspace=0.001, hspace=0.001)
+            pos_main = ax.get_position().bounds
+            # ax_top.axis('auto')
+            # ax_right.axis('auto')
+            ax_top.set_position((pos_main[0], pos_main[1] + pos_main[3] + 0.01, pos_main[2], pos_main[3] * 0.15))
+            # ax_right.set_position((pos_main[0] + pos_main[2] + 0.01, pos_main[1], pos_main[3] * 0.15, pos_main[3]))
+            ax_top.plot(ax0_values, kde_values_post_ax0, color='blue', alpha=0.5)
+            ax_top.plot(ax0_values, kde_values_pre_ax0, color='orange', alpha=0.5)
+            ax_right.plot(kde_values_post_ax1, ax1_values, color='blue', alpha=0.5)
+            ax_right.plot(kde_values_pre_ax1, ax1_values, color='orange', alpha=0.5)
+            ax_top.fill_between(ax0_values, kde_values_post_ax0, color='blue', alpha=0.1)
+            ax_top.fill_between(ax0_values, kde_values_pre_ax0, color='orange', alpha=0.1)
+            ax_right.fill_betweenx(ax1_values, kde_values_post_ax1, color='blue', alpha=0.1)
+            ax_right.fill_betweenx(ax1_values, kde_values_pre_ax1, color='orange', alpha=0.1)
+            ax_top.tick_params(
+                axis='x',  # changes apply to the x-axis
+                which='both',  # both major and minor ticks are affected
+                bottom=False,  # ticks along the bottom edge are off
+                top=False,  # ticks along the top edge are off
+                labelbottom=False)
+            ax_right.tick_params(
+                axis='y',  # changes apply to the x-axis
+                which='both',  # both major and minor ticks are affected
+                left=False,
+                labelleft=False,  # ticks along the bottom edge are off
+                top=False,  # ticks along the top edge are off
+                labelbottom=False)
+            ax.axis('off')
+            ax_top.spines['top'].set_visible(False)
+            ax_top.spines['right'].set_visible(False)
+            ax_top.spines['bottom'].set_visible(False)
+            ax_right.spines['top'].set_visible(False)
+            ax_right.spines['right'].set_visible(False)
+            ax_right.spines['left'].set_visible(False)
+
+            max_value = (np.ceil(np.max([kde_values_post_ax0, kde_values_pre_ax0, kde_values_post_ax1, kde_values_pre_ax1]) * 1000)) / 1000
+            ax_right.set_xlim(0, max_value)
+            ax_top.set_ylim(0, max_value)
+            ax_top.set_yticks([0, round(max_value / 2, 2), round(max_value, 2)], [0, round(max_value / 2, 2), round(max_value, 2)])
+            ax_right.set_xticks([0, round(max_value / 2, 2), round(max_value, 2)], [0, round(max_value / 2, 2), round(max_value, 2)])
+            ax_top.set_anchor('C')
+            pos_main = ax.get_position().bounds
+            ax_top.set_position((pos_main[0], pos_main[1] + pos_main[3] + 0.01, pos_main[2], pos_main[3] * 0.15))
+            ax_right.set_position((pos_main[0] + pos_main[2] + 0.01, pos_main[1], pos_main[3] * 0.15, pos_main[3]))
+        ax.axis('off')
+
 
         # Create directories for saving the output files if they do not already exist.
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf"), exist_ok=True)
@@ -361,7 +515,7 @@ class make_figures_FK:
 
 
 
-    def make_interactive(self, show_brs=True,force_new_cell_list=False):
+    def make_interactive(self, show_brs=True,force_new_cell_list=False,which_brs='whole_brain'):
         """
         Generates and saves an interactive 3D plot of visualized brain cells, optionally including selected brain regions.
 
@@ -430,7 +584,7 @@ class make_figures_FK:
         else:
             brkw = "_without_brs_"
         if show_brs:
-            brain_meshes = load_brs(self.path_to_data, load_FK_regions=True)
+            brain_meshes = load_brs(self.path_to_data, which_brs=which_brs)
             selected_meshes = self.selected_meshes
             brain_meshes = [mesh for mesh in brain_meshes if mesh.name in selected_meshes]
             color_meshes = [(0.4, 0.4, 0.4, 0.1)] * len(brain_meshes)
@@ -585,29 +739,58 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    # integrator_ipsi_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','ipsilateral',])
-    # integrator_ipsi_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    # integrator_ipsi_figure.plot_y_projection(show_brs=True, rasterize=True)
-    # integrator_ipsi_figure.plot_neurotransmitter()
-    #
-    # integrator_contra_figure = make_figures_FK(modalities=['pa'],keywords=['integrator','contralateral',])
-    # integrator_contra_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    # integrator_contra_figure.plot_y_projection(show_brs=True, rasterize=True)
-    # integrator_contra_figure.plot_neurotransmitter()
-    #
-    # dt_figure = make_figures_FK(modalities=['pa'],keywords=['dynamic_threshold'],mirror=True)
-    # dt_figure.plot_z_projection(rasterize=True,show_brs=True,)
-    # dt_figure.plot_y_projection(show_brs=True, rasterize=True)
-    # dt_figure.plot_neurotransmitter()
-    #
-    #
-    # mc_figure = make_figures_FK(modalities=['pa'],keywords=['motor_command'])
-    # mc_figure.plot_z_projection(rasterize=True, show_brs=True, )
-    # mc_figure.plot_y_projection(show_brs=True, rasterize=True)
-    # mc_figure.plot_neurotransmitter()
 
-    all_cells_figure = make_figures_FK(modalities=['clem'],keywords='all')
-    # all_cells_figure.plot_z_projection(rasterize=True, show_brs=True,only_soma=False,black_neuron=False)
-    # all_cells_figure.plot_y_projection(show_brs=True, rasterize=True,only_soma=True,black_neuron=False)
-    # all_cells_figure.make_interactive()
-    # all_cells_figure.plot_neurotransmitter()
+    integrator_contra_figure = make_figures_FK(modalities=['clem'],
+                                               keywords=['dynamic_threshold'],
+                                               use_smooth_pa=True,
+                                               mirror=True,
+                                               only_soma=True,
+                                               load_what='swc')
+
+    integrator_contra_figure.plot_y_projection(show_brs=True,
+                                               which_brs="raphe",
+                                               force_new_cell_list=False,
+                                               rasterize=True,
+                                               black_neuron=False,
+                                               standard_size=True,
+                                               volume_outlines=True,
+                                               background_gray=True,
+                                               only_soma=False,
+                                               midline=True,
+                                               plot_synapse_distribution=True)
+
+    integrator_contra_figure.plot_z_projection(show_brs=True,
+                                               which_brs="raphe",
+                                               force_new_cell_list=False,
+                                               rasterize=True,
+                                               black_neuron=False,
+                                               standard_size=True,
+                                               volume_outlines=True,
+                                               background_gray=True,
+                                               only_soma=False,
+                                               midline=True,
+                                               plot_synapse_distribution=True)
+
+    integrator_contra_figure.plot_y_projection(show_brs=True,
+                                               which_brs="whole_brain",
+                                               force_new_cell_list=False,
+                                               rasterize=True,
+                                               black_neuron=False,
+                                               standard_size=True,
+                                               volume_outlines=True,
+                                               background_gray=True,
+                                               only_soma=False,
+                                               midline=True,
+                                               plot_synapse_distribution=True)
+
+    integrator_contra_figure.plot_z_projection(show_brs=True,
+                                               which_brs="whole_brain",
+                                               force_new_cell_list=False,
+                                               rasterize=True,
+                                               black_neuron=False,
+                                               standard_size=True,
+                                               volume_outlines=True,
+                                               background_gray=True,
+                                               only_soma=False,
+                                               midline=True,
+                                               plot_synapse_distribution=True)

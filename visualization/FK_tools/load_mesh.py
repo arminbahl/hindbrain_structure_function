@@ -23,6 +23,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
         path_89189_postsynaptic_em = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_10_postsynaptic_em = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_11_postsynaptic_em = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
+        path_19_postsynaptic_em = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
     elif cell['imaging_modality'] == 'photoactivation':
         pa_path = path / 'paGFP' / str(cell.cell_name)
 
@@ -59,6 +60,9 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
                 elif path_11_postsynaptic_em.exists():
                     file_path = path_11_postsynaptic_em / f'{cell_name_em}_mapped.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
+                elif path_19_postsynaptic_em.exists():
+                    file_path = path_19_postsynaptic_em / f'{cell_name_em}_mapped.swc'
+                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
 
 
     if not swc or load_both:
@@ -76,6 +80,8 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
                 file_path = path_10_postsynaptic_em
             elif path_11_postsynaptic_em.exists():
                 file_path = path_11_postsynaptic_em
+            elif path_19_postsynaptic_em.exists():
+                file_path = path_19_postsynaptic_em
 
 
 
@@ -86,6 +92,6 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
             file_suffix = '_smoothed.obj' if use_smooth_pa else '.obj'
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
             cell['soma_mesh'] = load_file(pa_path / f'{cell.cell_name}_soma.obj', 'soma')
-            cell['all_mesh'] = load_file(clem_path / f'{cell_name_clem}_combined.obj', 'Combined file')
+            cell['all_mesh'] = load_file(pa_path / f'{cell_name_clem}_combined.obj', 'Combined file')
 
     return cell

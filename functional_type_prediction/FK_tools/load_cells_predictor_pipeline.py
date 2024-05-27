@@ -28,7 +28,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table2 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
         em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'))
         em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
-        em_table = pd.concat([em_table1, em_table2,em_table3,em_table4])
+        em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
+        em_table = pd.concat([em_table1, em_table2,em_table3,em_table4,em_table5])
         table_list.append(em_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
@@ -75,9 +76,10 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                     all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
                     if cell['imaging_modality'] == 'photoactivation':
                         all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
-                    if cell['imaging_modality'] == 'clem':
+                    if cell['imaging_modality'] == 'clem' or cell['imaging_modality'] == 'em':
                         all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                         all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
+
             if type(cell['swc']) != float and type(cell['swc']) != type(None):
                 if cell['swc'].nodes.loc[0,'x'] > (width_brain / 2):
                     all_cells.loc[i,'swc'].nodes.loc[:,["x","y","z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:,['x','y','z']]), width_brain, 'x')
