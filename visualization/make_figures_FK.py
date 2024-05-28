@@ -749,58 +749,35 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
+    for key in [['motor_command'],['dynamic threshold'],["integrator"],["integrator",'ipsilateral'],["integrator",'contralateral']]:
+        kk = make_figures_FK(modalities=['clem'],
+                                                   keywords=key,
+                                                   use_smooth_pa=True,
+                                                   mirror=True,
+                                                   only_soma=True,
+                                                   load_what='swc')
 
-    integrator_contra_figure = make_figures_FK(modalities=['clem'],
-                                               keywords=['dynamic_threshold'],
-                                               use_smooth_pa=True,
-                                               mirror=True,
-                                               only_soma=True,
-                                               load_what='swc')
+        kk.plot_y_projection(show_brs=True,
+                                                   which_brs="raphe",
+                                                   force_new_cell_list=False,
+                                                   rasterize=True,
+                                                   black_neuron=False,
+                                                   standard_size=True,
+                                                   volume_outlines=True,
+                                                   background_gray=True,
+                                                   only_soma=False,
+                                                   midline=True,
+                                                   plot_synapse_distribution=True)
 
-    integrator_contra_figure.plot_y_projection(show_brs=True,
-                                               which_brs="raphe",
-                                               force_new_cell_list=False,
-                                               rasterize=True,
-                                               black_neuron=False,
-                                               standard_size=True,
-                                               volume_outlines=True,
-                                               background_gray=True,
-                                               only_soma=False,
-                                               midline=True,
-                                               plot_synapse_distribution=True)
+        kk.plot_z_projection(show_brs=True,
+                                                   which_brs="raphe",
+                                                   force_new_cell_list=False,
+                                                   rasterize=True,
+                                                   black_neuron=False,
+                                                   standard_size=True,
+                                                   volume_outlines=True,
+                                                   background_gray=True,
+                                                   only_soma=False,
+                                                   midline=True,
+                                                   plot_synapse_distribution=True)
 
-    integrator_contra_figure.plot_z_projection(show_brs=True,
-                                               which_brs="raphe",
-                                               force_new_cell_list=False,
-                                               rasterize=True,
-                                               black_neuron=False,
-                                               standard_size=True,
-                                               volume_outlines=True,
-                                               background_gray=True,
-                                               only_soma=False,
-                                               midline=True,
-                                               plot_synapse_distribution=True)
-
-    integrator_contra_figure.plot_y_projection(show_brs=True,
-                                               which_brs="whole_brain",
-                                               force_new_cell_list=False,
-                                               rasterize=True,
-                                               black_neuron=False,
-                                               standard_size=True,
-                                               volume_outlines=True,
-                                               background_gray=True,
-                                               only_soma=False,
-                                               midline=True,
-                                               plot_synapse_distribution=True)
-
-    integrator_contra_figure.plot_z_projection(show_brs=True,
-                                               which_brs="whole_brain",
-                                               force_new_cell_list=False,
-                                               rasterize=True,
-                                               black_neuron=False,
-                                               standard_size=True,
-                                               volume_outlines=True,
-                                               background_gray=True,
-                                               only_soma=False,
-                                               midline=True,
-                                               plot_synapse_distribution=True)
