@@ -5,12 +5,14 @@ import scipy
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells_predictor_pipeline import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.make_dendrogramms import *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.find_branches import *
 import winsound
 
 from datetime import datetime
 import plotly
 import matplotlib
-matplotlib.use('TkAgg')
+# matplotlib.use('TkAgg')
+from tqdm import tqdm
 
 if __name__ == "__main__":
 
@@ -123,6 +125,17 @@ if __name__ == "__main__":
     # add z_extenct
     all_cells.loc[:, 'z_extent'] = all_cells.loc[:, "swc"].apply(lambda x: x.extents[2])
 
+    #add avg x,y,z coordinate
+    all_cells.loc[:,'x_avg'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.x))
+    all_cells.loc[:, 'y_avg'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.y))
+    all_cells.loc[:, 'z_avg'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.z))
+
+    #add soma x,y,z coordinate
+    all_cells.loc[:,'soma_x'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.loc[0,"x"]))
+    all_cells.loc[:, 'soma_y'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.loc[0,"y"]))
+    all_cells.loc[:, 'soma_z'] = all_cells.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.loc[0,"z"]))
+
+
     #add n_leafs
     all_cells.loc[:,'n_leafs'] = all_cells.loc[:, "swc"].apply(lambda x: x.n_leafs)
     # add n_branches
@@ -151,9 +164,205 @@ if __name__ == "__main__":
     all_cells.loc[:, "sholl_distance_max_branches_geosidic"] = all_cells.loc[:, "swc"].apply(lambda x: navis.sholl_analysis(x, radii=np.arange(10, 200, 10), center='root', geodesic=True).branch_points.idxmax())
     all_cells.loc[:, "sholl_distance_max_branches_geosidic_cable_length"] = all_cells.loc[:, ['sholl_distance_max_branches_geosidic',"swc"]].apply(lambda x: navis.sholl_analysis(x['swc'],radii= np.arange(10,200,10),center='root', geodesic=False).cable_length[x['sholl_distance_max_branches_geosidic']],axis=1)
 
+    for i,cell in tqdm(all_cells.iterrows(),leave=False,total=len(all_cells)):
+        temp = find_branches(cell['swc'].nodes,cell.cell_name)
+        if not 'branches_df' in globals():
+            branches_df = temp
+        else:
+            branches_df = pd.concat([branches_df,temp])
+
+    width_brain = 495.56
+    for i,cell in all_cells.iterrows():
+        all_cells.loc[i,"main_path_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
+                                                                          (branches_df['main_path'])&
+                                                                          (branches_df['end_type']!='end'), 'longest_neurite_in_branch'].iloc[0]
+        all_cells.loc[i,"main_path_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
+                                                                              (branches_df['main_path'])&
+                                                                              (branches_df['end_type']!='end'), 'total_branch_length'].iloc[0]
+
+        try:
+            all_cells.loc[i, "first_major_branch_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
+                                                                                     (~branches_df['main_path']) &
+                                                                                     (branches_df['end_type'] != 'end') &
+                                                                                     (branches_df['total_branch_length'] >= 50), 'longest_neurite_in_branch'].iloc[0]
+        except:
+            all_cells.loc[i, "first_major_branch_longest_neurite"] = 0
+        try:
+            all_cells.loc[i, "first_major_branch_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
+                                                                                         (~branches_df['main_path']) &
+                                                                                         (branches_df['end_type'] != 'end') &
+                                                                                         (branches_df['total_branch_length'] >= 50), 'total_branch_length'].iloc[0]
+        except:
+            all_cells.loc[i, "first_major_branch_total_branch_length"] = 0
+
+
+        all_cells.loc[i,"first_branch_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
+                                                                          (~branches_df['main_path'])&
+                                                                          (branches_df['end_type']!='end'), 'longest_neurite_in_branch'].iloc[0]
+        all_cells.loc[i,"first_branch_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
+                                                                              (~branches_df['main_path'])&
+                                                                              (branches_df['end_type']!='end'), 'total_branch_length'].iloc[0]
+        #biggest major branch
+        all_cells.loc[i, "biggest_branch_longest_neurite"] =  branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
+                                                            (~branches_df['main_path']) &
+                                                            (branches_df['end_type'] != 'end'), :].sort_values('total_branch_length', ascending=False)['longest_neurite_in_branch'].iloc[0]
+        all_cells.loc[i,"biggest_branch_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
+                                                                              (~branches_df['main_path'])&
+                                                                              (branches_df['end_type']!='end'), 'total_branch_length'].iloc[0]
+
+        all_cells.loc[i, "longest_connected_path"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name),'longest_connected_path'].iloc[0]
+
+        all_cells.loc[i,'n_nodes_ipsi_hemisphere'] = (cell.swc.nodes.x<(width_brain/2)).sum()
+        all_cells.loc[i, 'n_nodes_contra_hemisphere'] = (cell.swc.nodes.x < (width_brain / 2)).sum()
+
+
+        def ic_index(x_coords):
+            width_brain = 495.56
+
+            distances = []
+            for x in x_coords:
+                distances.append(((width_brain/2) - x)/(width_brain/2))
+            ipsi_contra_index = np.sum(distances)/len(distances)
+            return ipsi_contra_index
+
+        all_cells.loc[i, 'x_location_index'] = ic_index(cell.swc.nodes.x)
+
+        all_cells.loc[i, 'fraction_contra'] = (cell.swc.nodes.x>(width_brain/2)).sum()/len(cell.swc.nodes.x)
 
 
 
+
+
+
+
+            #neighboorhood component analysis
+    from sklearn.neighbors import NeighborhoodComponentsAnalysis
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.model_selection import train_test_split
+
+    without_nan_function = all_cells.loc[(all_cells['function']!='nan'),:]
+
+    features = np.array(without_nan_function.loc[:,without_nan_function.columns[26:]])
+    without_nan_function.loc[:,'function'] = without_nan_function.loc[:, ['morphology','function']].apply(lambda x: x['function'].replace('_'," "), axis=1)
+    labels = np.array(without_nan_function.loc[:, ['function']])
+    # labels = np.array(without_nan_function.loc[:, ['morphology','function']] )
+    # labels = labels[:,0] + labels[:,1]
+    for i, item in enumerate(labels):
+        if 'dynamic threshold' in item:
+            labels[i] = 'dynamic threshold'
+        if 'motor command' in item:
+            labels[i] = 'motor command'
+
+    X_train, X_test, y_train, y_test = train_test_split(features, labels,stratify=labels, test_size=0.7, random_state=42)
+
+    nca = NeighborhoodComponentsAnalysis(random_state=42,n_components=2,init='lda')
+    nca.fit(X_train, y_train)
+
+    knn = KNeighborsClassifier(n_neighbors=5,weights='distance')
+    knn.fit(X_train, y_train)
+
+
+    print(knn.score(X_test, y_test))
+
+    knn.fit(nca.transform(X_train), y_train)
+
+    print(knn.score(nca.transform(X_test), y_test))
+
+
+    #LMNN
+
+    import numpy as np
+    from metric_learn import LMNN
+    from sklearn.datasets import load_iris
+
+    features_normed = features/np.max(features)
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, stratify=labels, test_size=0.7, random_state=42)
+    lmnn = LMNN(n_neighbors=3, learn_rate=1e-8,min_iter=1000,regularization=0.2,n_components=3)
+    lmnn.fit(X_train, y_train)
+
+
+    knn = KNeighborsClassifier(n_neighbors=3, weights='distance')
+    knn.fit(X_train, y_train)
+
+    print(knn.score(X_test, y_test))
+    knn.fit(lmnn.transform(X_train), y_train)
+    print(knn.score(lmnn.transform(X_test), y_test))
+
+    #LDS
+    import numpy as np
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+    #data
+    features = np.array(without_nan_function.loc[:,without_nan_function.columns[26:]])
+    without_nan_function.loc[:,'function'] = without_nan_function.loc[:, ['morphology','function']].apply(lambda x: x['function'].replace('_'," "), axis=1)
+    labels = np.array(without_nan_function.loc[:, ['function']])
+    # labels = np.array(without_nan_function.loc[:, ['morphology','function']] )
+    # labels = labels[:,0] + labels[:,1]
+    # for i, item in enumerate(labels):
+    #     if 'dynamic threshold' in item:
+    #         labels[i] = 'dynamic threshold'
+    #     if 'motor command' in item:
+    #         labels[i] = 'motor command'
+
+    #create sets
+    features_normed = features/np.max(features)
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, stratify=labels, test_size=0.3, random_state=42)
+
+    clf = LinearDiscriminantAnalysis(solver='lsqr',shrinkage='auto')
+
+    clf.fit(X_train, y_train)
+
+    prediction = clf.predict(X_test)
+    correct = prediction == y_test.flatten()
+    percent_correct = correct.sum()/len(correct)
+    print(percent_correct)
+
+
+
+    #predict clem from only paGFP
+    without_nan_function.loc[:, 'function'] = without_nan_function.loc[:, ['morphology', 'function']].apply(lambda x: x['function'].replace('_', " "), axis=1)
+    features_paGFP = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation', without_nan_function.columns[26:]])
+    features_CLEM = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='clem', without_nan_function.columns[26:]])
+    labels_paGFP = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation', ['function']])
+    labels_CLEM = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='clem', ['function']])
+
+    # create sets
+    features_normed = features / np.max(features)
+
+    clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
+    clf = LinearDiscriminantAnalysis()
+
+    clf.fit(features_paGFP, labels_paGFP)
+
+    prediction = clf.predict(features_CLEM)
+    correct = prediction == labels_CLEM.flatten()
+    percent_correct = correct.sum() / len(correct)
+    print("LDA: ",percent_correct)
+    lmnn = LMNN(n_neighbors=3, learn_rate=1e-8, min_iter=1000, regularization=0.2, n_components=3)
+    lmnn.fit(features_paGFP, labels_paGFP)
+
+    knn = KNeighborsClassifier(n_neighbors=3, weights='distance')
+    knn.fit(features_paGFP, labels_paGFP)
+
+    print("KNN Before: ",knn.score(features_CLEM, labels_CLEM))
+    knn.fit(lmnn.transform(features_paGFP), labels_paGFP)
+    print("LMNN: ",knn.score(lmnn.transform(features_CLEM), labels_CLEM))
+    
+    
+    nca = NeighborhoodComponentsAnalysis(random_state=42,n_components=2,init='lda')
+    nca.fit(features_paGFP, labels_paGFP)
+
+    knn = KNeighborsClassifier(n_neighbors=5,weights='distance')
+    knn.fit(features_paGFP, labels_paGFP)
+
+
+
+
+    knn.fit(nca.transform(features_paGFP), labels_paGFP)
+
+    print("NCA: ",knn.score(nca.transform(features_CLEM), labels_CLEM))
+
+    
     winsound.Beep(440, 500)
 
 
