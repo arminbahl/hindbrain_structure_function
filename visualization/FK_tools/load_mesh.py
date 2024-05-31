@@ -92,6 +92,6 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
             file_suffix = '_smoothed.obj' if use_smooth_pa else '.obj'
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
             cell['soma_mesh'] = load_file(pa_path / f'{cell.cell_name}_soma.obj', 'soma')
-            cell['all_mesh'] = load_file(pa_path / f'{cell_name_clem}_combined.obj', 'Combined file')
+            cell['all_mesh'] = load_file(pa_path / f'{cell_name}_combined.obj', 'Combined file')
 
     return cell
