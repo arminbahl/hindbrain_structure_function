@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
 
     brs2load = ['Midbrain',"Forebrain","eye1","eye2","Hindbrain"]
-    path2brs = path_to_data / "zbrain_regions" / "whole_brain_copy"
+    path2brs = path_to_data / "zbrain_regions" / "whole_brain"
 
     meshes = [navis.read_mesh(path2brs.joinpath(x+".obj"),units='um',output='volume') for x in brs2load]
     brain_mesh = navis.Volume.combine(meshes)
