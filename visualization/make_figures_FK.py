@@ -749,13 +749,13 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-    for key in [['motor_command'],['dynamic threshold'],["integrator"],["integrator",'ipsilateral'],["integrator",'contralateral']]:
+
         kk = make_figures_FK(modalities=['clem'],
-                                                   keywords=key,
+                                                   keywords=["integrator",'contralateral'],
                                                    use_smooth_pa=True,
                                                    mirror=True,
                                                    only_soma=True,
-                                                   load_what='swc')
+                                                   load_what='mesh')
 
         kk.plot_y_projection(show_brs=True,
                                                    which_brs="raphe",
@@ -767,17 +767,5 @@ if __name__ == "__main__":
                                                    background_gray=True,
                                                    only_soma=False,
                                                    midline=True,
-                                                   plot_synapse_distribution=True)
-
-        kk.plot_z_projection(show_brs=True,
-                                                   which_brs="raphe",
-                                                   force_new_cell_list=False,
-                                                   rasterize=True,
-                                                   black_neuron=False,
-                                                   standard_size=True,
-                                                   volume_outlines=True,
-                                                   background_gray=True,
-                                                   only_soma=False,
-                                                   midline=True,
-                                                   plot_synapse_distribution=True)
+                                                   plot_synapse_distribution=False)
 
