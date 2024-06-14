@@ -13,7 +13,7 @@ import re
 
 
 
-def plot_hcr(gad1b_path,vglut2a_path,path_to_data,cell_name,zoomfactor = 10):
+def plot_hcr(gad1b_path,vglut2a_path,path_to_data,cell_name,zoomfactor = 20,roi=True,pdf=False):
     def merge_gad_vglut_green_pink(gad, vglut):
         gad = cv2.normalize(gad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         vglut = cv2.normalize(vglut, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
@@ -181,30 +181,42 @@ def plot_hcr(gad1b_path,vglut2a_path,path_to_data,cell_name,zoomfactor = 10):
     #plot without cells
     # plt.imshow(np.mean(gad1b_gcamp_clipped,axis=0),'gray')
     plt.imshow(np.max(gad1b_signal_clipped,axis=0),'Reds',alpha=1)
-    plt.pcolormesh(np.max(gad1b_roi_overlay,axis=0),alpha =np.max(gad1b_roi_overlay,axis=0)*0.2)
+    if roi:
+        plt.pcolormesh(np.max(gad1b_roi_overlay,axis=0),alpha =np.max(gad1b_roi_overlay,axis=0)*0.2)
     plt.title('Gad1b')
     plt.savefig(output_folder/'0.png')
+    if pdf:
+        plt.savefig(output_folder / '0.pdf')
 
 
     plt.imshow(np.max(vglut2a_signal_clipped,axis=0),'Blues',alpha=1)
-    plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.1)
+    if roi:
+        plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.1)
     plt.title('Vglut2a')
     plt.savefig(output_folder/'1.png')
+    if pdf:
+        plt.savefig(output_folder / '1.pdf')
     plt.close(plt.gcf())
 
     #plot with cells
     plt.imshow(np.mean(gad1b_gcamp_clipped,axis=0),'gray')
     plt.imshow(np.max(gad1b_signal_clipped,axis=0),'Reds',alpha=0.5)
-    plt.pcolormesh(np.max(gad1b_roi_overlay,axis=0),alpha =np.max(gad1b_roi_overlay,axis=0)*0.4)
+    if roi:
+        plt.pcolormesh(np.max(gad1b_roi_overlay,axis=0),alpha =np.max(gad1b_roi_overlay,axis=0)*0.4)
     plt.title('Gad1b witch cell bg')
     plt.savefig(output_folder/'2.png')
+    if pdf:
+        plt.savefig(output_folder / '2.pdf')
     plt.close(plt.gcf())
 
     plt.imshow(np.mean(vglut2a_gcamp_clipped,axis=0),'gray')
     plt.imshow(np.max(vglut2a_signal_clipped,axis=0),'Blues',alpha=0.5)
-    plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.4)
+    if roi:
+        plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.4)
     plt.title('Vglut2a')
     plt.savefig(output_folder/'3.png')
+    if pdf:
+        plt.savefig(output_folder / '3.pdf')
     plt.close(plt.gcf())
 
 
@@ -214,39 +226,56 @@ def plot_hcr(gad1b_path,vglut2a_path,path_to_data,cell_name,zoomfactor = 10):
     for i in range(gad1b_signal_clipped.shape[0]):
         try:
             ax[i].imshow(gad1b_signal_clipped[i,:,:], 'Reds', alpha=1)
-            ax[i].pcolormesh(gad1b_roi_overlay[i,:,:], alpha=gad1b_roi_overlay[i,:,:] * 0.4)
+            if roi:
+                ax[i].pcolormesh(gad1b_roi_overlay[i,:,:], alpha=gad1b_roi_overlay[i,:,:] * 0.4)
         except:
             ax.imshow(gad1b_signal_clipped[i, :, :], 'Reds', alpha=1)
-            ax.pcolormesh(gad1b_roi_overlay[i, :, :], alpha=gad1b_roi_overlay[i, :, :] * 0.4)
+            if roi:
+                ax.pcolormesh(gad1b_roi_overlay[i, :, :], alpha=gad1b_roi_overlay[i, :, :] * 0.4)
     plt.savefig(output_folder/'4.png')
+    if pdf:
+        plt.savefig(output_folder / '4.pdf')
     plt.close(plt.gcf())
     fig,ax = plt.subplots(1,vglut2a_signal_clipped.shape[0],figsize=(30,20))
     for i in range(vglut2a_signal_clipped.shape[0]):
         try:
             ax[i].imshow(vglut2a_signal_clipped[i,:,:], 'Blues', alpha=1)
-            ax[i].pcolormesh(vglut2a_roi_overlay[i,:,:], alpha=vglut2a_roi_overlay[i,:,:] * 0.4)
+            if roi:
+                ax[i].pcolormesh(vglut2a_roi_overlay[i,:,:], alpha=vglut2a_roi_overlay[i,:,:] * 0.4)
         except:
             ax.imshow(vglut2a_signal_clipped[i,:,:], 'Blues', alpha=1)
-            ax.pcolormesh(vglut2a_roi_overlay[i,:,:], alpha=vglut2a_roi_overlay[i,:,:] * 0.4)
+            if roi:
+                ax.pcolormesh(vglut2a_roi_overlay[i,:,:], alpha=vglut2a_roi_overlay[i,:,:] * 0.4)
     plt.savefig(output_folder/'5.png')
+    if pdf:
+        plt.savefig(output_folder / '5.pdf')
     plt.close(plt.gcf())
 
     normed_gad1b = gad1b_signal_clipped/np.max(gad1b_signal_clipped)
     normed_vglut2a = vglut2a_signal_clipped/np.max(vglut2a_signal_clipped)
     plt.imshow(merge_gad_vglut_gcamp(np.mean(normed_vglut2a,axis=0),np.mean(normed_gad1b,axis=0),np.mean(gad1b_gcamp_clipped,axis=0)))
-    plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
+    if roi:
+        plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
     plt.savefig(output_folder/'6.png')
+    if pdf:
+        plt.savefig(output_folder / '6.pdf')
     plt.close(plt.gcf())
 
 
     plt.imshow(merge_gad_vglut_red_blue(np.mean(normed_vglut2a,axis=0),np.mean(normed_gad1b,axis=0)))
-    plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
+    if roi:
+        plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
     plt.savefig(output_folder/'7.png')
+    if pdf:
+        plt.savefig(output_folder / '7.pdf')
     plt.close(plt.gcf())
 
     plt.imshow(merge_gad_vglut_green_pink(np.mean(normed_vglut2a,axis=0),np.mean(normed_gad1b,axis=0)))
-    plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
+    if roi:
+        plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
     plt.savefig(output_folder/'8.png')
+    if pdf:
+        plt.savefig(output_folder / '8.pdf')
     print(cell_name, 'finished')
     plt.close(plt.gcf())
 
@@ -282,3 +311,9 @@ for i,cell in pa_table.iterrows():
         plot_hcr(gad1b_path,vglut2a_path,path_to_data=path_to_data,cell_name=cell.cell_name)
 
 
+#example good cell
+cell = pa_table.loc[pa_table['cell_name']=='20230403.1',:].iloc[0]
+gad1b_path = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.gad1b_ID}')
+vglut2a_path = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.vglut2a_ID}')
+
+plot_hcr(gad1b_path, vglut2a_path, path_to_data=path_to_data, cell_name=cell.cell_name,zoomfactor = 20,pdf=True)
