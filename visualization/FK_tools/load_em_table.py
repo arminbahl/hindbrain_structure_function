@@ -51,6 +51,7 @@ def load_em_table(path):
     df.reset_index(drop=True)
 
     df = df.rename(columns={"name": "bad_name",'id':'cell_name'})
+    df.loc[:,'cell_name'] = df['cell_name'].astype(str)
     return df
 
 
