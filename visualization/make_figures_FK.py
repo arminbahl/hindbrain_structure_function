@@ -97,13 +97,17 @@ class make_figures_FK:
             "motor command": (127, 88, 175, 0.7),
         }
 
+        loaded_tables = []
+
         # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
         if 'pa' in modalities:
             pa_table = load_pa_table(self.path_to_data.joinpath("paGFP").joinpath("photoactivation_cells_table.csv"))
+            loaded_tables.append(pa_table)
 
         # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
         if 'clem' in modalities:
             clem_table = load_clem_table(self.path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
+            loaded_tables.append(clem_table)
 
         if 'em' in modalities:
 
@@ -114,23 +118,40 @@ class make_figures_FK:
                 em_table4 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
                 em_table5 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
                 em_table = pd.concat([em_table1, em_table2, em_table3,em_table4,em_table5])
+                em_table.columns = ['cell_name', 'bad_name', 'units', 'tracer_names', 'imaging_modality','soma_position', 'classifier', 'mece_regions', 'others','date_of_tracing', 'presynaptic', 'postsynaptic']
+                loaded_tables.append(em_table)
 
 
-        #TODO here the loading of gregor has to go
 
         # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
         if len(modalities) > 1:
-            all_cells = pd.concat([eval(x + '_table') for x in modalities])
+            all_cells = pd.concat(loaded_tables)
         elif len(modalities) == 1:
-            all_cells = eval(modalities[0] + "_table")
+            all_cells = loaded_tables[0]
         all_cells = all_cells.reset_index(drop=True)
 
         self.keywords = keywords
         # Filter the concatenated cell data based on specified keywords.
-        if keywords != 'all':
+
+        def has_numbers(inputString):
+            return any(char.isdigit() for char in inputString)
+
+        keywords_subset_to_cell_names = [has_numbers(x) for x in keywords]
+        keyword_cells = np.array(keywords)[keywords_subset_to_cell_names]
+
+        if keyword_cells.size == 0:
+            pass
+        else:
+            all_cells = all_cells.loc[all_cells['cell_name'].isin(keyword_cells),:]
+
+
+        if keywords == 'all':
+            pass
+        else:
             for keyword in keywords:
-                subset_for_keyword = all_cells['cell_type_labels'].apply(lambda label: keyword.replace("_", " ") in label or keyword in label)
-                all_cells = all_cells[subset_for_keyword]
+                if not has_numbers(keyword):
+                    subset_for_keyword = all_cells['cell_type_labels'].apply(lambda label: keyword.replace("_", " ") in label or keyword in label)
+                    all_cells = all_cells[subset_for_keyword]
 
         # Set specific brain regions to be included in visualizations.
         self.selected_meshes = ["Retina", 'Midbrain', "Olfactory Bulb", "Forebrain", "Habenula", "Hindbrain","Hindbrain_line", "Spinal Cord", "raphe", 'eye1', 'eye2', 'cerebellar_neuropil', 'Rhombencephalon - Rhombomere 1',
@@ -180,7 +201,7 @@ class make_figures_FK:
 
                 if 'swc' in cell.index:
                     if type(cell['swc']) != float and type(cell['swc']) != type(None):
-                        if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
+                        if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2) and all_cells.loc[i, 'swc'].connectors is not None:
                             all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
                             all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
                             print(f"SWC of cell {cell['cell_name']} mirrored")
@@ -253,18 +274,21 @@ class make_figures_FK:
                         self.color_cells.append("black")
                 else:
                     # Assign colors based on cell type labels using a predefined color dictionary.
-                    for label in cell.cell_type_labels:
-                        if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
-                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
-                            break
-                        elif label == "integrator" and "contralateral" in cell.cell_type_labels:
-                            temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
-                            break
-                        elif label.replace("_", " ") in self.color_cell_type_dict.keys():
-                            temp_color = self.color_cell_type_dict[label.replace("_", " ")]
-                            break
-                        else:
-                            temp_color = 'k'
+                    if 'cell_type_labels' in cell.index and type(cell.cell_type_labels)!= float:
+                        for label in cell.cell_type_labels:
+                            if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
+                                break
+                            elif label == "integrator" and "contralateral" in cell.cell_type_labels:
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                                break
+                            elif label.replace("_", " ") in self.color_cell_type_dict.keys():
+                                temp_color = self.color_cell_type_dict[label.replace("_", " ")]
+                                break
+                            else:
+                                temp_color = 'k'
+                    else:
+                        temp_color = 'k'
 
                     # Append visualized cells and their colors.
                     for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
@@ -300,18 +324,22 @@ class make_figures_FK:
                             self.color_cells.append("black")
                     else:
                         # Assign colors based on cell type labels using a predefined color dictionary.
-                        for label in cell.cell_type_labels:
-                            if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
-                                break
-                            elif label == "integrator" and "contralateral" in cell.cell_type_labels:
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
-                                break
-                            elif label.replace("_", " ") in self.color_cell_type_dict.keys():
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ")]
-                                break
-                            else:
-                                temp_color = 'k'
+                        if 'cell_type_labels' in cell.index and type(cell.cell_type_labels)!= float:
+                            for label in cell.cell_type_labels:
+                                if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
+                                    temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
+                                    break
+                                elif label == "integrator" and "contralateral" in cell.cell_type_labels:
+                                    temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
+                                    break
+                                elif label.replace("_", " ") in self.color_cell_type_dict.keys():
+                                    temp_color = self.color_cell_type_dict[label.replace("_", " ")]
+                                    break
+                                else:
+                                    temp_color = 'k'
+                        else:
+                            temp_color = 'k'
+
 
 
 
@@ -750,8 +778,8 @@ class make_figures_FK:
 
 if __name__ == "__main__":
 
-        kk = make_figures_FK(modalities=['clem'],
-                                                   keywords=["integrator",'contralateral'],
+        kk = make_figures_FK(modalities=['em','pa'],
+                                                   keywords=['133478','20230628.2'],
                                                    use_smooth_pa=True,
                                                    mirror=True,
                                                    only_soma=True,
@@ -768,4 +796,16 @@ if __name__ == "__main__":
                                                    only_soma=False,
                                                    midline=True,
                                                    plot_synapse_distribution=False)
+
+        kk.plot_z_projection(show_brs=True,
+                             which_brs="raphe",
+                             force_new_cell_list=False,
+                             rasterize=True,
+                             black_neuron=False,
+                             standard_size=True,
+                             volume_outlines=True,
+                             background_gray=True,
+                             only_soma=False,
+                             midline=True,
+                             plot_synapse_distribution=False)
 
