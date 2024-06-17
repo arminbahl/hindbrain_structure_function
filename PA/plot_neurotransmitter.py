@@ -253,7 +253,8 @@ def plot_hcr(gad1b_path,vglut2a_path,path_to_data,cell_name,zoomfactor = 20,roi=
 
     normed_gad1b = gad1b_signal_clipped/np.max(gad1b_signal_clipped)
     normed_vglut2a = vglut2a_signal_clipped/np.max(vglut2a_signal_clipped)
-    plt.imshow(merge_gad_vglut_gcamp(np.mean(normed_vglut2a,axis=0),np.mean(normed_gad1b,axis=0),np.mean(gad1b_gcamp_clipped,axis=0)))
+    # plt.imshow(merge_gad_vglut_gcamp(np.mean(normed_vglut2a,axis=0),np.mean(normed_gad1b,axis=0),np.mean(gad1b_gcamp_clipped,axis=0)))
+    plt.imshow(np.mean(gad1b_gcamp_clipped, axis=0),'gray')
     if roi:
         plt.pcolormesh(np.max(vglut2a_roi_overlay,axis=0),alpha =np.max(vglut2a_roi_overlay,axis=0)*0.2)
     plt.savefig(output_folder/'6.png')
