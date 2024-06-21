@@ -363,7 +363,6 @@ if __name__ == "__main__":
     print("NCA: ",knn.score(nca.transform(features_CLEM), labels_CLEM))
 
     
-    winsound.Beep(440, 500)
 
 
 
