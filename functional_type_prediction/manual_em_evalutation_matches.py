@@ -61,12 +61,15 @@ if __name__ == "__main__":
 
     path2save = path_to_data / 'make_figures_FK_output' / 'em_single_neurons_interactive_matches'
     matches_df = pd.read_excel(path_to_data / "em_zfish1" / 'manual-cell-assignment_em2paGFP.xlsx')
+    matches_df = matches_df.iloc[:,:6]
     os.makedirs(path2save,exist_ok=True)
 
 
     for i,cell in  all_cells_em.iterrows():
-
-        matching_paGFP_list = matches_df.loc[matches_df['EM cell']==cell['cell_name'],'assigned paGFP cell(s)'].iloc[0]
+        if not matches_df.loc[matches_df['EM cell']==cell['cell_name'],:].empty:
+            matching_paGFP_list = matches_df.loc[matches_df['EM cell']==cell['cell_name'],'assigned paGFP cell(s)'].iloc[0]
+        else:
+            matching_paGFP_list = matches_df.loc[matches_df['EM cell'] == int(cell['cell_name']), 'assigned paGFP cell(s)'].iloc[0]
         if type(matching_paGFP_list) == str:
             matching_paGFP_list = matching_paGFP_list.rstrip().lstrip()
             matching_paGFP_list = matching_paGFP_list.replace(' ','')
