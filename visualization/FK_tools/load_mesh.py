@@ -63,8 +63,9 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
                 elif path_19_postsynaptic_em.exists():
                     file_path = path_19_postsynaptic_em / f'{cell_name_em}_mapped.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
-        cell['swc'].nodes.loc[:,'radius'] = 0.5
-        cell['swc'].nodes.loc[0, 'radius'] = 2
+        if type(cell['swc']) != float:
+            cell['swc'].nodes.loc[:,'radius'] = 0.5
+            cell['swc'].nodes.loc[0, 'radius'] = 2
 
 
     if not swc or load_both:
