@@ -30,6 +30,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
         em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
         em_table = pd.concat([em_table1, em_table2,em_table3,em_table4,em_table5])
+        em_table.loc[:, "classifier"] = em_table.loc[:, "classifier"].apply(lambda x: x.replace('?', ""))
         table_list.append(em_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
@@ -76,14 +77,19 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                     all_cells.loc[i, 'soma_mesh']._vertices = navis.transforms.mirror(cell['soma_mesh']._vertices, width_brain, 'x')
                     if cell['imaging_modality'] == 'photoactivation':
                         all_cells.loc[i, 'neurites_mesh']._vertices = navis.transforms.mirror(cell['neurites_mesh']._vertices, width_brain, 'x')
+                        all_cells.loc[i, 'all_mesh']._vertices = navis.transforms.mirror(cell['all_mesh']._vertices, width_brain, 'x')
                     if cell['imaging_modality'] == 'clem' or cell['imaging_modality'] == 'em':
                         all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                         all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
+                        all_cells.loc[i, 'all_mesh'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['all_mesh'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                    print(f"MESHES of cell {cell['cell_name']} mirrored")
 
-            if type(cell['swc']) != float and type(cell['swc']) != type(None):
-                if cell['swc'].nodes.loc[0,'x'] > (width_brain / 2):
-                    all_cells.loc[i,'swc'].nodes.loc[:,["x","y","z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:,['x','y','z']]), width_brain, 'x')
-
+            if 'swc' in cell.index:
+                if type(cell['swc']) != float and type(cell['swc']) != type(None):
+                    if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2) and all_cells.loc[i, 'swc'].connectors is not None:
+                        all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                        all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                        print(f"SWC of cell {cell['cell_name']} mirrored")
 
     # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
     all_cells = all_cells.dropna(how='all')
