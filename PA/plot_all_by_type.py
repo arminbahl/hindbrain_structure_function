@@ -12,7 +12,7 @@ from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
 import re
 from datetime import datetime
-from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells_predictor_pipeline import *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import  *
 from matplotlib import colors
 from scipy.spatial.distance import squareform
