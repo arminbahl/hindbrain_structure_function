@@ -11,8 +11,8 @@ from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
 import re
 from datetime import datetime
-from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells_predictor_pipeline import *
-from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import  *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from matplotlib import colors
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import linkage, dendrogram, set_link_color_palette
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     if sort_nblast:
 
         # sort_by_nblast
+        print('Start nblast')
         sort_nb = nblast_two_groups(all_cells_em, all_cells_em)
         work_nb = (sort_nb + sort_nb.T) / 2
         # nb_dist = 1 - work_nb
@@ -113,10 +114,13 @@ if __name__ == "__main__":
         all_cells_em = all_cells_em.sort_values('nblast_classifier')
 
     #initial nblast
+    print('Start nblast')
     nb_all = nblast_two_groups(all_cells_em, all_cells_pa)
 
     #nblast on ipsi and contralateral
+    print('Start nblast')
     nb_ipsi = nblast_two_groups(all_cells_em.loc[~all_cells_em['contralateral'], :], all_cells_pa.loc[all_cells_pa['morphology'] == 'ipsilateral', :])
+    print('Start nblast')
     nb_contra = nblast_two_groups(all_cells_em.loc[all_cells_em['contralateral'],:],all_cells_pa.loc[all_cells_pa['morphology']=='contralateral',:])
 
 
