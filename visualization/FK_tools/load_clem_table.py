@@ -33,7 +33,7 @@ def read_to_pandas_row(file_content):
 
 def load_clem_table(path):
     df = None
-    for cell in os.listdir(path):
+    for cell in [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]:
         if path.joinpath(cell).joinpath(cell+'_metadata.txt').exists():
             with open(path.joinpath(cell).joinpath(cell+'_metadata.txt'),'r') as f:
 
@@ -41,6 +41,14 @@ def load_clem_table(path):
             temp_row = read_to_pandas_row(text)
 
 
+            temp_type = temp_row.loc[0,'type']
+            if temp_type != 'cell':
+
+                temp_row.loc[0,'cell_name'] =   temp_type + "_" + str(temp_row.loc[0,f'{temp_type}_id'])
+
+            else:
+
+                temp_row.loc[0,'cell_name'] =   temp_type + "_" + str(temp_row.loc[0,f'{temp_type}_name'])
 
             if df is None:
                 df = temp_row
