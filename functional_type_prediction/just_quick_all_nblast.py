@@ -2,7 +2,7 @@ import os
 
 import matplotlib.pyplot as plt
 import scipy
-from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells_predictor_pipeline import *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.make_dendrogramms import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.find_branches import *
