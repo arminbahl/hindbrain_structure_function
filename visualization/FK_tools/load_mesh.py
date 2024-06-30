@@ -14,8 +14,11 @@ warnings.filterwarnings("ignore")
 
 def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
     if cell['imaging_modality'] == 'clem':
-        cell_name_clem = f'clem_zfish1_{cell.type}_{cell.cell_name}'
+        cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
+
+
+
     elif cell['imaging_modality'] == 'EM':
         cell_name_em = f'em_fish1_{cell.cell_name}'
 
