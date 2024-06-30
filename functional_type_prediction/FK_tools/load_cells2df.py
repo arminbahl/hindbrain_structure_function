@@ -56,6 +56,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     # If a cell was scored by Jonathan Boulanger-Weill, set its imaging modality to 'clem'.
     try:
         all_cells.loc[all_cells['tracer_names'] == 'Jonathan Boulanger-Weill', 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
+        all_cells.loc[all_cells['tracer_names'] == 'Jay Hareshbhai Savaliya', 'imaging_modality'] = 'clem'
         all_cells.loc[all_cells['functional_id'] == 'not functionally imaged', 'imaging_modality'] = 'clem'
     except:
         pass
@@ -66,6 +67,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=True, swc=True)
         if type(all_cells.loc[i,'swc']) == float:
             print(f'{cell.cell_name} is not a TreeNeuron\n')
+
+
 
     # Mirror cell data if specified, adjusting for anatomical accuracy.
     width_brain = 495.56  # The width of the brain for mirror transformations.
@@ -91,11 +94,38 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                         all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
                         print(f"SWC of cell {cell['cell_name']} mirrored")
 
+    #set some correct datatypes
+    all_cells = all_cells.dropna(how='all')
+    all_cells.loc[:,'neurotransmitter'] = 'na'
+
+
+    #extract features from pa cell labels
+
+    cell_type_categories = {'morphology': ['ipsilateral', 'contralateral'],
+                            'neurotransmitter': ['inhibitory', 'excitatory'],
+                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command']}
+    for i, cell in all_cells.iterrows():
+        if cell.imaging_modality != "EM":
+            if type(cell.cell_type_labels) == list:
+                for label in cell.cell_type_labels:
+                    if label in cell_type_categories['morphology']:
+                        all_cells.loc[i, 'morphology'] = label
+                    elif label in cell_type_categories['function']:
+                        all_cells.loc[i, 'function'] = label
+                    elif label in cell_type_categories['neurotransmitter']:
+                        all_cells.loc[i, 'neurotransmitter'] = label
+            all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+
+    # #sort dfs
+    # all_cells_pa = all_cells.sort_values(['function','morphology','neurotransmitter'])
+    # all_cells_em = all_cells.sort_values('classifier')
+
+
     # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
     all_cells = all_cells.dropna(how='all')
-    all_cells = all_cells
+
     return all_cells
 
 if __name__ == '__main__':
-    all_cells = load_cells_predictor_pipeline()
-
+   # all_cells = load_cells_predictor_pipeline(path_to_data=Path(r'D:\hindbrain_structure_function\nextcloud'))
+    pass
