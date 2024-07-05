@@ -98,7 +98,7 @@ for i,cell in cell_table.iterrows():
         neuron.soma = 1                     #TODO maybe sync this with jonathan
         neuron.nodes.loc[:, 'radius'] = 0.3 #TODO maybe sync this with jonathan
 
-        smoothed_neuron = navis.smooth_skeleton(neuron,window=7)
+        smoothed_neuron = navis.smooth_skeleton(neuron,window=20) #previously 7
         smoothed_neuron.nodes.iloc[0, :] = neuron.nodes.iloc[0,:]
 
 
