@@ -13,6 +13,7 @@ import re
 from datetime import datetime
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
+from hindbrain_structure_function.functional_type_prediction.FK_tools.fragment_neurite import *
 from matplotlib import colors
 from scipy.spatial.distance import squareform
 from scipy.cluster.hierarchy import linkage, dendrogram, set_link_color_palette
@@ -295,21 +296,5 @@ if __name__ == "__main__":
     plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
 
 
-    def find_crossing_neurite(nodes_df):
-
-        all_segments_dict = {}
-        for i,cell in nodes_df.loc[nodes_df['type']=='end',:].iterrows():
-            all_segments_dict[cell['node_id']] = []
-            exit_var = False
-            work_cell = cell
-            while exit_var != 'branch' or exit_var != 'root':
-                all_segments_dict[cell['node_id']].append(work_cell['node_id'])
-                work_cell = nodes_df.loc[nodes_df['node_id']==work_cell['parent_id'],:]
-                exit_var = work_cell['type']
-
-        return all_segments_dict
-
-
-    find_crossing_neurite(cell.nodes)
 
 
