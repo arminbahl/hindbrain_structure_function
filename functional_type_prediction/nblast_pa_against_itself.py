@@ -79,7 +79,7 @@ if __name__ == "__main__":
     if do_SymLogNorm:
         ax[0].pcolormesh(nb_df, norm=colors.SymLogNorm(linthresh=1, vmin=np.min(symmetric_log_transform(df_nb)), vmax=np.max(symmetric_log_transform(df_nb))))
     else:
-        cbar = ax[0].pcolormesh(df_nb,alpha=(df_nb>-0.4)&(df_nb<0.4),vmin=-0.4,vmax=0.4)
+        cbar = ax[0].pcolormesh(df_nb,vmin=-0.5,vmax=0.5)
     ax[0].set_aspect('equal', adjustable='box')
     ax[0].axis('off')
 
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     Z = linkage(aba_vec, method='ward')
     #clustering
     clusters_by_distance = fcluster(Z, 1, criterion='distance')
-    clusters_by_number = fcluster(Z, 5, criterion='maxclust')
+    clusters_by_number = fcluster(Z, 10, criterion='maxclust')
 
     clusters = clusters_by_number
     no_of_ax = int(np.ceil(np.sqrt(len(np.unique(clusters)))))
