@@ -12,14 +12,17 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore")
 
-def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
-    if cell['imaging_modality'] == 'clem':
+def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_repaired=False):
+    if cell['imaging_modality'] == 'clem' and not load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
+    elif cell['imaging_modality'] == 'clem' and load_repaired:
+        cell_name_clem = f'clem_zfish1_{cell.cell_name}'
+        clem_path = path / 'clem_zfish1' / 'all_cells_repaired'
 
 
 
-    elif cell['imaging_modality'] == 'EM':
+    elif cell['imaging_modality'] == 'EM' and not load_repaired:
         cell_name_em = f'em_fish1_{cell.cell_name}'
 
         path_seed_cells_em = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em / 'mapped'
@@ -27,6 +30,14 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
         path_10_postsynaptic_em = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_11_postsynaptic_em = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_19_postsynaptic_em = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
+    elif cell['imaging_modality'] == 'EM' and load_repaired:
+        cell_name_em = f'em_zfish1_{cell.cell_name}'
+        path_seed_cells_em =            path / 'em_zfish1' / 'all_cells_repaired'
+        path_89189_postsynaptic_em =    path / 'em_zfish1' / 'all_cells_repaired'
+        path_10_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
+        path_11_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
+        path_19_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
+
     elif cell['imaging_modality'] == 'photoactivation':
         pa_path = path / 'paGFP' / str(cell.cell_name)
 
@@ -46,29 +57,36 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
         if cell['imaging_modality'] == 'photoactivation':
             file_path = pa_path / f'{cell.cell_name}{file_suffix}'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
-        elif cell['imaging_modality'] == 'clem':
+        elif cell['imaging_modality'] == 'clem'  and not load_repaired:
             file_path = clem_path / f'{cell_name_clem}_mapped.swc'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
+
+        elif cell['imaging_modality'] == 'clem'  and  load_repaired:
+            file_path = clem_path / f'{cell_name_clem}_repaired.swc'
+            cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
         elif cell['imaging_modality'] == 'EM':
+                if load_repaired:
+                    suffix = '_repaired'
+                else:
+                    suffix = '_mapped'
+
                 if path_seed_cells_em.exists():
-                    file_path = path_seed_cells_em / f'{cell_name_em}_mapped.swc'
+                    file_path = path_seed_cells_em / f'{cell_name_em}{suffix}.swc'
 
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_89189_postsynaptic_em.exists():
-                    file_path = path_89189_postsynaptic_em / f'{cell_name_em}_mapped.swc'
+                    file_path = path_89189_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_10_postsynaptic_em.exists():
-                    file_path = path_10_postsynaptic_em / f'{cell_name_em}_mapped.swc'
+                    file_path = path_10_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_11_postsynaptic_em.exists():
-                    file_path = path_11_postsynaptic_em / f'{cell_name_em}_mapped.swc'
+                    file_path = path_11_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_19_postsynaptic_em.exists():
-                    file_path = path_19_postsynaptic_em / f'{cell_name_em}_mapped.swc'
+                    file_path = path_19_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
                     cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
-        if type(cell['swc']) != float:
-            cell['swc'].nodes.loc[:,'radius'] = 0.5
-            cell['swc'].nodes.loc[0, 'radius'] = 2
+
 
 
     if not swc or load_both:
@@ -99,5 +117,9 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False):
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
             cell['soma_mesh'] = load_file(pa_path / f'{cell.cell_name}_soma.obj', 'soma')
             cell['all_mesh'] = load_file(pa_path / f'{cell.cell_name}_combined.obj', 'Combined file')
+
+    if type(cell['swc']) != float:
+        cell['swc'].nodes.loc[:, 'radius'] = 0.5
+        cell['swc'].nodes.loc[0, 'radius'] = 2
 
     return cell
