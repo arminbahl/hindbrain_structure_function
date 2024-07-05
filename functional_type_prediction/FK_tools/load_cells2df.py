@@ -10,7 +10,9 @@ from pathlib import Path
 def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                                   mirror = True,
                                   keywords = 'all',
-                                  path_to_data=Path(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data")):
+                                  path_to_data=Path(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data"),
+                                  use_smooth=True,
+                                  load_repaired=True):
     # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
     table_list = []
     if 'pa' in modalities:
@@ -64,7 +66,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load mesh data for each cell based on selected modalities and smoothing setting.
     for i, cell in all_cells.iterrows():
-        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=True, swc=True)
+        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=True)
         if type(all_cells.loc[i,'swc']) == float:
             print(f'{cell.cell_name} is not a TreeNeuron\n')
 
@@ -74,6 +76,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     width_brain = 495.56  # The width of the brain for mirror transformations.
     if mirror:
         for i, cell in all_cells.iterrows():
+            if cell.cell_name == "cell_576460752665417287":
+                pass
             if type(cell['soma_mesh']) != float and type(cell['soma_mesh']) != type(None):
                 if np.mean(cell['soma_mesh']._vertices[:, 0]) > (width_brain / 2):  # Determine if the cell is in the right hemisphere.
                     # Mirror various mesh data based on imaging modality.
@@ -89,9 +93,10 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
             if 'swc' in cell.index:
                 if type(cell['swc']) != float and type(cell['swc']) != type(None):
-                    if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2) and all_cells.loc[i, 'swc'].connectors is not None:
+                    if cell['swc'].nodes.loc[0, 'x'] > (width_brain / 2):
                         all_cells.loc[i, 'swc'].nodes.loc[:, ["x", "y", "z"]] = navis.transforms.mirror(np.array(cell['swc'].nodes.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
-                        all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                        if all_cells.loc[i, 'swc'].connectors is not None:
+                            all_cells.loc[i, 'swc'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['swc'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
                         print(f"SWC of cell {cell['cell_name']} mirrored")
 
     #set some correct datatypes
@@ -115,6 +120,14 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                     elif label in cell_type_categories['neurotransmitter']:
                         all_cells.loc[i, 'neurotransmitter'] = label
             all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+
+        if cell.imaging_modality == "EM":
+            if True in list(cell['swc'].nodes.loc[:, "x"] > (width_brain / 2)+10):
+                all_cells.loc[i, 'morphology'] = 'contralateral'
+            else:
+                all_cells.loc[i, 'morphology'] = 'ipsilateral'
+
+
 
     # #sort dfs
     # all_cells_pa = all_cells.sort_values(['function','morphology','neurotransmitter'])
