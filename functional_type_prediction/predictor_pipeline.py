@@ -1,3 +1,4 @@
+import copy
 import os
 
 import matplotlib.pyplot as plt
@@ -7,7 +8,12 @@ from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast imp
 from hindbrain_structure_function.functional_type_prediction.FK_tools.make_dendrogramms import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.find_branches import *
 import winsound
-
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report
 from datetime import datetime
 import plotly
 import matplotlib
@@ -22,7 +28,7 @@ if __name__ == "__main__":
     # Set the base path for data by reading from a configuration file; ensures correct data location is used.
     path_to_data = get_base_path()  # Ensure this path is set in path_configuration.txt
 
-    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data,modalities=['pa',"clem"]) #
+    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data,modalities=['pa',"clem"],load_repaired=True) #
 
     # Define a dictionary mapping cell types to specific RGBA color codes for consistent visual representation.
     color_cell_type_dict = {
@@ -33,21 +39,6 @@ if __name__ == "__main__":
     }
 
     all_cells = all_cells[~all_cells['swc'].isna()]
-
-    # fig = navis.plot3d([x for x in all_cells.iloc[:, -1]], backend='plotly',
-    #                    width=3840, height=2160, hover_name=True, hover_id=False)
-    # fig.update_layout(
-    #     scene={
-    #         'xaxis': {'autorange': 'reversed', 'zeroline': False, 'visible': False},  # reverse !!!
-    #         'yaxis': {'autorange': True, 'zeroline': False, 'visible': False},
-    #
-    #         'zaxis': {'autorange': True, 'zeroline': False, 'visible': False},
-    #         'aspectmode': "data",
-    #         'aspectratio': {"x": 1, "y": 1, "z": 1}
-    #     }
-    # )
-    # fig.update_layout(showlegend=False)
-    # plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
 
 
     #split up cell_type_labels in own columns
@@ -231,18 +222,20 @@ if __name__ == "__main__":
 
 
 
-
-
-
-
             #neighboorhood component analysis
     from sklearn.neighbors import NeighborhoodComponentsAnalysis
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.model_selection import train_test_split
 
     without_nan_function = all_cells.loc[(all_cells['function']!='nan'),:]
+    temp = all_cells.loc[:, all_cells.columns[28:]]
+    temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'predictor_pipeline_features')
+    temp = all_cells.loc[:,['imaging_modality','function','morphology','neurotransmitter']]
+    temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'function_morphology_neurotransmitter')
 
-    features = np.array(without_nan_function.loc[:,without_nan_function.columns[26:]])
+
+
+    features = np.array(without_nan_function.loc[:,without_nan_function.columns[28:]])
     without_nan_function.loc[:,'function'] = without_nan_function.loc[:, ['morphology','function']].apply(lambda x: x['function'].replace('_'," "), axis=1)
     labels = np.array(without_nan_function.loc[:, ['function']])
     # labels = np.array(without_nan_function.loc[:, ['morphology','function']] )
@@ -262,11 +255,11 @@ if __name__ == "__main__":
     knn.fit(X_train, y_train)
 
 
-    print(knn.score(X_test, y_test))
+    print("KNN",knn.score(X_test, y_test))
 
     knn.fit(nca.transform(X_train), y_train)
 
-    print(knn.score(nca.transform(X_test), y_test))
+    print("KNN",knn.score(nca.transform(X_test), y_test))
 
 
     #LMNN
@@ -275,7 +268,7 @@ if __name__ == "__main__":
     from metric_learn import LMNN
     from sklearn.datasets import load_iris
 
-    features_normed = features/np.max(features)
+
     X_train, X_test, y_train, y_test = train_test_split(features, labels, stratify=labels, test_size=0.7, random_state=42)
     lmnn = LMNN(n_neighbors=3, learn_rate=1e-8,min_iter=1000,regularization=0.2,n_components=3)
     lmnn.fit(X_train, y_train)
@@ -284,50 +277,254 @@ if __name__ == "__main__":
     knn = KNeighborsClassifier(n_neighbors=3, weights='distance')
     knn.fit(X_train, y_train)
 
-    print(knn.score(X_test, y_test))
+    print('lmnn',knn.score(X_test, y_test))
     knn.fit(lmnn.transform(X_train), y_train)
-    print(knn.score(lmnn.transform(X_test), y_test))
+    print('lmnn',knn.score(lmnn.transform(X_test), y_test))
 
     #LDS
     import numpy as np
     from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
     #data
-    features = np.array(without_nan_function.loc[:,without_nan_function.columns[26:]])
+    without_nan_function = all_cells.loc[(all_cells['function'] != 'nan'), :]
+    features = np.array(without_nan_function.loc[:,without_nan_function.columns[28:]])
+    features_pa = without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation',without_nan_function.columns[28:]]
+    features_clem = without_nan_function.loc[without_nan_function['imaging_modality'] == 'clem', without_nan_function.columns[28:]]
+
+    scaler = StandardScaler()
+    features = scaler.fit_transform(features)
+    features_pa = scaler.fit_transform(features_pa)
+    features_clem = scaler.fit_transform(features_clem)
+
+
     without_nan_function.loc[:,'function'] = without_nan_function.loc[:, ['morphology','function']].apply(lambda x: x['function'].replace('_'," "), axis=1)
+    without_nan_function_pa = copy.deepcopy(without_nan_function.loc[without_nan_function['imaging_modality'] == 'photoactivation',:])
+    without_nan_function_pa.loc[:, 'function'] = without_nan_function_pa.loc[:, ['morphology', 'function']].apply(lambda x: x['function'].replace('_', " "), axis=1)
+    without_nan_function_clem = copy.deepcopy(without_nan_function.loc[without_nan_function['imaging_modality'] == 'clem',:])
+    without_nan_function_clem.loc[:, 'function'] = without_nan_function_clem.loc[without_nan_function_clem['imaging_modality'] == 'clem', ['morphology', 'function']].apply(lambda x: x['function'].replace('_', " "), axis=1)
+
+    for i,cell in without_nan_function.iterrows():
+        if cell['function'] == 'integrator':
+            without_nan_function.loc[i,'function'] = cell['function'] + " " + cell['morphology']
+
     labels = np.array(without_nan_function.loc[:, ['function']])
-    # labels = np.array(without_nan_function.loc[:, ['morphology','function']] )
-    # labels = labels[:,0] + labels[:,1]
-    # for i, item in enumerate(labels):
-    #     if 'dynamic threshold' in item:
-    #         labels[i] = 'dynamic threshold'
-    #     if 'motor command' in item:
-    #         labels[i] = 'motor command'
+    labels_pa = np.array(without_nan_function_pa.loc[:, ['function']])
+    labels_clem = np.array(without_nan_function_clem.loc[:, ['function']])
 
-    #create sets
-    features_normed = features/np.max(features)
-    X_train, X_test, y_train, y_test = train_test_split(features, labels, stratify=labels, test_size=0.3, random_state=42)
 
-    clf = LinearDiscriminantAnalysis(solver='lsqr',shrinkage='auto')
 
+
+
+    #LDA
+    rs=42
+    collection_coef_matrix = None
+    collection_prediction_correct = []
+
+    for i in tqdm(range(10000),total=10000):
+        X_train, X_test, y_train, y_test = train_test_split(features, labels, stratify=labels, test_size=0.3, random_state=rs)
+
+        # Create the LDA model
+        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
+
+        # Fit the model
+        clf.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = clf.predict(X_test)
+        y_prob = clf.predict_proba(X_test)
+
+        # Calculate accuracy
+        accuracy = accuracy_score(y_test, y_pred)
+
+
+        # Calculate the percentage of correct predictions
+        prediction = clf.predict(X_test)
+        correct = prediction == y_test.flatten()
+        percent_correct = correct.sum() / len(correct)
+        collection_prediction_correct.append(percent_correct)
+
+
+        # print(f'Accuracy: {accuracy}')
+        # print('Classification Report:')
+        # print(classification_report(y_test, y_pred))
+        # print(f'Percentage Correct: {round(percent_correct,4)*100}%\n')
+
+        coef_matrix = clf.coef_
+        if collection_coef_matrix is None:
+            collection_coef_matrix = coef_matrix[np.newaxis,:,:]
+        else:
+            collection_coef_matrix = np.vstack([collection_coef_matrix,coef_matrix[np.newaxis,:,:]])
+        rs+=1
+
+
+
+
+    plt.figure(figsize=(15,15))
+    column_labels = list(without_nan_function.columns[28:])
+    aaa = plt.pcolormesh(coef_matrix,vmin=0)
+    plt.xticks(np.arange(0.5,35),column_labels,rotation=90,fontsize = 'x-small')
+    plt.subplots_adjust(left=0.3, right=0.8, top=0.5, bottom=0.3)
+    plt.title('weights')
+    plt.colorbar(aaa)
+    plt.show()
+
+
+    #rerun model with only the features that have a 2weight above 0.5
+    coef_matrix_avg = np.mean(collection_coef_matrix,axis=0)
+
+    plt.figure(figsize=(15,15))
+    column_labels = list(without_nan_function.columns[28:])
+    aaa = plt.pcolormesh(coef_matrix_avg)
+    plt.xticks(np.arange(0.5,35),column_labels,rotation=90,fontsize = 'x-small')
+    plt.subplots_adjust(left=0.3, right=0.8, top=0.5, bottom=0.3)
+    plt.title('average weights 10.000 repeats')
+    plt.colorbar(aaa)
+    plt.show()
+
+    features_with_high_weights_bool = np.sum((abs(coef_matrix) > 0.5), axis=0).astype(bool)
+    print(f"{len(list(np.array(column_labels)[features_with_high_weights_bool]))} Features used\n", list(np.array(column_labels)[features_with_high_weights_bool]),'\n')
+
+
+    #LDA
+    rs=42
+
+    collection_prediction_correct_small = []
+
+    for i in tqdm(range(10000),total=10000):
+        X_train, X_test, y_train, y_test = train_test_split(features[:,features_with_high_weights_bool], labels, stratify=labels, test_size=0.3, random_state=rs)
+        # Create the LDA model
+        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
+
+        # Fit the model
+        clf.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = clf.predict(X_test)
+        y_prob = clf.predict_proba(X_test)
+
+        # Calculate accuracy
+        accuracy = accuracy_score(y_test, y_pred)
+
+
+        # Calculate the percentage of correct predictions
+        prediction = clf.predict(X_test)
+        correct = prediction == y_test.flatten()
+        percent_correct = correct.sum() / len(correct)
+        # print(f'Percentage Correct: {round(percent_correct,4)*100}%\n')
+        # print(f'Accuracy: {accuracy}')
+        # print('Classification Report:')
+        # print(classification_report(y_test, y_pred))
+        collection_prediction_correct_small.append(percent_correct)
+        rs+=1
+
+
+
+
+
+
+
+
+
+    #random forest
+    X_train, X_test, y_train, y_test = train_test_split(features[:-1], labels[:-1], stratify=labels[:-1], test_size=0.3, random_state=42)
+
+    clf = RandomForestClassifier()
     clf.fit(X_train, y_train)
 
-    prediction = clf.predict(X_test)
-    correct = prediction == y_test.flatten()
-    percent_correct = correct.sum()/len(correct)
-    print(percent_correct)
+    # Predict on the test set
+    y_pred = clf.predict(X_test)
+    y_prob = clf.predict_proba(X_test)
+
+    # Evaluate the model
+    accuracy = accuracy_score(y_test, y_pred)
+    print(f'Accuracy: {accuracy}')
+    print('Classification Report:')
+    print(classification_report(y_test, y_pred))
+
+    #predict a new one random forest
+
+    new_probabilities = clf.predict_proba(features[np.newaxis,-1])
+    class_labels = clf.classes_
+    for i, probs in enumerate(new_probabilities):
+        print(f'Item {i}:')
+        for class_label, prob in zip(class_labels, probs):
+            print(f'  {class_label}: {prob * 100:.2f}%')
+
+
+
+
+
+
+
+    #PCA
+    complete_dataset = all_cells.loc[all_cells['function'] != 'nan', :]
+    features_df = complete_dataset.loc[:, without_nan_function.columns[28:]]
+
+    features = np.array(features_df)
+    labels = np.array(complete_dataset.loc[:, ['function']])
+
+    import numpy as np
+    import pandas as pd
+    from sklearn.decomposition import PCA
+    from sklearn.preprocessing import StandardScaler
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    color_dict_ec = {'clem':'black',"photoactivation":"orange"}
+    color_dict = {
+        'nan':"white",
+        "integrator": '#feb326b3',
+        "integrator_ipsilateral": '#feb326b3',
+        "integrator_contralateral": '#e84d8ab3',
+        "dynamic_threshold": '#64c5ebb3',
+        "dynamic threshold": '#64c5ebb3',
+        "motor command": '#7f58afb3',
+        "motor_command": '#7f58afb3'
+    }
+
+
+
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(features)
+
+    pca = PCA(n_components=2)
+
+    principal_components = pca.fit_transform(scaled_data)
+
+    pca_df = pd.DataFrame(data=principal_components, columns=['PC1', 'PC2'])
+    pca_df.loc[:,'function'] = list(complete_dataset.loc[:,'function'])
+    pca_df.loc[:,'morphology'] = list(complete_dataset['morphology'])
+    pca_df.loc[:,'imaging_modality'] = list(complete_dataset['imaging_modality'])
+
+    print(pca_df)
+    legend_elements = []
+    plt.figure(figsize=(10, 10))
+    for i,cell in pca_df.iterrows():
+        plt.scatter(cell['PC1'], cell['PC2'], c=color_dict[cell['function']],ec=color_dict_ec[cell['imaging_modality']],alpha=0.6)
+
+        legend_name = cell['function'] + " " + cell['imaging_modality']
+        if not legend_name in [x.get_label() for x in legend_elements]:
+            legend_elements.append(Patch(facecolor=color_dict[cell['function']], edgecolor=color_dict_ec[cell['imaging_modality']], label=legend_name))
+
+    plt.gca().legend(handles=legend_elements, frameon=False, fontsize='xx-small')
+
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.title('PCA of Sample Data')
+    plt.grid()
+    plt.show()
 
 
 
     #predict clem from only paGFP
     without_nan_function.loc[:, 'function'] = without_nan_function.loc[:, ['morphology', 'function']].apply(lambda x: x['function'].replace('_', " "), axis=1)
-    features_paGFP = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation', without_nan_function.columns[26:]])
-    features_CLEM = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='clem', without_nan_function.columns[26:]])
+    features_paGFP = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation', without_nan_function.columns[28:]])
+    features_CLEM = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='clem', without_nan_function.columns[28:]])
     labels_paGFP = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='photoactivation', ['function']])
     labels_CLEM = np.array(without_nan_function.loc[without_nan_function['imaging_modality']=='clem', ['function']])
 
     # create sets
-    features_normed = features / np.max(features)
+
 
     clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     clf = LinearDiscriminantAnalysis()
