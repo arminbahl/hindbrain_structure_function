@@ -63,7 +63,7 @@ if __name__ == "__main__":
     all_cells_clem = all_cells_clem.loc[all_cells_clem['function']!='nan', :]
     all_cells_pa = all_cells_pa.sort_values(['function','morphology','neurotransmitter'])
     all_cells_clem = all_cells_clem.sort_values(['function','morphology','neurotransmitter'])
-    prune = True
+    prune = False
     if prune:
         all_cells_clem.loc[:,'swc'] = [navis.prune_twigs(x, 20, recursive=True) for x in all_cells_clem['swc']]
         all_cells_pa.loc[:, 'swc'] = [navis.prune_twigs(x, 20, recursive=True) for x in all_cells_pa['swc']]
@@ -72,3 +72,4 @@ if __name__ == "__main__":
     aaa = plt.pcolormesh(nb_all)
     plt.colorbar(aaa)
     plt.show()
+
