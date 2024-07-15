@@ -179,7 +179,7 @@ if __name__ == '__main__':
     # set path
     path_to_data = get_base_path()  # Ensure this path is set in path_configuration.txt
     #load em data
-    all_cells_em = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["em"],mirror=False,load_repaired=True)
+    all_cells_em = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["em"],mirror=False,load_repaired=False)
     all_cells_em = all_cells_em.sort_values('classifier')
 
     #load pa cells
@@ -189,7 +189,7 @@ if __name__ == '__main__':
     # all_cells_pa = all_cells_pa.dropna(subset='swc',axis=0)
 
     #load clem cells
-    all_cells_clem = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"],mirror=False)
+    all_cells_clem = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"],mirror=False,load_repaired=False)
     all_cells_clem = all_cells_clem.dropna(subset='swc',axis=0)
 
     all_cells = pd.concat([all_cells_em, all_cells_clem], axis=0)
@@ -197,17 +197,17 @@ if __name__ == '__main__':
 
     #repair all_swcs
 
-    # for i,cell in tqdm(all_cells.iterrows(),total=all_cells.shape[0]):
-    #     if cell['imaging_modality'] == 'clem':
-    #         temp_path = path_to_data /'clem_zfish1'/'all_cells_repaired'
-    #         os.makedirs(temp_path,exist_ok=True)
-    #         repair_neuron(cell['swc'],path=temp_path / f'clem_zfish1_{cell.cell_name}_repaired.swc')
-    #
-    #     elif cell['imaging_modality'] == 'EM':
-    #         temp_path = path_to_data  /'em_zfish1'/'all_cells_repaired'
-    #         os.makedirs(temp_path,exist_ok=True)
-    #         repair_neuron(cell['swc'], path=temp_path / f'em_zfish1_{cell.cell_name}_repaired.swc')
-    #
-    #     print(f"em_zfish1_{cell.cell_name}_repaired.swc finished")
-    #
-    # send_slack_message('repair_swc finished')
+    for i,cell in tqdm(all_cells.iterrows(),total=all_cells.shape[0]):
+        if cell['imaging_modality'] == 'clem':
+            temp_path = path_to_data /'clem_zfish1'/'all_cells_repaired'
+            os.makedirs(temp_path,exist_ok=True)
+            repair_neuron(cell['swc'],path=temp_path / f'clem_zfish1_{cell.cell_name}_repaired.swc')
+
+        elif cell['imaging_modality'] == 'EM':
+            temp_path = path_to_data  /'em_zfish1'/'all_cells_repaired'
+            os.makedirs(temp_path,exist_ok=True)
+            repair_neuron(cell['swc'], path=temp_path / f'em_zfish1_{cell.cell_name}_repaired.swc')
+
+        print(f"em_zfish1_{cell.cell_name}_repaired.swc finished")
+
+    send_slack_message('repair_swc finished')
