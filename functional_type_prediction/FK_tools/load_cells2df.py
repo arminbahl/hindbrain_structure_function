@@ -66,7 +66,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load mesh data for each cell based on selected modalities and smoothing setting.
     for i, cell in all_cells.iterrows():
-        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=True)
+        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=load_repaired)
         if type(all_cells.loc[i,'swc']) == float:
             print(f'{cell.cell_name} is not a TreeNeuron\n')
 
