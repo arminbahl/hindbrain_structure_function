@@ -121,5 +121,6 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
     if type(cell['swc']) != float:
         cell['swc'].nodes.loc[:, 'radius'] = 0.5
         cell['swc'].nodes.loc[0, 'radius'] = 2
-
+    if type(cell['swc']) == float:
+        pass
     return cell
