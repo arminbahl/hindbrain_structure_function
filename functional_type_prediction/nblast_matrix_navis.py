@@ -32,11 +32,12 @@ import h5py
 from tqdm import tqdm
 
 
-def load_zebrafish_nblast_matrix():
+def load_zebrafish_nblast_matrix(return_smat_obj=False,prune=True,modalities=["pa"]):
     path_to_data = get_base_path()
-    all_cells_pa = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"], use_smooth=True)
-    all_cells_pa.loc[:, 'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in all_cells_pa['swc']]
-    all_cells_pa.loc[:, 'swc'] = [navis.prune_twigs(x, 20, recursive=True) for x in all_cells_pa['swc']]
+    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=modalities, use_smooth=True)
+    if prune:
+        all_cells.loc[:, 'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in all_cells['swc']]
+        all_cells.loc[:, 'swc'] = [navis.prune_twigs(x, 20, recursive=True) for x in all_cells['swc']]
     kunst_neurons = []
 
     with h5py.File(r"Y:\Zebrafish atlases\z_brain_atlas\single_cells\all_mpin_single_cells.hdf5") as f:
@@ -50,8 +51,8 @@ def load_zebrafish_nblast_matrix():
                 temp_df.loc[:, "z"] = temp_df.loc[:, "z"] *2
                 kunst_neurons.append(navis.TreeNeuron(temp_df))
 
-    original = list(all_cells_pa.loc[all_cells_pa['function'] == 'dynamic_threshold', 'swc_smooth'])
-    all = list(all_cells_pa.loc[:, 'swc_smooth'])
+    original = list(all_cells.loc[all_cells['function'] == 'dynamic_threshold', 'swc'])
+    all = list(all_cells.loc[:, 'swc'])
     all = kunst_neurons
 
     dotprops = [navis.make_dotprops(n, k=5, resample=False) for n in original + all]
@@ -62,8 +63,10 @@ def load_zebrafish_nblast_matrix():
     smat = builder.build()
     as_table = smat.to_dataframe()
     as_table
-
-    return as_table
+    if return_smat_obj:
+        return smat
+    else:
+        return as_table
 
 if __name__ == "__main__":
     def symmetric_log_transform(x, linthresh=1):
