@@ -30,6 +30,22 @@ def nblast_two_groups(df1,df2,k = 5, resample_size=0.1):
     return nbl
 
 
+def nblast_two_groups_custom_matrix(df1,df2,custom_matrix,k = 5, resample_size=0.1,):
+
+    my_neuron_list1 = navis.NeuronList(df1['swc'],k=k,resample = resample_size)
+    my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
+
+
+    dps1 = navis.make_dotprops(my_neuron_list1,k=k,resample = resample_size,progress =False)
+    dps2 = navis.make_dotprops(my_neuron_list2, k=k, resample=resample_size,progress =False)
+
+    nbl = navis.nblast(dps1, dps2, progress=False,smat=custom_matrix)
+    nbl_array = np.array(nbl)
+    nbl.index = df1.cell_name
+    nbl.columns = df2.cell_name
+    return nbl
+
+
 def compute_nblast_within_and_between(df,query_keys_input=[]):
     given_categories = []
     query_keys = copy.deepcopy(query_keys_input)
