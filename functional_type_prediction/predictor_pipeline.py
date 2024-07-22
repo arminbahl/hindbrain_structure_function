@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 if __name__ == "__main__":
 
-
+    width_brain = 495.56
 
     name_time = datetime.now()
     # Set the base path for data by reading from a configuration file; ensures correct data location is used.
@@ -105,6 +105,11 @@ if __name__ == "__main__":
 
         all_cells.loc[:, "swc"] = all_cells.loc[:, "swc"].apply(lambda x: x.resample(0.1,inplace=False))
 
+    #ipsilateral branches
+    all_cells.loc[:, "contralateral_branches"] = all_cells.loc[:, "swc"].apply(lambda x: len(x.nodes.loc[(x.nodes.x > width_brain / 2) & (x.nodes.type == 'branch'), 'type']))
+    all_cells.loc[:, "ipsilateral_branches"] = all_cells.loc[:, "swc"].apply(lambda x: len(x.nodes.loc[(x.nodes.x < width_brain / 2) & (x.nodes.type == 'branch'), 'type']))
+
+
     #add cable length
     all_cells.loc[:, 'cable_length'] = all_cells.loc[:,"swc"].apply(lambda x: x.cable_length)
     #add bbox volume
@@ -162,7 +167,7 @@ if __name__ == "__main__":
         else:
             branches_df = pd.concat([branches_df,temp])
 
-    width_brain = 495.56
+
     for i,cell in all_cells.iterrows():
         all_cells.loc[i,"main_path_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
                                                                           (branches_df['main_path'])&
@@ -193,6 +198,9 @@ if __name__ == "__main__":
         all_cells.loc[i,"first_branch_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
                                                                               (~branches_df['main_path'])&
                                                                               (branches_df['end_type']!='end'), 'total_branch_length'].iloc[0]
+
+
+
         #biggest major branch
         all_cells.loc[i, "biggest_branch_longest_neurite"] =  branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
                                                             (~branches_df['main_path']) &
@@ -230,7 +238,7 @@ if __name__ == "__main__":
     without_nan_function = all_cells.loc[(all_cells['function']!='nan'),:]
     temp = all_cells.loc[:, all_cells.columns[28:]]
     temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'predictor_pipeline_features')
-    temp = all_cells.loc[:,['imaging_modality','function','morphology','neurotransmitter']]
+    temp = all_cells.loc[:,['cell_name','imaging_modality','function','morphology','neurotransmitter']]
     temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'function_morphology_neurotransmitter')
 
 
