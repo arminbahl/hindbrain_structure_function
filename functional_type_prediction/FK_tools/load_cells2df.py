@@ -12,7 +12,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                                   keywords = 'all',
                                   path_to_data=Path(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data"),
                                   use_smooth=True,
-                                  load_repaired=True):
+                                  load_repaired=False):
     # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
     table_list = []
     if 'pa' in modalities:
@@ -34,6 +34,17 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table = pd.concat([em_table1, em_table2,em_table3,em_table4,em_table5])
         em_table.loc[:, "classifier"] = em_table.loc[:, "classifier"].apply(lambda x: x.replace('?', ""))
         table_list.append(em_table)
+
+    if 'clem_predict' in modalities:
+        clem_predict_table1 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('to_predict'))
+        clem_predict_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('to_predict'))
+        clem_predict_table = pd.concat([clem_predict_table1, clem_predict_table2])
+        table_list.append(clem_predict_table)
+    if 'prediction_project' in modalities:
+        prediction_project_table1 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('complete'))
+        prediction_project_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('uncomplete'))
+        prediction_project_table = pd.concat([prediction_project_table1, prediction_project_table2])
+        table_list.append(prediction_project_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
     if len(modalities) > 1:
@@ -101,6 +112,9 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     #set some correct datatypes
     all_cells = all_cells.dropna(how='all')
+    print(f"{np.sum([type(x)==float for x in all_cells['swc']])} cells dropped because no swc")
+    print(all_cells.loc[[type(x) != navis.TreeNeuron for x in all_cells['swc']],'cell_name'])
+    all_cells = all_cells.loc[[type(x)!=float for x in all_cells['swc']],:]
     all_cells.loc[:,'neurotransmitter'] = 'na'
 
 
@@ -119,7 +133,9 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                         all_cells.loc[i, 'function'] = label
                     elif label in cell_type_categories['neurotransmitter']:
                         all_cells.loc[i, 'neurotransmitter'] = label
-            all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+
+                all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+
 
         if cell.imaging_modality == "EM":
             if True in list(cell['swc'].nodes.loc[:, "x"] > (width_brain / 2)+10):
@@ -140,5 +156,5 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     return all_cells
 
 if __name__ == '__main__':
-   # all_cells = load_cells_predictor_pipeline(path_to_data=Path(r'D:\hindbrain_structure_function\nextcloud'))
-    pass
+   all_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'),modalities=['clem_predict'],load_repaired=True)
+
