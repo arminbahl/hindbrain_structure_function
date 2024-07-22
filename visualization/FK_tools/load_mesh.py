@@ -16,9 +16,11 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
     if cell['imaging_modality'] == 'clem' and not load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
+        clem_path_to_predict = path / 'clem_zfish1' / 'to_predict' / cell_name_clem / 'mapped'
     elif cell['imaging_modality'] == 'clem' and load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path = path / 'clem_zfish1' / 'all_cells_repaired'
+        clem_path_to_predict = path / 'clem_zfish1' / 'to_predict' / cell_name_clem / 'mapped'
 
 
 
@@ -58,12 +60,22 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
             file_path = pa_path / f'{cell.cell_name}{file_suffix}'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
         elif cell['imaging_modality'] == 'clem'  and not load_repaired:
-            file_path = clem_path / f'{cell_name_clem}_mapped.swc'
+            if clem_path.exists():
+                file_path = clem_path / f'{cell_name_clem}_mapped.swc'
+            else:
+                file_path = clem_path_to_predict / f'{cell_name_clem}_mapped.swc'
+
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
 
+
         elif cell['imaging_modality'] == 'clem'  and  load_repaired:
-            file_path = clem_path / f'{cell_name_clem}_repaired.swc'
+            if clem_path.exists():
+                file_path = clem_path / f'{cell_name_clem}_repaired.swc'
+            else:
+                file_path = clem_path_to_predict / f'{cell_name_clem}_mapped.swc'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
+
+
         elif cell['imaging_modality'] == 'EM':
                 if load_repaired:
                     suffix = '_repaired'
@@ -91,10 +103,20 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
     if not swc or load_both:
         if cell['imaging_modality'] == 'clem':
-            cell['axon_mesh'] = load_file(clem_path / f'{cell_name_clem}_axon_mapped.obj', 'axon')
-            cell['dendrite_mesh'] = load_file(clem_path / f'{cell_name_clem}_dendrite_mapped.obj', 'dendrite')
-            cell['soma_mesh'] = load_file(clem_path / f'{cell_name_clem}_soma_mapped.obj', 'soma')
-            cell['all_mesh'] = load_file(clem_path / f'{cell_name_clem}_mapped.obj', 'soma')
+            if clem_path.exists():
+                file_path = clem_path / f'{cell_name_clem}'
+            else:
+                file_path = clem_path_to_predict / f'{cell_name_clem}'
+
+            for component,element_type in zip(['_axon_mapped','_dendrite_mapped','_soma_mapped'],['axon','dendrite','soma']):
+                try:
+                    cell[f'{element_type}_mesh'] = load_file(Path(str(file_path) + f"{component}.obj"), element_type)
+                except:
+                    pass
+            try:
+                cell['all_mesh'] = load_file(Path(str(file_path) + "mapped.obj"), 'soma')
+            except:
+                pass
         elif cell['imaging_modality'] == 'EM':
             if path_seed_cells_em.exists():
                 file_path = path_seed_cells_em
