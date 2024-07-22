@@ -85,7 +85,7 @@ def find_crossing_neurite(fragmented_dict,nodes_df):
             #                         (nodes_df['x']  < (width_brain / 2) + 5)), 'z'].median()
             # coords_crossing = np.array([x_cross, y_cross, z_cross])
 
-            print('Crossing neurite found!')
+            #print('Crossing neurite found!')
     if key_crossing == None:
         coords_crossing = np.nan
         key_crossing = np.nan
