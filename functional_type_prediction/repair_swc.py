@@ -1,6 +1,7 @@
 import navis
 import numpy as np
 import tifffile as tiff
+import plotly
 import matplotlib.pyplot as plt
 from pathlib import Path
 import h5py
@@ -152,8 +153,30 @@ def check_neuron_by_viz(df_fixed, df_original,only_fragment=False):
 
     plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
 
-def repair_neuron(navis_element,path=None):
-    all_cells.loc[all_cells['cell_name'] == 'cell_576460752665417287', 'swc'].iloc[0]
+def repair_neuron(navis_element,path=None,viz_check=False):
+    plot = False
+    if navis_element.nodes.loc[(navis_element.nodes['radius']==2)&(navis_element.nodes['parent_id']==-1),:].empty:
+        plot=True
+        fig = navis.plot3d(navis_element, backend='plotly',
+                           width=1920, height=1080, hover_name=True, alpha=1)
+
+
+
+
+        temp_node_id = navis_element.nodes.loc[(navis_element.nodes['radius']==2),'node_id'].values[0]
+        navis_element = navis_element.reroot(temp_node_id)
+        print('REROOT',navis_element.name,'REROOT')
+        fig.update_layout(
+            scene={
+                'xaxis': {'autorange': 'reversed'},  # reverse !!!
+                'yaxis': {'autorange': True},
+
+                'zaxis': {'autorange': True},
+                'aspectmode': "data",
+                'aspectratio': {"x": 1, "y": 1, "z": 1}
+            }
+        )
+
 
     df = repair_indices(navis_element.nodes)
 
@@ -173,6 +196,14 @@ def repair_neuron(navis_element,path=None):
         with open(path, 'w') as fp:
             fp.write(header)
             df.to_csv(fp, index=False, sep=' ', header=None)
+    if plot and viz_check:
+        ttt = navis.read_swc(path)
+        ttt.soma = ttt.nodes.loc[(ttt.nodes['parent_id']==-1),'node_id'].values[0]
+        ttt.name  = ttt.name+ " repaired"
+        fig = navis.plot3d(ttt, backend='plotly', fig=fig,
+                           width=1920, height=1080, hover_name=True, alpha=1)
+
+        plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
 
 if __name__ == '__main__':
     name_time = datetime.now()
@@ -183,22 +214,27 @@ if __name__ == '__main__':
     all_cells_em = all_cells_em.sort_values('classifier')
 
     #load pa cells
-    # all_cells_pa = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=False)
-    # all_cells_pa_smooth = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=True)
-    # all_cells_pa.loc[:,'swc_smooth'] = all_cells_pa_smooth['swc']
-    # all_cells_pa = all_cells_pa.dropna(subset='swc',axis=0)
+    all_cells_pa = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=False)
+    all_cells_pa_smooth = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=True)
+    all_cells_pa.loc[:,'swc_smooth'] = all_cells_pa_smooth['swc']
+    all_cells_pa = all_cells_pa.dropna(subset='swc',axis=0)
 
     #load clem cells
     all_cells_clem = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"],mirror=False,load_repaired=False)
     all_cells_clem = all_cells_clem.dropna(subset='swc',axis=0)
+    all_cells_clem_predict = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem_predict"], mirror=False, load_repaired=False)
+    all_cells_clem_predict = all_cells_clem_predict.dropna(subset='swc', axis=0)
 
-    all_cells = pd.concat([all_cells_em, all_cells_clem], axis=0)
-
-
+    all_cells = pd.concat([all_cells_clem_predict,all_cells_em,all_cells_clem,all_cells_pa])
+    all_cells = all_cells.loc[all_cells['cell_name']=="cell_576460752707815861",:]
     #repair all_swcs
 
     for i,cell in tqdm(all_cells.iterrows(),total=all_cells.shape[0]):
+        if cell.cell_name == 'cell_576460752330776649':
+            pass
         if cell['imaging_modality'] == 'clem':
+
+
             temp_path = path_to_data /'clem_zfish1'/'all_cells_repaired'
             os.makedirs(temp_path,exist_ok=True)
             repair_neuron(cell['swc'],path=temp_path / f'clem_zfish1_{cell.cell_name}_repaired.swc')
@@ -207,6 +243,11 @@ if __name__ == '__main__':
             temp_path = path_to_data  /'em_zfish1'/'all_cells_repaired'
             os.makedirs(temp_path,exist_ok=True)
             repair_neuron(cell['swc'], path=temp_path / f'em_zfish1_{cell.cell_name}_repaired.swc')
+
+        elif cell['imaging_modality'] == 'photoactivation':
+            temp_path = path_to_data  /'paGFP'/'all_cells_repaired'
+            os.makedirs(temp_path,exist_ok=True)
+            repair_neuron(cell['swc'], path=temp_path / f'{cell.cell_name}_repaired.swc')
 
         print(f"em_zfish1_{cell.cell_name}_repaired.swc finished")
 
