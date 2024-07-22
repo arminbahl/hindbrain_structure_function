@@ -64,5 +64,5 @@ def load_clem_table(path):
 
 
 if __name__ == '__main__':
-    my_df = load_clem_table(Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\all_cells'))
+    my_df = load_clem_table(Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\all_cells'),repa)
     print('Success!')
