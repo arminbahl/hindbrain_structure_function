@@ -57,7 +57,37 @@ def nblast_two_groups(df1,df2,k = 5, resample_size=0.1,shift_neurons = True):
     return nbl
 
 
-def nblast_two_groups_custom_matrix(df1,df2,custom_matrix,k = 5, resample_size=0.1,):
+def nblast_two_groups_custom_matrix(df1,df2,custom_matrix,k = 5, resample_size=0.1,shift_neurons = True):
+    df1 = df1.reset_index(drop=True)
+    df2 = df2.reset_index(drop=True)
+    if shift_neurons:
+        for i,cell in df1.iterrows():
+            import copy
+            df1.loc[i, 'swc2'] = copy.deepcopy(df1.loc[i, 'swc'])
+
+            temp = df1.iloc[i]['swc2'].nodes.loc[df1.iloc[i]['swc2'].nodes['parent_id']==-1,['x','y','z']]
+            dx = 0 - temp['x'].iloc[0]
+            dy = 0 - temp['y'].iloc[0]
+            dz = 0 - temp['z'].iloc[0]
+            df1.loc[i,'swc2'].nodes.loc[:,"x"] = cell.swc.nodes.x + dx
+            df1.loc[i,'swc2'].nodes.loc[:,"y"] = cell.swc.nodes.y + dy
+            df1.loc[i,'swc2'].nodes.loc[:,"z"] = cell.swc.nodes.z + dz
+        for i,cell in df2.iterrows():
+            df2.loc[i, 'swc2'] = copy.deepcopy(df2.loc[i, 'swc'])
+            temp = df2.iloc[i]['swc2'].nodes.loc[df2.iloc[i]['swc'].nodes['parent_id']==-1,['x','y','z']]
+            dx = 0 - temp['x'].iloc[0]
+            dy = 0 - temp['y'].iloc[0]
+            dz = 0 - temp['z'].iloc[0]
+            df2.loc[i,'swc2'].nodes.loc[:,"x"] = cell.swc.nodes.x + dx
+            df2.loc[i,'swc2'].nodes.loc[:,"y"] = cell.swc.nodes.y + dy
+            df2.loc[i,'swc2'].nodes.loc[:,"z"] = cell.swc.nodes.z + dz
+
+        my_neuron_list1 = navis.NeuronList(df1['swc2'], k=k, resample=resample_size)
+        my_neuron_list2 = navis.NeuronList(df2['swc2'], k=k, resample=resample_size)
+    else:
+
+        my_neuron_list1 = navis.NeuronList(df1['swc'],k=k,resample = resample_size)
+        my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
 
     my_neuron_list1 = navis.NeuronList(df1['swc'],k=k,resample = resample_size)
     my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
