@@ -119,7 +119,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
     #extract features from pa cell labels
-
+    neurotransmitter_dict = {'gad1b':'inhibitory','gad1':'inhibitory','vglut':'excitatory','vglut2':'excitatory','vglut2a':'excitatory'}
     cell_type_categories = {'morphology': ['ipsilateral', 'contralateral'],
                             'neurotransmitter': ['inhibitory', 'excitatory'],
                             'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command']}
@@ -142,6 +142,23 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                 all_cells.loc[i, 'morphology'] = 'contralateral'
             else:
                 all_cells.loc[i, 'morphology'] = 'ipsilateral'
+
+            path_to_neurotransmitter_xlsx = [x for x in cell.metadata_path.parent.parent.parent.glob('*.xlsx') if "inh_exc" in str(x)][0]
+            neurotransmitter_df = pd.read_excel(path_to_neurotransmitter_xlsx)
+            if not neurotransmitter_df.loc[neurotransmitter_df['id']==int(cell.cell_name),'neurotransmitter_ID'].empty:
+                try:
+                    neurotransmitter = neurotransmitter_df.loc[neurotransmitter_df['id']==int(cell.cell_name),'neurotransmitter_ID'].item().lower()
+                except:
+                    neurotransmitter = neurotransmitter_df.loc[neurotransmitter_df['id']==int(cell.cell_name),'neurotransmitter_ID'].item()
+            else:
+                neurotransmitter = 'nan'
+            if neurotransmitter in neurotransmitter_dict.keys():
+                all_cells.loc[i, 'neurotransmitter'] = neurotransmitter_dict[neurotransmitter]
+            else:
+                all_cells.loc[i, 'neurotransmitter'] = 'na'
+
+
+    #load neurotransmitter into gregors EM cells
 
 
 
