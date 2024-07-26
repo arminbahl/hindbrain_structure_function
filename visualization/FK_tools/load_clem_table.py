@@ -49,6 +49,7 @@ def load_clem_table(path):
             else:
 
                 temp_row.loc[0,'cell_name'] =   temp_type + "_" + str(temp_row.loc[0,f'{temp_type}_name'])
+            temp_row['metadata_path'] = path.joinpath(cell).joinpath(cell+'_metadata.txt')
 
             if df is None:
                 df = temp_row
@@ -64,5 +65,5 @@ def load_clem_table(path):
 
 
 if __name__ == '__main__':
-    my_df = load_clem_table(Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\all_cells'),repa)
+    my_df = load_clem_table(Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\all_cells'))
     print('Success!')
