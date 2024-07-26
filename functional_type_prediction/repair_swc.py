@@ -226,12 +226,10 @@ if __name__ == '__main__':
     all_cells_clem_predict = all_cells_clem_predict.dropna(subset='swc', axis=0)
 
     all_cells = pd.concat([all_cells_clem_predict,all_cells_em,all_cells_clem,all_cells_pa])
-    all_cells = all_cells.loc[all_cells['cell_name']=="cell_576460752707815861",:]
     #repair all_swcs
 
     for i,cell in tqdm(all_cells.iterrows(),total=all_cells.shape[0]):
-        if cell.cell_name == 'cell_576460752330776649':
-            pass
+
         if cell['imaging_modality'] == 'clem':
 
 
