@@ -63,10 +63,10 @@ if __name__ == "__main__":
         all_cells_em.loc[:, 'swc'] = [navis.prune_twigs(x, 20, recursive=True) for x in all_cells_em['swc']]
 
     nb_all = nblast_two_groups_custom_matrix(all_cells_clem, all_cells_em,custom_matrix=smat_fish)
-    fast_mc_nblast = nb_all.loc[["cell_576460752741838201", "cell_576460752734252921", "cell_576460752680445826"], :]
+    fast_mc_nblast = nb_all.loc[["cell_576460752631366630", "cell_576460752680445826"], :]
     top_matches = navis.nbl.extract_matches(fast_mc_nblast, 3)
     nb_all2 = nblast_two_groups(all_cells_clem, all_cells_em)
-    fast_mc_nblast2 = nb_all.loc[["cell_576460752741838201", "cell_576460752734252921", "cell_576460752680445826"], :]
+    fast_mc_nblast2 = nb_all2.loc[["cell_576460752631366630", "cell_576460752680445826",], :]
     top_matches2 = navis.nbl.extract_matches(fast_mc_nblast2, 3)
 
     sim_cells =[]
@@ -78,14 +78,14 @@ if __name__ == "__main__":
 
 
 
-    clem_cells = list(all_cells_clem.loc[all_cells_clem['cell_name'].isin(["cell_576460752741838201", "cell_576460752734252921", "cell_576460752680445826"]),'swc'])
+    clem_cells = list(all_cells_clem.loc[all_cells_clem['cell_name'].isin(["cell_576460752631366630", "cell_576460752680445826"]),'swc'])
     em_cells = list(all_cells_em.loc[all_cells_em['cell_name'].isin(sim_cells),'swc'])
     path_to_data = Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data')
     brain_meshes = load_brs(path_to_data, 'whole_brain')
 
 
     import plotly
-    fig = navis.plot3d(clem_cells, backend='plotly',
+    fig = navis.plot3d(list(all_cells_em.loc[["seed_cells" in str(x) for x in  all_cells_em['metadata_path']],'swc']), backend='plotly',
                        width=1920, height=1080, hover_name=True,colors='red')
     fig = navis.plot3d(brain_meshes, backend='plotly',fig=fig,
                        width=1920, height=1080, hover_name=True)
