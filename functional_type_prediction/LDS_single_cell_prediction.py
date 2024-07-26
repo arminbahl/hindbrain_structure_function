@@ -495,8 +495,8 @@ if __name__ == "__main__":
 
     # LDA
 
-    # reduced_features,reduced_features_index,collection_coef_matrix = determine_important_features(features,labels,column_labels,return_collection_coef_matrix=True)
-    # reduced_features2, reduced_features_index2 = determine_important_features_RFECV(features, labels, column_labels, scoring='roc_auc_ovo')
+    reduced_features,reduced_features_index,collection_coef_matrix = determine_important_features(features,labels,column_labels,return_collection_coef_matrix=True)
+    reduced_features2, reduced_features_index2 = determine_important_features_RFECV(features, labels, column_labels, scoring='roc_auc_ovo')
     #
     #
     #
@@ -504,11 +504,11 @@ if __name__ == "__main__":
     #
     #
     # #BOTH TRAINING AND TESTING
-    # generate_matching_plot(features,labels,labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels),title='All features\nTrained on Both\nTested on Both',match_limit=0.5)
-    # generate_matching_plot(reduced_features2, labels, labels_imaging_modality, path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index2], title='Reduced features\nTrained on Both\nTested on Both\nFeatures selected with RFECV',match_limit=0.5)
-    # generate_matching_plot(features[:,reduced_features_index],labels,labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],title=f'Reduced features\nTrained on Both\nTested on Both\nFeatures selected with {repeats} repeats',match_limit=0.5)
-    #
-    #
+    generate_matching_plot(features,labels,labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels),title='All features\nTrained on Both\nTested on Both',match_limit=0.5)
+    generate_matching_plot(reduced_features2, labels, labels_imaging_modality, path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index2], title='Reduced features\nTrained on Both\nTested on Both\nFeatures selected with RFECV',match_limit=0.5)
+    generate_matching_plot(features[:,reduced_features_index],labels,labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],title=f'Reduced features\nTrained on Both\nTested on Both\nFeatures selected with {repeats} repeats',match_limit=0.5)
+
+
     # # #BOTH TRAINING AND PA testing
     # generate_matching_plot_test_and_train_not_the_same(features,labels,features_pa,labels_pa,labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels),
     #                                                    title='All features\nTrained on Both\nTested on PA',match_limit=0.5)
