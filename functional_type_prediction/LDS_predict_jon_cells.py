@@ -157,6 +157,13 @@ def calculate_metric(cell_df,file_name,path_to_data,force_new=False,train_or_pre
             cell_df.loc[i,"first_branch_longest_neurite"] = navis.longest_neurite(fragmented_neuron[1]).cable_length
             cell_df.loc[i,"first_branch_total_branch_length"] = fragmented_neuron[1].cable_length
 
+            temp = cell_df.loc[i,"swc"]
+            temp = navis.prune_twigs(temp, 5, recursive=True)
+            temp_node_id = temp.nodes.loc[temp.nodes.type == 'branch', 'node_id'].iloc[0]
+            temp = navis.cut_skeleton(temp, temp_node_id)
+            cell_df.loc[i,"cable_length_2_first_branch"] =temp[1].cable_length
+            cell_df.loc[i, "z_distance_first_2_first_branch"] = temp[1].nodes.iloc[0].z-temp[1].nodes.iloc[-1].z
+
 
 
             #biggest major branch
@@ -258,7 +265,7 @@ def load_train_data(path,file="CLEM_and_PA"):
 
     # Data Preprocessing
     without_nan_function = all_cells[all_cells['function'] != 'nan']
-
+    without_nan_function = without_nan_function.sort_values(by=['function', 'morphology', 'imaging_modality', 'neurotransmitter'])
     # Impute NaNs
     columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
     without_nan_function.loc[:, columns_possible_nans] = without_nan_function[columns_possible_nans].fillna(0)
@@ -276,13 +283,16 @@ def load_train_data(path,file="CLEM_and_PA"):
 
     # Replace strings with indices
     columns_replace_string = ['neurotransmitter', 'morphology']
+    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'na': 2}
+    morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
+
     for work_column in columns_replace_string:
-        without_nan_function.loc[:, work_column + "_clone"] = without_nan_function[work_column]
-        for i, unique_feature in enumerate(without_nan_function[work_column].unique()):
-            without_nan_function.loc[without_nan_function[work_column] == unique_feature, work_column] = i
+        without_nan_function.loc[:,work_column+"_clone"] = without_nan_function[work_column]
+        for key in eval(f'{work_column}2int_dict').keys():
+            without_nan_function.loc[without_nan_function[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
 
     # sort by function an imaging modality
-    without_nan_function = without_nan_function.sort_values(by=['function', 'morphology', 'imaging_modality', 'neurotransmitter'])
+
 
 
     # Extract labels
@@ -314,6 +324,7 @@ def load_predict_data(path,file):
     cell_names = all_cells.cell_name
     # Data Preprocessing
     without_nan_function = all_cells
+    without_nan_function = without_nan_function.sort_values(by=['morphology', 'imaging_modality', 'neurotransmitter'])
 
     # Impute NaNs
     columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
@@ -321,15 +332,17 @@ def load_predict_data(path,file):
 
     # Replace strings with indices
     columns_replace_string = ['neurotransmitter', 'morphology']
+    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'na': 2}
+    morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
 
     for work_column in columns_replace_string:
         without_nan_function.loc[:,work_column+"_clone"] = without_nan_function[work_column]
-        for i, unique_feature in enumerate(without_nan_function[work_column].unique()):
-            without_nan_function.loc[without_nan_function[work_column] == unique_feature, work_column] = i
+        for key in eval(f'{work_column}2int_dict').keys():
+            without_nan_function.loc[without_nan_function[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
 
     # sort by function an imaging modality
-    without_nan_function = without_nan_function.sort_values(by=['morphology', 'imaging_modality', 'neurotransmitter'])
 
+    cell_names = without_nan_function.cell_name
 
     # Extract labels
     labels_imaging_modality = without_nan_function['imaging_modality'].to_numpy()
