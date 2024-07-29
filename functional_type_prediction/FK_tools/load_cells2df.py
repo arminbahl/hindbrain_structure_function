@@ -12,7 +12,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                                   keywords = 'all',
                                   path_to_data=Path(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data"),
                                   use_smooth=True,
-                                  load_repaired=False):
+                                  load_repaired=False,
+                                  load_both=False):
     # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
     table_list = []
     if 'pa' in modalities:
@@ -26,11 +27,11 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         table_list.append(clem_table)
 
     if 'em' in modalities:
-        em_table1 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'))
-        em_table2 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'))
-        em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'))
-        em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
-        em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
+        em_table1 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'),'89189')
+        em_table2 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_seed_cells').joinpath('output_data'),'seed_cell')
+        em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'),'13772')
+        em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'),'149747')
+        em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'),'119243')
         em_table = pd.concat([em_table1, em_table2,em_table3,em_table4,em_table5])
         em_table.loc[:, "classifier"] = em_table.loc[:, "classifier"].apply(lambda x: x.replace('?', ""))
         table_list.append(em_table)
@@ -77,7 +78,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load mesh data for each cell based on selected modalities and smoothing setting.
     for i, cell in all_cells.iterrows():
-        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=load_repaired)
+        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=load_repaired,load_both=load_both)
         if type(all_cells.loc[i,'swc']) == float:
             print(f'{cell.cell_name} is not a TreeNeuron\n')
 
@@ -159,6 +160,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
     #load neurotransmitter into gregors EM cells
+
+
 
 
 
