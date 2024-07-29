@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # all_cells_clem = all_cells_clem.loc[all_cells_clem['cell_name'].isin(['cell_576460752680445826', "cell_576460752631366630"]), :]
 
     #only seed cells in EM
-    all_cells_em = all_cells_em.loc[all_cells_em['seed_cells'],:]
+    all_cells_em = all_cells_em.loc[all_cells_em['presynaptic']=='seed_cell',:]
 
     for i,cell in all_cells_clem.iterrows():
         all_cells_clem.loc[i,'swc'].nodes.loc[:,"radius"] = 0.5
