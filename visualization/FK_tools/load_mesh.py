@@ -26,7 +26,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
     elif cell['imaging_modality'] == 'EM' and not load_repaired:
         cell_name_em = f'em_fish1_{cell.cell_name}'
-
+        cell_name_em_obj = f'em_fish1_{cell.cell_name}'
         path_seed_cells_em = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em / 'mapped'
         path_89189_postsynaptic_em = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_10_postsynaptic_em = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
@@ -39,6 +39,16 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         path_10_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
         path_11_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
         path_19_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
+        cell_name_em_obj = f'em_fish1_{cell.cell_name}'
+        path_seed_cells_em_obj = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_89189_postsynaptic_em_obj = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_10_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_11_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_19_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+
+
+
+
 
     elif cell['imaging_modality'] == 'photoactivation':
         pa_path = path / 'paGFP' / str(cell.cell_name)
@@ -118,22 +128,22 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
             except:
                 pass
         elif cell['imaging_modality'] == 'EM':
-            if path_seed_cells_em.exists():
-                file_path = path_seed_cells_em
-            elif path_89189_postsynaptic_em.exists():
-                file_path = path_89189_postsynaptic_em
-            elif path_10_postsynaptic_em.exists():
-                file_path = path_10_postsynaptic_em
-            elif path_11_postsynaptic_em.exists():
-                file_path = path_11_postsynaptic_em
-            elif path_19_postsynaptic_em.exists():
-                file_path = path_19_postsynaptic_em
+            if path_seed_cells_em_obj.exists():
+                file_path = path_seed_cells_em_obj
+            elif path_89189_postsynaptic_em_obj.exists():
+                file_path = path_89189_postsynaptic_em_obj
+            elif path_10_postsynaptic_em_obj.exists():
+                file_path = path_10_postsynaptic_em_obj
+            elif path_11_postsynaptic_em_obj.exists():
+                file_path = path_11_postsynaptic_em_obj
+            elif path_19_postsynaptic_em_obj.exists():
+                file_path = path_19_postsynaptic_em_obj
 
 
 
-            cell['axon_mesh'] = load_file(file_path / f'{cell_name_em}_axon_mapped.obj', 'axon')
-            cell['dendrite_mesh'] = load_file(file_path / f'{cell_name_em}_dendrite_mapped.obj', 'dendrite')
-            cell['soma_mesh'] = load_file(file_path / f'{cell_name_em}_soma_mapped.obj', 'soma')
+            cell['axon_mesh'] = load_file(file_path / f'{cell_name_em_obj}_axon_mapped.obj', 'axon')
+            cell['dendrite_mesh'] = load_file(file_path / f'{cell_name_em_obj}_dendrite_mapped.obj', 'dendrite')
+            cell['soma_mesh'] = load_file(file_path / f'{cell_name_em_obj}_soma_mapped.obj', 'soma')
         elif cell['imaging_modality'] == 'photoactivation':
             file_suffix = '_smoothed.obj' if use_smooth_pa else '.obj'
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
