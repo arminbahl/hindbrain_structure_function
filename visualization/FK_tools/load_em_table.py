@@ -31,7 +31,7 @@ def read_to_pandas_row(file_content):
     return df_row
 
 
-def load_em_table(path):
+def load_em_table(path,presynaptic=None):
     df = None
     for cell in os.listdir(path):
         if path.joinpath(cell).joinpath(cell+'_metadata.txt').exists():
@@ -44,10 +44,9 @@ def load_em_table(path):
 
 
             temp_row['metadata_path'] = path.joinpath(cell).joinpath(cell+'_metadata.txt')
-            if 'seed_cells' in str(path):
-                temp_row['seed_cells'] = True
-            else:
-                temp_row['seed_cells'] = False
+
+            temp_row['presynaptic'] = presynaptic
+
 
             if df is None:
                 df = temp_row
