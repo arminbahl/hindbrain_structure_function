@@ -118,7 +118,7 @@ class make_figures_FK:
                 em_table4 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'))
                 em_table5 = load_em_table(self.path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'))
                 em_table = pd.concat([em_table1, em_table2, em_table3,em_table4,em_table5])
-                em_table.columns = ['cell_name', 'bad_name', 'units', 'tracer_names', 'imaging_modality','soma_position', 'classifier', 'mece_regions', 'others','date_of_tracing', 'presynaptic', 'postsynaptic']
+                em_table.columns = ['cell_name', 'bad_name', 'units', 'tracer_name', 'imaging_modality','soma_position', 'classifier', 'mece_regions', 'others','date_of_tracing', 'presynaptic', 'postsynaptic', 'metadata_path']
                 loaded_tables.append(em_table)
 
 
@@ -165,8 +165,10 @@ class make_figures_FK:
 
         list_of_clem_tracers = ['Jay Hareshbhai Savaliya','Jonathan Boulanger-Weill']
         # If a cell was scored by Jonathan Boulanger-Weill, set its imaging modality to 'clem'.
-        all_cells.loc[all_cells['tracer_names'].isin(list_of_clem_tracers), 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
-
+        try:
+            all_cells.loc[all_cells['tracer_names'].isin(list_of_clem_tracers), 'imaging_modality'] = 'clem'  # Confirm with Jonathan regarding the use of 'clem' as a label.
+        except:
+            pass
         # Load mesh data for each cell based on selected modalities and smoothing setting.
         for i, cell in all_cells.iterrows():
             if load_what=='mesh':
@@ -213,8 +215,11 @@ class make_figures_FK:
 
         # Create a directory for storing information on the used cells and save the list of cell names.
         os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells"), exist_ok=True)
-        all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False,
-                                      header=None)
+        try:
+            all_cells['cell_name'].to_csv(self.path_to_data.joinpath("make_figures_FK_output").joinpath("used_cells").joinpath(f'{"_".join(self.keywords)}_{self.name_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'), index=False,
+                                          header=None)
+        except:
+            pass
 
     def plot_projection(self, projection='z', show_brs=False, force_new_cell_list=False, rasterize=True,
                         black_neuron=True, standard_size=True, volume_outlines=True, background_gray=True,
@@ -495,18 +500,18 @@ class make_figures_FK:
 
 
         # Create directories for saving the output files if they do not already exist.
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf"), exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png"), exist_ok=True)
-        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg"), exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("pdf"), exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("png"), exist_ok=True)
+        os.makedirs(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("svg"), exist_ok=True)
 
         # Save the figure in different formats at the specified resolution.
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("pdf").joinpath(
-            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("png").joinpath(
-            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
-        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string).joinpath("svg").joinpath(
-            rf"{projection_string}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
-        print(f"{projection_string} saved!")  # Notify the user that the plot has been saved successfully.
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("pdf").joinpath(
+            rf"{projection_string[:30]}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("png").joinpath(
+            rf"{projection_string[:30]}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"), dpi=1200)
+        fig.savefig(self.path_to_data.joinpath("make_figures_FK_output").joinpath(projection_string[:30]).joinpath("svg").joinpath(
+            rf"{projection_string[:30]}{brkw}{'_'.join(self.keywords)}_{self.name_time.strftime('%Y-%m-%d_%H-%M-%S')}.svg"), dpi=1200)
+        print(f"{projection_string[:30]} saved!")  # Notify the user that the plot has been saved successfully.
 
     def plot_y_projection(self, **kwargs):
         """
