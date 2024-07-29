@@ -10,6 +10,7 @@ from cellpose import denoise
 from cellpose import denoise
 import cv2
 from hindbrain_structure_function.functional_type_prediction.nblast_matrix_navis import *
+from sklearn.neighbors import LocalOutlierFactor
 import pandas as pd
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
@@ -27,6 +28,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcl
 import seaborn as sns
 from copy import deepcopy
+from sklearn.ensemble import IsolationForest
+from sklearn.svm import OneClassSVM
 from tqdm import tqdm
 from hindbrain_structure_function.functional_type_prediction.FK_tools.branching_angle_calculator import *
 import copy
@@ -84,6 +87,7 @@ if __name__ == '__main__':
     for i,cell in predict_cells_clem.iterrows():
 
 
+
         if (cell.swc.nodes.x.to_numpy()>=(width_brain/2)).any():
             predict_cells_clem.loc[i,'morphology'] = 'contralateral'
         else:
@@ -137,42 +141,95 @@ if __name__ == '__main__':
     solver = 'lsqr'
     shrinkage = 'auto'
     priors = [len(labels_train[labels_train== x]) / len(labels_train) for x in np.unique(labels_train)]
-    clf_both = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors)
-    clf_both.fit(features_train[:,reduced_features_index], labels_train.flatten())
+    #classifier
+    clf = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train, labels_train.flatten())
+    clf_reduced = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train[:,reduced_features_index], labels_train.flatten())
+
+    #novelty
+    OCSVM = OneClassSVM(gamma='scale', kernel='rbf').fit(features_train)
+    OCSVM_reduced =  OneClassSVM(gamma='scale',kernel='rbf').fit(features_train[:,reduced_features_index])
+    IF = IsolationForest(contamination=0.0001, random_state=42).fit(features_train)
+    IF_reduced = IsolationForest(contamination=0.0001,random_state=42).fit(features_train[:,reduced_features_index])
+    LOF = LocalOutlierFactor(n_neighbors=10, novelty=True).fit(features_train)
+    LOF_reduced = LocalOutlierFactor(n_neighbors=10,novelty=True).fit(features_train[:,reduced_features_index])
+
+
     color_list = []
     swc_list = []
 
     for i,cell_name in zip(range(features_predict_clem.shape[0]),cell_names_clem):
+        #prediction
+        y_prob = clf.predict_proba(features_predict_clem[i, :].reshape(1, -1))[0]
+        y_pred = clf.predict(features_predict_clem[i, :].reshape(1, -1))[0]
 
-        y_prob = clf_both.predict_proba(features_predict_clem[i, reduced_features_index].reshape(1, -1))[0]
-        y_pred = clf_both.predict(features_predict_clem[i,reduced_features_index].reshape(1, -1))[0]
+        y_prob_reduced = clf_reduced.predict_proba(features_predict_clem[i, reduced_features_index].reshape(1, -1))[0]
+        y_pred_reduced = clf_reduced.predict(features_predict_clem[i,reduced_features_index].reshape(1, -1))[0]
 
-        temp_title = (f'{acronym_dict[clf_both.classes_[0]]}: {"{:.5f}".format(y_prob[0]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[1]]}: {"{:.5f}".format(y_prob[1]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[2]]}: {"{:.5f}".format(y_prob[2]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[3]]}: {"{:.5f}".format(y_prob[3]*100)}%')
-        temp_prediction_string = temp_title = (f'{acronym_dict[clf_both.classes_[0]]}:{"{:.5f}".format(y_prob[0])} '
-                                               f'{acronym_dict[clf_both.classes_[1]]}:{"{:.5f}".format(y_prob[1])} '
-                                               f'{acronym_dict[clf_both.classes_[2]]}:{"{:.5f}".format(y_prob[2])} '
-                                               f'{acronym_dict[clf_both.classes_[3]]}:{"{:.5f}".format(y_prob[3])}')
+        # outlier/novelty detection
+        outlier_ocsvm = OCSVM.predict(features_predict_clem[i, :].reshape(1, -1))[0] == 1
+        outlier_ocsvm_reduced = OCSVM_reduced.predict(features_predict_clem[i, reduced_features_index].reshape(1, -1))[0] == 1
 
+        outlier_IF = IF.predict(features_predict_clem[i, :].reshape(1, -1))[0] == 1
+        outlier_IF_reduced = IF_reduced.predict(features_predict_clem[i, reduced_features_index].reshape(1, -1))[0] == 1
+
+        outlier_LOF = LOF.predict(features_predict_clem[i, :].reshape(1, -1))[0] == 1
+        outlier_LOF_reduced = LOF_reduced.predict(features_predict_clem[i, reduced_features_index].reshape(1, -1))[0] == 1
+
+
+        temp_title = (f'{acronym_dict[clf.classes_[0]]}: {"{:.5f}".format(y_prob[0]*100)}%<br>'
+                      f'{acronym_dict[clf.classes_[1]]}: {"{:.5f}".format(y_prob[1]*100)}%<br>'
+                      f'{acronym_dict[clf.classes_[2]]}: {"{:.5f}".format(y_prob[2]*100)}%<br>'
+                      f'{acronym_dict[clf.classes_[3]]}: {"{:.5f}".format(y_prob[3]*100)}%<br>'
+                      f'{acronym_dict[clf_reduced.classes_[0]]}_reduced: {"{:.5f}".format(y_prob[0] * 100)}%<br>'
+                      f'{acronym_dict[clf_reduced.classes_[1]]}_reduced: {"{:.5f}".format(y_prob[1] * 100)}%<br>'
+                      f'{acronym_dict[clf_reduced.classes_[2]]}_reduced: {"{:.5f}".format(y_prob[2] * 100)}%<br>'
+                      f'{acronym_dict[clf_reduced.classes_[3]]}_reduced: {"{:.5f}".format(y_prob[3] * 100)}%'
+                      )
+
+        temp_prediction_string =  (f'{acronym_dict[clf.classes_[0]]}:{"{:.5f}".format(y_prob[0])} '
+                                               f'{acronym_dict[clf.classes_[1]]}:{"{:.5f}".format(y_prob[1])} '
+                                               f'{acronym_dict[clf.classes_[2]]}:{"{:.5f}".format(y_prob[2])} '
+                                               f'{acronym_dict[clf.classes_[3]]}:{"{:.5f}".format(y_prob[3])}')
+
+        temp_prediction_string_reduced =  (f'{acronym_dict[clf_reduced.classes_[0]]}:{"{:.5f}".format(y_prob_reduced[0])} '
+                                               f'{acronym_dict[clf_reduced.classes_[1]]}:{"{:.5f}".format(y_prob_reduced[1])} '
+                                               f'{acronym_dict[clf_reduced.classes_[2]]}:{"{:.5f}".format(y_prob_reduced[2])} '
+                                               f'{acronym_dict[clf_reduced.classes_[3]]}:{"{:.5f}".format(y_prob_reduced[3])}')
 
         prediction_string = f'prediction = "{temp_prediction_string}"\n'
+        prediction_string_reduced = f'prediction_reduced = "{temp_prediction_string_reduced}"\n'
         nblast_test_string = f'nblast_test_passed = {cell_name in subset_predict_cells}\n'
-        probability_passed_string = f'probability_test_passed = {(y_prob>0.7).any()}\n'
+        probability_passed_string = f'probability_test_passed = {(y_prob > 0.7).any()}\n'
+        probability_passed_string_reduced = f'probability_test_passed_reduced = {(y_prob_reduced>0.7).any()}\n'
+
+        novelty_passed_OCSVM = f'novelty_passed_OCSVM = {outlier_ocsvm}\n'
+        novelty_passed_OCSVM_reduced = f'novelty_passed_OCSVM_reduced = {outlier_ocsvm_reduced}\n'
+        novelty_passed_IF = f'novelty_passed_IF = {outlier_IF}\n'
+        novelty_passed_IF_reduced = f'novelty_passed_IF_reduced = {outlier_IF_reduced}\n'
+        novelty_passed_LOF = f'novelty_passed_LOF = {outlier_LOF}\n'
+        novelty_passed_LOF_reduced = f'novelty_passed_LOF_reduced = {outlier_LOF_reduced}\n'
+
 
 
         meta_paths = predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'metadata_path']
         for meta_path in meta_paths:
             f = open(meta_path, 'r')
             t = f.read()
-            new_t = t + prediction_string + nblast_test_string + probability_passed_string
+            if not t[-1:] == '\n':
+                t = t + '\n'
+
+            new_t = (t + prediction_string + prediction_string_reduced +
+                     nblast_test_string +
+                     probability_passed_string + probability_passed_string_reduced +
+                     novelty_passed_OCSVM + novelty_passed_OCSVM_reduced +
+                     novelty_passed_IF + novelty_passed_IF_reduced +
+                     novelty_passed_LOF + novelty_passed_LOF_reduced
+                     )
             f.close()
 
-            f = open(str(meta_path)[:-4] + "_with_prediction_reduced_features.txt", 'w')
+            f = open(str(meta_path)[:-4] + "_with_prediction.txt", 'w')
             f.write(new_t)
             f.close()
-
 
         if (np.max(y_prob)>0.7) and cell_name in subset_predict_cells:
             temp_swc = predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'swc'].iloc[0]
@@ -211,93 +268,7 @@ if __name__ == '__main__':
                 'zaxis': {'autorange': True},
                 'aspectmode': "data",
                 'aspectratio': {"x": 1, "y": 1, "z": 1}},
-            title=dict(text='reduced features', font=dict(size=20), automargin=True, yref='paper')
-        )
-        os.makedirs(path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_clem', exist_ok=True)
-        temp_file_name = path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_reduced_features_clem' / f"all_cells_reduced_clem.html"
-        plotly.offline.plot(fig, filename=str(temp_file_name), auto_open=True, auto_play=False)
-
-
-    #both
-    solver = 'lsqr'
-    shrinkage = 'auto'
-    priors = [len(labels_train[labels_train== x]) / len(labels_train) for x in np.unique(labels_train)]
-    clf_both = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors)
-    clf_both.fit(features_train, labels_train.flatten())
-
-    color_list = []
-    swc_list = []
-
-    for i,cell_name in zip(range(features_predict_clem.shape[0]),cell_names_clem):
-
-        y_prob = clf_both.predict_proba(features_predict_clem[i, :].reshape(1, -1))[0]
-        y_pred = clf_both.predict(features_predict_clem[i, :].reshape(1, -1))[0]
-
-        temp_title = (f'{acronym_dict[clf_both.classes_[0]]}: {"{:.5f}".format(y_prob[0]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[1]]}: {"{:.5f}".format(y_prob[1]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[2]]}: {"{:.5f}".format(y_prob[2]*100)}%<br>'
-                      f'{acronym_dict[clf_both.classes_[3]]}: {"{:.5f}".format(y_prob[3]*100)}%')
-        temp_prediction_string = temp_title = (f'{acronym_dict[clf_both.classes_[0]]}:{"{:.5f}".format(y_prob[0])} '
-                                               f'{acronym_dict[clf_both.classes_[1]]}:{"{:.5f}".format(y_prob[1])} '
-                                               f'{acronym_dict[clf_both.classes_[2]]}:{"{:.5f}".format(y_prob[2])} '
-                                               f'{acronym_dict[clf_both.classes_[3]]}:{"{:.5f}".format(y_prob[3])}')
-
-
-        prediction_string = f'prediction = "{temp_prediction_string}"\n'
-        nblast_test_string = f'nblast_test_passed = {cell_name in subset_predict_cells}\n'
-        probability_passed_string = f'probability_test_passed = {(y_prob>0.7).any()}\n'
-
-
-        meta_paths = predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'metadata_path']
-        for meta_path in meta_paths:
-            f = open(meta_path, 'r')
-            t = f.read()
-            new_t = t + prediction_string + nblast_test_string + probability_passed_string
-            f.close()
-
-            f = open(str(meta_path)[:-4] + "_with_prediction.txt", 'w')
-            f.write(new_t)
-            f.close()
-
-
-        if (np.max(y_prob)>0.7) and cell_name in subset_predict_cells:
-            temp_swc = predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'swc'].iloc[0]
-            temp_node_id = temp_swc.nodes.loc[temp_swc.nodes.type=='root','node_id'].iloc[0]
-            temp_swc.soma = temp_node_id
-            fig = navis.plot3d(predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'swc'].iloc[0], backend='plotly',
-                               width=1920, height=1080, hover_name=True, alpha=1,title=temp_title)
-            fig = navis.plot3d(brain_meshes, backend='plotly', fig=fig,
-                               width=1920, height=1080, hover_name=True,title=temp_title)
-            fig.update_layout(
-                scene={
-                    'xaxis': {'autorange': 'reversed'},  # reverse !!!
-                    'yaxis': {'autorange': True},
-
-                    'zaxis': {'autorange': True},
-                    'aspectmode': "data",
-                    'aspectratio': {"x": 1, "y": 1, "z": 1}},
-                title = dict(text=temp_title, font=dict(size=20), automargin=True, yref='paper')
-            )
-            os.makedirs(path_to_data / 'make_figures_FK_output'/'LDS_NBLAST_predictions_clem',exist_ok=True)
-            temp_file_name= path_to_data / 'make_figures_FK_output'/'LDS_NBLAST_predictions_clem'/f"{acronym_dict[y_pred]}_{cell_name}.html"
-            plotly.offline.plot(fig, filename=str(temp_file_name), auto_open=False, auto_play=False)
-            color_list.append(color_dict[y_pred])
-            swc_list.append(predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'swc'].iloc[0])
-
-    if len(color_list) > 0:
-        fig = navis.plot3d(swc_list, backend='plotly',colors=color_list,
-                           width=1920, height=1080, hover_name=True, alpha=1, title=temp_title)
-        fig = navis.plot3d(brain_meshes, backend='plotly', fig=fig,
-                           width=1920, height=1080, hover_name=True, title=temp_title)
-        fig.update_layout(
-            scene={
-                'xaxis': {'autorange': 'reversed'},  # reverse !!!
-                'yaxis': {'autorange': True},
-
-                'zaxis': {'autorange': True},
-                'aspectmode': "data",
-                'aspectratio': {"x": 1, "y": 1, "z": 1}},
-            title=dict(text='all features', font=dict(size=20), automargin=True, yref='paper')
+            title=dict(text='all_cells prediction', font=dict(size=20), automargin=True, yref='paper')
         )
         os.makedirs(path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_clem', exist_ok=True)
         temp_file_name = path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_clem' / f"all_cells_clem.html"
