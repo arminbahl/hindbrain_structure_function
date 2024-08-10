@@ -11,11 +11,21 @@ def find_connector_node_id(cell,all_syn):
     return node_ids
 
 
-def load_synapse_clem(cell,path):
+def load_synapse_clem(cell,path,mapped=True):
 
-    cell_name = f'clem_zfish1_{cell.type}_{cell.cell_name}'
-    path_post = path / 'clem_zfish1' / 'all_cells' / cell_name / 'mapped' / (cell_name + '_postsynapses_mapped.csv')
-    path_pre = path / 'clem_zfish1' / 'all_cells' / cell_name / 'mapped' / (cell_name + '_presynapses_mapped.csv')
+    if type(cell.cell_name) == pd.Series:
+        cell_name = cell.cell_name.iloc[0]
+    else:
+        cell_name = cell.cell_name
+
+    cell_name = f'clem_zfish1_{cell_name}'
+
+    if mapped:
+        path_post = path / 'clem_zfish1' / 'all_cells' / cell_name / 'mapped' / (cell_name + '_postsynapses_mapped.csv')
+        path_pre = path / 'clem_zfish1' / 'all_cells' / cell_name / 'mapped' / (cell_name + '_presynapses_mapped.csv')
+    else:
+        path_post = path / 'clem_zfish1' / 'all_cells' / cell_name /  (cell_name + '_postsynapses.csv')
+        path_pre = path / 'clem_zfish1' / 'all_cells' / cell_name /  (cell_name + '_presynapses.csv')
 
     list_of_synapses = []
     # Pull postsynapses
@@ -33,9 +43,10 @@ def load_synapse_clem(cell,path):
         all_syn = pd.concat(list_of_synapses, axis=0)
     except:
         pass
-
-
-
+    try:
+        all_syn = all_syn.reset_index(drop=True)
+    except:
+        pass
     try:
         all_syn.insert(1, 'node_id', find_connector_node_id(cell,all_syn))
         cell['swc'].connectors = all_syn
