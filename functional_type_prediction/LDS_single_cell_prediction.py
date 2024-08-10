@@ -76,6 +76,8 @@ def generate_matching_plot(features,labels,labels_imaging_modality,path,column_l
             "integrator contralateral": '#e84d8ab3',
             "dynamic threshold": '#64c5ebb3',
             "motor command": '#7f58afb3',
+            'neg_control': "#a8c256b3"
+
         }
 
 
@@ -97,10 +99,13 @@ def generate_matching_plot(features,labels,labels_imaging_modality,path,column_l
 
             if len(np.unique(labels_imaging_modality)) > 1:
                 for i2, modality in enumerate(color_dict_modality.keys()):
-                    temp_indices = np.argwhere((labels == label) & (labels_imaging_modality == modality))
-                    ax.plot([np.min(temp_indices), np.max(temp_indices) + 1], [-0.5, -0.5], color=color_dict_modality[modality], lw=3, solid_capstyle='butt', alpha=1)
-                    if not modality in [x.get_label() for x in legend_elements]:
-                        legend_elements.append(Patch(facecolor=color_dict_modality[modality], edgecolor=color_dict_modality[modality], label=modality))
+                    try:
+                        temp_indices = np.argwhere((labels == label) & (labels_imaging_modality == modality))
+                        ax.plot([np.min(temp_indices), np.max(temp_indices) + 1], [-0.5, -0.5], color=color_dict_modality[modality], lw=3, solid_capstyle='butt', alpha=1)
+                        if not modality in [x.get_label() for x in legend_elements]:
+                            legend_elements.append(Patch(facecolor=color_dict_modality[modality], edgecolor=color_dict_modality[modality], label=modality))
+                    except:
+                        pass
             if not label in [x.get_label() for x in legend_elements]:
                 legend_elements.append(Patch(facecolor=color_dict_type[label], edgecolor=color_dict_type[label], label=label))
 
@@ -121,7 +126,11 @@ def generate_matching_plot(features,labels,labels_imaging_modality,path,column_l
         fig.colorbar(im, orientation='vertical')
         ax.set_xticks([])
         plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.1)
-        savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
+        try:
+            savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
+        except:
+            savepath = path / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
+
         os.makedirs(savepath,exist_ok=True)
         os.makedirs(savepath/'png', exist_ok=True)
         os.makedirs(savepath/'pdf', exist_ok=True)
@@ -196,6 +205,7 @@ def generate_matching_plot_test_and_train_not_the_same(features_train,labels_tra
             "integrator contralateral": '#e84d8ab3',
             "dynamic threshold": '#64c5ebb3',
             "motor command": '#7f58afb3',
+            'neg_control':"#a8c256b3"
         }
 
         color_dict_modality = {'clem': 'black', "photoactivation": "gray"}
@@ -317,7 +327,7 @@ def determine_important_features(features,labels,feature_labels, repeats=10000,r
         clf.fit(X_train, y_train.flatten())
 
         #predict
-        y_pred = clf.predict(X_test)
+        y_pred = clf.predict(X_test.astype(float))
 
         # Calculate accuracy
         accuracy = accuracy_score(y_test, y_pred)
@@ -401,7 +411,7 @@ def determine_important_SFS(features, labels,n_features_to_select = None):
     X_new = sfs.transform(features)
     selected_features_mask = sfs.get_support()
     return X_new,selected_features_mask
-
+from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 
 if __name__ == "__main__":
     np.set_printoptions(suppress=True)
@@ -409,6 +419,37 @@ if __name__ == "__main__":
     # Constants
     repeats = 10000
     path_to_data = get_base_path()
+
+
+
+    #load normal cells
+    clem_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
+    prediction_project_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'],
+                                                             load_repaired=True)
+    all_cells_w_swc = pd.concat([clem_pa_cells,prediction_project_cells])
+    all_cells_w_swc = all_cells_w_swc.drop_duplicates(keep='first', inplace=False,subset='cell_name')
+    all_cells_w_swc_no_function =  all_cells_w_swc.loc[(all_cells_w_swc.function == 'nan'), :]
+    all_cells_w_swc = all_cells_w_swc.loc[(all_cells_w_swc.function != 'nan'), :]
+    all_cells_w_swc = all_cells_w_swc.loc[(~all_cells_w_swc.function.isna()), :]
+    all_cells_w_swc = all_cells_w_swc.reset_index(drop=True)
+
+
+
+
+
+
+    #load predict cells
+    clem_predict_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem_predict'], load_repaired=True)
+    clem_predict_cells = pd.concat([clem_predict_cells,all_cells_w_swc_no_function])
+    clem_predict_cells = clem_predict_cells.drop_duplicates(keep='first', inplace=False, subset='cell_name')
+    clem_predict_cells = clem_predict_cells.loc[(~clem_predict_cells['cell_name'].isin(all_cells_w_swc.cell_name)),:]
+    clem_predict_cells = clem_predict_cells.loc[clem_predict_cells['type']!='axon',:]
+    # all_cells_w_swc.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in all_cells_w_swc['swc']]
+    # all_cells_w_swc.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in all_cells_w_swc['swc']]
+    # clem_predict_cells.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in clem_predict_cells['swc']]
+    # clem_predict_cells.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in clem_predict_cells['swc']]
+
+
 
     # Data Loading
     file_path = path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5'
@@ -430,6 +471,58 @@ if __name__ == "__main__":
 
     #throw out weird jon cells
     all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521","cell_576460752723528109","cell_576460752684182585"]),:]
+
+
+    #adjust based on regressor
+    all_cells_w_swc['prediction_equals_manual'] = False
+    all_cells_w_swc['correlation_test_passed'] = False
+    all_cells_w_swc['prediction_regressor'] = np.nan
+    all_cells_w_swc['prediction_equals_manual_st'] = False
+    all_cells_w_swc['correlation_test_passed_st'] = False
+    all_cells_w_swc['prediction_regressor_st'] = np.nan
+
+    for i,cell in all_cells_w_swc.iterrows():
+        temp_path = Path(str(cell.metadata_path)[:-4] + "_with_regressor.txt")
+        temp_path_pa = path_to_data / 'paGFP'/cell.cell_name/f"{cell.cell_name}_metadata_with_regressor.txt"
+        if temp_path.exists():
+            if cell.imaging_modality == 'photoactivation':
+                pass
+            with open(temp_path,'r') as f:
+                t = f.read()
+
+                all_cells_w_swc.loc[i,'prediction_regressor'] = t.split('\n')[15].split(' ')[2].strip('"')
+                all_cells_w_swc.loc[i,'correlation_test_passed'] = eval(t.split('\n')[16].split(' ')[2].strip('"'))
+                all_cells_w_swc.loc[i, 'prediction_equals_manual'] = eval(t.split('\n')[17].split(' ')[2].strip('"'))
+
+                all_cells_w_swc.loc[i,'prediction_regressor_st'] = t.split('\n')[18].split(' ')[2].strip('"')
+                all_cells_w_swc.loc[i,'correlation_test_passed_st'] = eval(t.split('\n')[19].split(' ')[2].strip('"'))
+                all_cells_w_swc.loc[i, 'prediction_equals_manual_st'] = eval(t.split('\n')[20].split(' ')[2].strip('"'))
+
+
+        elif temp_path_pa.exists():
+            with open(temp_path_pa,'r') as f:
+                t = f.read()
+                all_cells_w_swc.loc[i,'prediction_regressor'] = t.split('\n')[11].split(' ')[2].strip('"')
+                all_cells_w_swc.loc[i,'correlation_test_passed'] = eval(t.split('\n')[12].split(' ')[2].strip('"'))
+                all_cells_w_swc.loc[i, 'prediction_equals_manual'] = eval(t.split('\n')[13].split(' ')[2].strip('"'))
+
+                all_cells_w_swc.loc[i,'prediction_regressor_st'] = t.split('\n')[14].split(' ')[2].strip('"')
+                all_cells_w_swc.loc[i,'correlation_test_passed_st'] = eval(t.split('\n')[15].split(' ')[2].strip('"'))
+                all_cells_w_swc.loc[i, 'prediction_equals_manual_st'] = eval(t.split('\n')[16].split(' ')[2].strip('"'))
+
+
+
+    cell_confirmed_regressor = all_cells_w_swc[all_cells_w_swc['correlation_test_passed']]
+    cell_confirmed_regressor['function'] = cell_confirmed_regressor['prediction_regressor']
+    all_cells = all_cells.loc[all_cells['cell_name'].isin(list(cell_confirmed_regressor.cell_name)),:]
+    for i,cell in all_cells.iterrows():
+        all_cells.loc[i,"function"] = cell_confirmed_regressor.loc[cell_confirmed_regressor['cell_name']==cell.cell_name,'function'].iloc[0]
+
+    # cell_confirmed_regressor = all_cells_w_swc[all_cells_w_swc['correlation_test_passed_st']]
+    # cell_confirmed_regressor['function'] = cell_confirmed_regressor['prediction_regressor_st']
+    # all_cells = all_cells.loc[all_cells['cell_name'].isin(list(cell_confirmed_regressor.cell_name)),:]
+    # for i,cell in all_cells.iterrows():
+    #     all_cells.loc[i,"function"] = cell_confirmed_regressor.loc[cell_confirmed_regressor['cell_name']==cell.cell_name,'function'].iloc[0]
 
 
     # Data Preprocessing
@@ -707,27 +800,6 @@ if __name__ == "__main__":
     #     plt.legend(loc='best', ncols=2, fontsize='x-small', frameon=False)
     #     plt.show()
 
-    from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
-
-    clem_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
-    prediction_project_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'],
-                                                             load_repaired=True)
-    all_cells_w_swc = pd.concat([prediction_project_cells,clem_pa_cells])
-    all_cells_w_swc = all_cells_w_swc.drop_duplicates(keep='first', inplace=False,subset='cell_name')
-    all_cells_w_swc_no_function =  all_cells_w_swc.loc[(all_cells_w_swc.function == 'nan'), :]
-    all_cells_w_swc = all_cells_w_swc.loc[(all_cells_w_swc.function != 'nan'), :]
-    all_cells_w_swc = all_cells_w_swc.loc[(~all_cells_w_swc.function.isna()), :]
-
-
-    clem_predict_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem_predict'], load_repaired=True)
-    clem_predict_cells = pd.concat([clem_predict_cells,all_cells_w_swc_no_function])
-    clem_predict_cells = clem_predict_cells.drop_duplicates(keep='first', inplace=False, subset='cell_name')
-    clem_predict_cells = clem_predict_cells.loc[(~clem_predict_cells['cell_name'].isin(all_cells_w_swc.cell_name)),:]
-    clem_predict_cells = clem_predict_cells.loc[clem_predict_cells['type']!='axon',:]
-    # all_cells_w_swc.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in all_cells_w_swc['swc']]
-    # all_cells_w_swc.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in all_cells_w_swc['swc']]
-    # clem_predict_cells.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in clem_predict_cells['swc']]
-    # clem_predict_cells.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in clem_predict_cells['swc']]
 
 
     nb = nblast_two_groups(all_cells_w_swc,all_cells_w_swc,shift_neurons=False)
