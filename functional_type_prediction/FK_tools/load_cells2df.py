@@ -46,6 +46,9 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         prediction_project_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('uncomplete'))
         prediction_project_table = pd.concat([prediction_project_table1, prediction_project_table2])
         table_list.append(prediction_project_table)
+    if 'neg_controls':
+        neg_controls_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('neg_controls'))
+        table_list.append(neg_controls_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
     if len(modalities) > 1:
@@ -63,7 +66,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
     # Initialize columns for different types of mesh data, setting default as NaN.
-    for mesh_type in ['soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh', 'swc']:
+    for mesh_type in ['soma_mesh', 'dendrite_mesh', 'axon_mesh', 'neurites_mesh', 'swc','all_mesh']:
         all_cells[mesh_type] = np.nan
         all_cells[mesh_type] = all_cells[mesh_type].astype(object)
 
@@ -100,7 +103,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                     if cell['imaging_modality'] == 'clem' or cell['imaging_modality'] == 'em':
                         all_cells.loc[i, 'axon_mesh']._vertices = navis.transforms.mirror(cell['axon_mesh']._vertices, width_brain, 'x')
                         all_cells.loc[i, 'dendrite_mesh']._vertices = navis.transforms.mirror(cell['dendrite_mesh']._vertices, width_brain, 'x')
-                        all_cells.loc[i, 'all_mesh'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['all_mesh'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
+                        if type(cell['all_mesh'].connectors) != float and cell['all_mesh'].connectors is not None:
+                            all_cells.loc[i, 'all_mesh'].connectors.loc[:, ["x", 'y', 'z']] = navis.transforms.mirror(np.array(cell['all_mesh'].connectors.loc[:, ['x', 'y', 'z']]), width_brain, 'x')
                     print(f"MESHES of cell {cell['cell_name']} mirrored")
 
             if 'swc' in cell.index:
@@ -123,7 +127,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     neurotransmitter_dict = {'gad1b':'inhibitory','gad1':'inhibitory','vglut':'excitatory','vglut2':'excitatory','vglut2a':'excitatory'}
     cell_type_categories = {'morphology': ['ipsilateral', 'contralateral'],
                             'neurotransmitter': ['inhibitory', 'excitatory'],
-                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command']}
+                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command','no response','off-response','motion responsive']}
     for i, cell in all_cells.iterrows():
         if cell.imaging_modality != "EM":
             if type(cell.cell_type_labels) == list:
@@ -134,8 +138,10 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                         all_cells.loc[i, 'function'] = label
                     elif label in cell_type_categories['neurotransmitter']:
                         all_cells.loc[i, 'neurotransmitter'] = label
-
-                all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+                try:
+                    all_cells.loc[i, 'swc'].name = all_cells.loc[i, 'swc'].name + " NT: " + all_cells.loc[i, 'neurotransmitter']
+                except:
+                    pass
 
 
         if cell.imaging_modality == "EM":
