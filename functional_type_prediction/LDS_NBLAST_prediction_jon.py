@@ -68,6 +68,8 @@ if __name__ == '__main__':
     train_cells1 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
     train_cells2 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'],
                                                              load_repaired=True)
+    train_cells2 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['neg_controls'],
+                                                 load_repaired=True)
     train_cells = pd.concat([train_cells1,train_cells2])
     train_cells = train_cells.drop_duplicates(keep='first', inplace=False,subset='cell_name')
     train_cells_no_function =  train_cells.loc[(train_cells.function == 'nan'), :]
@@ -105,6 +107,7 @@ if __name__ == '__main__':
 
     #Load data to train model
     features_train, labels_train, labels_imaging_modality_train, column_labels_train, df_train = load_train_data(path_to_data,file='train_complete')
+    df_train.loc[df_train['function'].isin(['no response','off-response '])] = 'neg_control'
     
     #load predict data
     features_predict_clem, labels_imaging_modality_predict_clem, column_labels_predict_clem, df_predict_clem,cell_names_clem = load_predict_data(path_to_data,'predict_complete_clem')
@@ -116,13 +119,28 @@ if __name__ == '__main__':
     #select cells via nblast
     smat_fish = load_zebrafish_nblast_matrix(return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
 
-    nb = nblast_two_groups(train_cells,train_cells,shift_neurons=False)
+    nb_all = nblast_two_groups(train_cells,train_cells,shift_neurons=False)
     # nb = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=smat_fish, shift_neurons=False)
-    aaa = navis.nbl.extract_matches(nb, 2)
+    aaa = navis.nbl.extract_matches(nb_all, 2)
 
-    nb = nblast_two_groups(train_cells,predict_cells_clem,shift_neurons=False)
+    names_dt = train_cells.loc[(train_cells['function']=='dynamic_threshold')|(train_cells['function']=='dynamic threshold'),'cell_name']
+    names_ii = train_cells.loc[(train_cells['function']=='integrator')&(train_cells['morphology']=='ipsilateral'),'cell_name']
+    names_ci = train_cells.loc[(train_cells['function']=='integrator')&(train_cells['morphology']=='contralateral'),'cell_name']
+    names_mc = train_cells.loc[(train_cells['function']=='motor_command')|(train_cells['function']=='motor command'),'cell_name']
+
+    nblast_values_dt = navis.nbl.extract_matches(nb_all.loc[names_dt,names_dt], 2)
+    nblast_values_ii = navis.nbl.extract_matches(nb_all.loc[names_ii,names_ii], 2)
+    nblast_values_ci = navis.nbl.extract_matches(nb_all.loc[names_ci,names_ci], 2)
+    nblast_values_mc = navis.nbl.extract_matches(nb_all.loc[names_mc,names_mc], 2)
+
+    z_score_dt = lambda x: abs((x-np.mean(list(nblast_values_dt.score_2)))/np.std(list(nblast_values_dt.score_2)))
+    z_score_ii = lambda x: abs((x-np.mean(list(nblast_values_ii.score_2)))/np.std(list(nblast_values_ii.score_2)))
+    z_score_ci = lambda x: abs((x-np.mean(list(nblast_values_ci.score_2)))/np.std(list(nblast_values_ci.score_2)))
+    z_score_mc = lambda x: abs((x-np.mean(list(nblast_values_mc.score_2)))/np.std(list(nblast_values_mc.score_2)))
+
+    nb_train = nblast_two_groups(train_cells,predict_cells_clem,shift_neurons=False)
     # nb = nblast_two_groups_custom_matrix(train_cells, predict_cells_clem, custom_matrix=smat_fish, shift_neurons=False)
-    bbb = navis.nbl.extract_matches(nb.T, 2)
+    bbb = navis.nbl.extract_matches(nb_train.T, 2)
 
     cutoff= np.percentile(list(aaa.score_2),10)
 
@@ -199,6 +217,8 @@ if __name__ == '__main__':
         prediction_string = f'prediction = "{temp_prediction_string}"\n'
         prediction_string_reduced = f'prediction_reduced = "{temp_prediction_string_reduced}"\n'
         nblast_test_string = f'nblast_test_passed = {cell_name in subset_predict_cells}\n'
+        nblast_specific_result = eval(f"z_score_{acronym_dict[y_pred].lower()}")(bbb.loc[bbb['id']==cell_name,'score_1'].iloc[0])<=2.1
+        nblast_test_specific = f'nblast_test_specific_passed = {nblast_specific_result}\n'
         probability_passed_string = f'probability_test_passed = {(y_prob > 0.7).any()}\n'
         probability_passed_string_reduced = f'probability_test_passed_reduced = {(y_prob_reduced>0.7).any()}\n'
 
@@ -219,7 +239,7 @@ if __name__ == '__main__':
                 t = t + '\n'
 
             new_t = (t + prediction_string + prediction_string_reduced +
-                     nblast_test_string +
+                     nblast_test_string + nblast_test_specific +
                      probability_passed_string + probability_passed_string_reduced +
                      novelty_passed_OCSVM + novelty_passed_OCSVM_reduced +
                      novelty_passed_IF + novelty_passed_IF_reduced +
@@ -231,7 +251,7 @@ if __name__ == '__main__':
             f.write(new_t)
             f.close()
 
-        if (np.max(y_prob)>0.7) and cell_name in subset_predict_cells:
+        if (np.max(y_prob)>0.7) and cell_name in subset_predict_cells and nblast_test_specific:
             temp_swc = predict_cells_clem.loc[predict_cells_clem['cell_name']==cell_name,'swc'].iloc[0]
             temp_node_id = temp_swc.nodes.loc[temp_swc.nodes.type=='root','node_id'].iloc[0]
             temp_swc.soma = temp_node_id
