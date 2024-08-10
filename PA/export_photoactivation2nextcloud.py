@@ -166,6 +166,10 @@ for i,cell in cell_table.iterrows():
                 f.create_dataset('dF_F/average_dots_left', data=avg_df_F_left_dots, dtype=avg_df_F_left_dots.dtype)
                 f.create_dataset('dF_F/average_dots_right', data=avg_df_F_right_dots, dtype=avg_df_F_right_dots.dtype)
 
+                f.create_dataset('raw/single_trial_dots_left', data=F_left_dots, dtype=F_left_dots.dtype)
+                f.create_dataset('raw/single_trial_dots_right', data=F_right_dots, dtype=F_right_dots.dtype)
+
+
             # smoothing
 
             smooth_avg_activity_left = savgol_filter(avg_df_F_left_dots, 20, 3)
@@ -254,6 +258,9 @@ for i,cell in cell_table.iterrows():
 
                 f.create_dataset('dF_F/average_dots_left', data=avg_df_F_left_dots, dtype=avg_df_F_left_dots.dtype)
                 f.create_dataset('dF_F/average_dots_right', data=avg_df_F_right_dots, dtype=avg_df_F_right_dots.dtype)
+
+                f.create_dataset('raw/single_trial_dots_left', data=F_left_dots, dtype=F_left_dots.dtype)
+                f.create_dataset('raw/single_trial_dots_right', data=F_right_dots, dtype=F_right_dots.dtype)
 
 
 
