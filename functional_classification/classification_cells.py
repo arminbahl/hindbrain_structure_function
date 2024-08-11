@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 from pathlib import Path
+from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 
 import pandas as pd
 import pylab as pl
@@ -33,13 +34,16 @@ if __name__ == "__main__":
     # set variables
     np.set_printoptions(suppress=True)
     width_brain = 495.56
-    data_path = get_base_path()
+    data_path = Path(('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data'))
 
     regressors = np.load(data_path / 'paGFP' /  "regressors_old.npy")
     regressors = regressors[:,:120]
     np.savetxt(data_path / f"regressors_old.txt", regressors, delimiter='\t')
 
     dt = 0.5
+
+    #load all cell infortmation
+    cell_data = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
 
 
     custom_cutoff = {'integrator':0.85, 'dynamic_threshold':0.75, 'motor_command':0.85}
@@ -439,21 +443,27 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    #Kmeans clustering 2
-    # n_clusters2 = 2
-    # kmeans2 = KMeans(n_clusters=n_clusters2, random_state=0)
-    # kmeans2.fit(all_PD[kmeans.labels_==3])
-    #
-    # for i in range(kmeans2.cluster_centers_.shape[0]):
-    #     plt.plot(kmeans2.cluster_centers_[i],label=i)
-    #
-    # print(label2class)
-    # plt.legend()
-    # plt.show()
+    #check if cluster 3 rather belongs to cluster 0 or 1
+
+
+
+
+
 
 
     df['kmeans_labels'] = [label2class[x] for x in kmeans.labels_]
     df['kmeans_labels_int'] = kmeans.labels_
+    df['functional_id'] = np.nan
+    df['imaging_modality'] = np.nan
+    for i, cell in df.iterrows():
+        try:
+            functional_id_target = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'functional_id'].iloc[0]
+            imaging_modality = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'imaging_modality'].iloc[0]
+        except:
+            functional_id_target = cell_data.loc[cell_data['cell_name'] == cell['cell_name'][12:], 'functional_id'].iloc[0]
+            imaging_modality = cell_data.loc[cell_data['cell_name'] == cell['cell_name'][12:], 'imaging_modality'].iloc[0]
+        df.loc[i, 'functional_id'] = functional_id_target
+        df.loc[i, 'imaging_modality'] = imaging_modality
 
     kk = df.loc[:,['cell_name','manual_assigned_class','kmeans_labels','kmeans_labels_int']]
     kk['match'] = kk['manual_assigned_class'] == kk['kmeans_labels']
@@ -463,6 +473,51 @@ if __name__ == "__main__":
         plt.plot(all_PD[kmeans.labels_ == i, :].T)
         plt.show()
 
+    from scipy.stats import norm, kstest
+
+    cluster3_rel = df.loc[(df['kmeans_labels_int'] == 3) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
+    cluster0_rel = df.loc[(df['kmeans_labels_int'] == 0) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
+    cluster1_rel = df.loc[(df['kmeans_labels_int'] == 1) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
+
+    mu3, std3 = norm.fit(cluster3_rel)
+    mu0, std0 = norm.fit(cluster0_rel)
+    mu1, std1 = norm.fit(cluster1_rel)
+
+    x = np.linspace(min(np.min(cluster3_rel), np.min(cluster0_rel), np.min(cluster1_rel)) - 1,
+                    max(np.max(cluster3_rel), np.max(cluster0_rel), np.max(cluster1_rel)) + 1, 1000)
+    cluster3_pdf = norm.pdf(x, mu3, std3)
+    cluster0_pdf=norm.pdf(x, mu0, std0)
+    cluster1_pdf =  norm.pdf(x, mu1, std1)
+
+
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, cluster3_pdf, label='Cluster 3 PDF', color='red', linewidth=2)
+    plt.plot(x, cluster0_pdf, label='Cluster 0 PDF', color='blue', linewidth=2)
+    plt.plot(x, cluster1_pdf, label='Cluster 1 PDF', color='orange', linewidth=2)
+    plt.legend()
+    plt.title('PDFs of Cluster 3 and the Two distributions of cluster 0 and 1')
+    plt.xlabel('Reliability')
+    plt.ylabel('Probability Density')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+
+
+    ks_stat0, p_value0 = kstest(cluster3_rel, lambda x: norm.cdf(x, mu0, std0))
+    ks_stat1, p_value1 = kstest(cluster3_rel, lambda x: norm.cdf(x, mu1, std1))
+    print('ks_stat(3vs0)', ks_stat0, '\nks_stat(3vs1)', ks_stat1, '\np_valu(3vs0)', p_value0, '\np_value(3vs1)', p_value1)
+
+    print('Probability distribution 3 vs 0', np.sum(norm.logpdf(cluster3_rel, mu0, std0)),'\nProbability distribution 3 vs 1', np.sum(norm.logpdf(cluster3_rel, mu1, std1)))
+    plt.figure(figsize=(4, 10))
+
+    import seaborn
+    seaborn.boxplot(x=1, y=cluster0_rel, width=1, color='blue')
+    seaborn.boxplot(x=2, y=cluster3_rel, width=1, color='red')
+    seaborn.boxplot(x=3, y=cluster1_rel, width=1, color='orange')
+    plt.show()
 
 
 
@@ -528,15 +583,31 @@ if __name__ == "__main__":
 
 
     #reliability in subset
-    class2location = {'integrator':1,'motor_command':2,'dynamic_threshold':3}
-    temp = df.loc[(df['kmeans_labels_int'] == 3)&(df['manual_assigned_class'] != 'nan'), :]
-    plt.scatter([class2location[x] for x in temp['manual_assigned_class']],temp['reliability'])
-    plt.ylim(0,3.6)
+    class2location = {'integrator': -0.2, 'motor_command': 0, 'dynamic_threshold': 0.2}
+    x_modifier = {0: -0.2, 1: -0.1, 2: +0.1,3:0.2}
+    # for class_name, index in zip([x for x in df['manual_assigned_class'].unique() if x!='nan'],range(len([x for x in df['manual_assigned_class'].unique() if x!='nan']))):
+    #     print('xx')
+    #     temp = df.loc[(df['kmeans_labels_int'] == index) & (df['manual_assigned_class'] != 'nan'), :]
+    #     plt.scatter([class2location[x]+x_modifier[x] for x in temp['manual_assigned_class']], temp['reliability'],label=class_name)
+    #
+    # plt.legend()
+
+
+    plt.figure(dpi=300)
+    for i in range(len([x for x in df['kmeans_labels_int'].unique() if x!='nan'])):
+        temp = df.loc[(df['kmeans_labels_int'] == i) & (df['manual_assigned_class'] != 'nan'), :]
+        plt.scatter([i + class2location[x] for x in temp['manual_assigned_class']], temp['reliability'])
+    plt.xticks([-0.2, 0, 0.2, 0.8, 1, 1.2,1.8,2,2.2,2.8,3,3.2],['I','MC','DT']*4)
+    plt.xlim(-0.4,3.4)
+    plt.ylabel('reliability')
+    plt.xlabel('Manual assigned classes across kmeans clusters')
+
     plt.show()
 
 
-
-
+    #save kmeans regressor
+    os.makedirs(data_path / 'make_figures_FK_output' / 'functional_analysis', exist_ok=True)
+    np.save(data_path / 'make_figures_FK_output' / 'functional_analysis'/'new_regressors.npy',kmeans.cluster_centers_)
 
     # #other stuff
     # only_problems = df.loc[(df['passed_correlation'])&(~df['manual_matches_regressor']),:]
