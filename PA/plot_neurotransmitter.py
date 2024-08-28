@@ -296,25 +296,26 @@ def contains_pattern(s):
     else:
         return False
 
-
-for i,cell in pa_table.iterrows():
-
-
-
-
-
-
-
-    if contains_pattern(cell['gad1b_ID']):
-        gad1b_path     =  Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.gad1b_ID}')
-        vglut2a_path   = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.vglut2a_ID}')
-
-        plot_hcr(gad1b_path,vglut2a_path,path_to_data=path_to_data,cell_name=cell.cell_name)
+#
+# for i,cell in pa_table.iterrows():
+#
+#
+#
+#
+#
+#
+#
+#     if contains_pattern(cell['gad1b_ID']):
+#         gad1b_path     =  Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.gad1b_ID}')
+#         vglut2a_path   = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.vglut2a_ID}')
+#
+#         plot_hcr(gad1b_path,vglut2a_path,path_to_data=path_to_data,cell_name=cell.cell_name)
 
 
 #example good cell
-cell = pa_table.loc[pa_table['cell_name']=='20230403.1',:].iloc[0]
+cell = pa_table.loc[pa_table['cell_name']=='20230508.1',:].iloc[0]
 gad1b_path = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.gad1b_ID}')
 vglut2a_path = Path(rf'W:\Florian\function-neurotransmitter-morphology\HCR\{cell.vglut2a_ID}')
 
 plot_hcr(gad1b_path, vglut2a_path, path_to_data=path_to_data, cell_name=cell.cell_name,zoomfactor = 20,pdf=True)
+
