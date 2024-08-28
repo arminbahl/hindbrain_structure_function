@@ -251,4 +251,3 @@ if __name__ == '__main__':
 
         print(f"em_zfish1_{cell.cell_name}_repaired.swc finished")
 
-    send_slack_message('repair_swc finished')
