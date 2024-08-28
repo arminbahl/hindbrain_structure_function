@@ -334,19 +334,15 @@ if __name__ == '__main__':
     prediction_project_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'], load_repaired=True)
     print('\nFINISHED LOADING CELLS\n')
     #predict_cells
-    calculate_metric(clem_predict_cells,'clem_predict',force_new=False,train_or_predict='predict')
-    calculate_metric(clem_pa_cells, 'CLEM_and_PA', force_new=False,train_or_predict='train')
-    calculate_metric(prediction_project_cells,'prediction_project',force_new=False,train_or_predict='train')
+    calculate_metric(clem_predict_cells,'clem_predict',path_to_data=path_to_data,force_new=True,train_or_predict='predict')
+    calculate_metric(clem_pa_cells, 'CLEM_and_PA',path_to_data=path_to_data, force_new=True,train_or_predict='train')
+    calculate_metric(prediction_project_cells,'prediction_project',path_to_data=path_to_data,force_new=True,train_or_predict='train')
     print('\nFINISHED CALCULATING METRICS\n')
 
 
     #Load data to train model
 
-    features_train, labels_train, labels_imaging_modality_train, column_labels_train, df_train = load_train_data(path_to_data)
-    features_train2, labels_train2, labels_imaging_modality_train2, column_labels_train2, df_train2 = load_train_data(path_to_data,predict_project=True)
-    features_train = np.vstack([features_train,features_train2])
-    labels_train = np.concatenate([labels_train,labels_train2])
-    labels_imaging_modality_train = np.concatenate([labels_imaging_modality_train,labels_imaging_modality_train2])
+    features_train, labels_train, labels_imaging_modality_train, column_labels_train, df_train = load_train_data(path_to_data,file="CLEM_and_PA")
 
 
     #find reduced features
