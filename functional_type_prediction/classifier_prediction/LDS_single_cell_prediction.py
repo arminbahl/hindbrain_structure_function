@@ -76,7 +76,7 @@ def generate_matching_plot(features,labels,labels_imaging_modality,path,column_l
             "integrator contralateral": '#e84d8ab3',
             "dynamic threshold": '#64c5ebb3',
             "motor command": '#7f58afb3',
-            'neg_control': "#a8c256b3"
+            'neg control': "#a8c256b3"
 
         }
 
@@ -205,7 +205,7 @@ def generate_matching_plot_test_and_train_not_the_same(features_train,labels_tra
             "integrator contralateral": '#e84d8ab3',
             "dynamic threshold": '#64c5ebb3',
             "motor command": '#7f58afb3',
-            'neg_control':"#a8c256b3"
+            'neg control':"#a8c256b3"
         }
 
         color_dict_modality = {'clem': 'black', "photoactivation": "gray"}
@@ -512,11 +512,11 @@ if __name__ == "__main__":
 
 
 
-    cell_confirmed_regressor = all_cells_w_swc[all_cells_w_swc['correlation_test_passed']]
-    cell_confirmed_regressor['function'] = cell_confirmed_regressor['prediction_regressor']
-    all_cells = all_cells.loc[all_cells['cell_name'].isin(list(cell_confirmed_regressor.cell_name)),:]
-    for i,cell in all_cells.iterrows():
-        all_cells.loc[i,"function"] = cell_confirmed_regressor.loc[cell_confirmed_regressor['cell_name']==cell.cell_name,'function'].iloc[0]
+    # cell_confirmed_regressor = all_cells_w_swc[all_cells_w_swc['correlation_test_passed']]
+    # cell_confirmed_regressor['function'] = cell_confirmed_regressor['prediction_regressor']
+    # all_cells = all_cells.loc[all_cells['cell_name'].isin(list(cell_confirmed_regressor.cell_name)),:]
+    # for i,cell in all_cells.iterrows():
+    #     all_cells.loc[i,"function"] = cell_confirmed_regressor.loc[cell_confirmed_regressor['cell_name']==cell.cell_name,'function'].iloc[0]
 
     # cell_confirmed_regressor = all_cells_w_swc[all_cells_w_swc['correlation_test_passed_st']]
     # cell_confirmed_regressor['function'] = cell_confirmed_regressor['prediction_regressor_st']
