@@ -24,7 +24,16 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
     if 'clem' in modalities:
         clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
+
+
         table_list.append(clem_table)
+    if 'all_cells_new' in modalities:
+
+        all_cells_new_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('all_cells_new'))
+
+
+        table_list.append(all_cells_new_table)
+
 
     if 'em' in modalities:
         em_table1 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('data_cell_89189_postsynaptic_partners').joinpath('output_data'),'89189')
@@ -46,7 +55,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         prediction_project_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('uncomplete'))
         prediction_project_table = pd.concat([prediction_project_table1, prediction_project_table2])
         table_list.append(prediction_project_table)
-    if 'neg_controls':
+    if 'neg_controls' in modalities:
         neg_controls_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('neg_controls'))
         table_list.append(neg_controls_table)
 
@@ -120,14 +129,14 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     print(f"{np.sum([type(x)==float for x in all_cells['swc']])} cells dropped because no swc")
     print(all_cells.loc[[type(x) != navis.TreeNeuron for x in all_cells['swc']],'cell_name'])
     all_cells = all_cells.loc[[type(x)!=float for x in all_cells['swc']],:]
-    all_cells.loc[:,'neurotransmitter'] = 'na'
+
 
 
     #extract features from pa cell labels
     neurotransmitter_dict = {'gad1b':'inhibitory','gad1':'inhibitory','vglut':'excitatory','vglut2':'excitatory','vglut2a':'excitatory'}
     cell_type_categories = {'morphology': ['ipsilateral', 'contralateral'],
                             'neurotransmitter': ['inhibitory', 'excitatory'],
-                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command','no response','off-response','motion responsive']}
+                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command','no response','off-response','motion responsive',"noisy, little modulation"]}
     for i, cell in all_cells.iterrows():
         if cell.imaging_modality != "EM":
             if type(cell.cell_type_labels) == list:
