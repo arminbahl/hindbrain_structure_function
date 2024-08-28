@@ -236,7 +236,7 @@ if __name__ == "__main__":
     from sklearn.model_selection import train_test_split
 
     without_nan_function = all_cells.loc[(all_cells['function']!='nan'),:]
-    temp = all_cells.loc[:, all_cells.columns[28:]]
+    temp = all_cells.loc[:, all_cells.columns[29:]]
     temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'predictor_pipeline_features')
     temp = all_cells.loc[:,['cell_name','imaging_modality','function','morphology','neurotransmitter']]
     temp.to_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5', 'function_morphology_neurotransmitter')
