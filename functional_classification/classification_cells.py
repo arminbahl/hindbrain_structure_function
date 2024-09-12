@@ -43,7 +43,7 @@ if __name__ == "__main__":
     dt = 0.5
 
     #load all cell infortmation
-    cell_data = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['all_cells_new','pa'], load_repaired=True)
+    cell_data = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem','pa'], load_repaired=True)
     cell_data = cell_data.drop_duplicates(subset='cell_name')
     cell_data = cell_data.loc[cell_data['function'].isin(['integrator', 'dynamic_threshold', 'motor_command', 'dynamic threshold','motor command'])]
 
@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
     #CLEM cells
 
-    cells = os.listdir(data_path / 'clem_zfish1' / 'all_cells_new')
-    base_path_clem = data_path / 'clem_zfish1' / 'all_cells_new'
+    cells = os.listdir(data_path / 'clem_zfish1' / 'rec_neurons')
+    base_path_clem = data_path / 'clem_zfish1' / 'rec_neurons'
     clem_rel = h5py.File(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\activity_recordings\all_cells_temp.h5")
     cells = [x for x in cells if (base_path_clem /x/ (f'{x}_dynamics.hdf5')).exists()]
 
@@ -207,9 +207,9 @@ if __name__ == "__main__":
                 manual_class = eval(t.split("\n")[7][19:])[0].replace(" ", "_")
 
 
-            swc = navis.read_swc(data_path / 'clem_zfish1'/ 'all_cells_new' / directory /'mapped'/ f'{directory}_mapped.swc')
+            swc = navis.read_swc(data_path / 'clem_zfish1'/ 'rec_neurons' / directory /'mapped'/ f'{directory}_mapped.swc')
             left_hemisphere = swc.nodes.iloc[0]['x'] < width_brain / 2
-            temp_path = data_path / 'clem_zfish1'/ 'all_cells_new' / directory / f'{directory}_dynamics.hdf5'
+            temp_path = data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_dynamics.hdf5'
             with h5py.File(temp_path, 'r') as f:
                 df_F_left_dots_avg = np.array(f['dF_F/average_rdms_left_dF_F_calculated_on_single_trials'])
                 df_F_right_dots_avg = np.array(f['dF_F/average_rdms_right_dF_F_calculated_on_single_trials'])
@@ -269,19 +269,19 @@ if __name__ == "__main__":
 
             prediction_equals_manual = f'prediction_equals_manual = {manual_class == class_label}\n'
             prediction_equals_manual_st = f'prediction_equals_manual = {manual_class == st_class_label}\n'
-            meta = open(data_path / 'clem_zfish1'/ 'all_cells_new' / directory / f'{directory}_metadata.txt', 'r')
+            meta = open(data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_metadata.txt', 'r')
             t = meta.read()
             if not t[-1:] == '\n':
                 t = t + '\n'
 
             new_t = (t + prediction_string + correlation_test + prediction_equals_manual + prediction_string_single_trial +correlation_test_single_trial+prediction_equals_manual_st)
             meta.close()
-            if (data_path / 'clem_zfish1'/ 'all_cells_new' / directory).exists():
-                meta = open(data_path / 'clem_zfish1'/ 'all_cells_new' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
+            if (data_path / 'clem_zfish1'/ 'rec_neurons' / directory).exists():
+                meta = open(data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
                 meta.write(new_t)
                 meta.close()
-            if (data_path / 'clem_zfish1' / 'all_cells_new' / directory).exists():
-                meta = open(data_path / 'clem_zfish1' / 'all_cells_new' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
+            if (data_path / 'clem_zfish1' / 'rec_neurons' / directory).exists():
+                meta = open(data_path / 'clem_zfish1' / 'rec_neurons' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
                 meta.write(new_t)
                 meta.close()
 
@@ -434,11 +434,11 @@ if __name__ == "__main__":
     plt.show()
 
     #Kmeans clustering
-    n_clusters =3
+    n_clusters =4
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
-    label2class = {0:'integrator',2:'motor_command',3:'integrator',1:'dynamic_threshold'}
-    label2class = {0:'motor_command',1:'dynamic_threshold',2:'integrator'}
+    label2class = {0:'motor_command',1:'dynamic_threshold',2:'integrator',3:'integrator'}
+    # label2class = {2:'motor_command',1:'dynamic_threshold',0:'integrator'}
     for i in range(kmeans.cluster_centers_.shape[0]):
         plt.plot(kmeans.cluster_centers_[i],label=i)
         ci = [np.corrcoef(all_PD[i][20:-20], regressors[0][20:-20])[0, 1],
@@ -481,7 +481,7 @@ if __name__ == "__main__":
 
     from scipy.stats import norm, kstest
 
-    extra_analysis = False
+    extra_analysis = True
     if extra_analysis:
         cluster3_rel = df.loc[(df['kmeans_labels_int'] == 3) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
         cluster0_rel = df.loc[(df['kmeans_labels_int'] == 0) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
@@ -503,12 +503,12 @@ if __name__ == "__main__":
 
 
         plt.figure(figsize=(10, 6))
-        plt.plot(x, cluster0_pdf, label='Cluster 0 PDF',  linewidth=2)
-        plt.plot(x, cluster1_pdf, label='Cluster 1 PDF',  linewidth=2)
-        plt.plot(x, cluster2_pdf, label='Cluster 2 PDF',  linewidth=2)
-        plt.plot(x, cluster3_pdf, label='Cluster 3 PDF', linewidth=2)
+        plt.plot(x, cluster0_pdf, label='MC',  linewidth=2)
+        plt.plot(x, cluster1_pdf, label='DT',  linewidth=2)
+        plt.plot(x, cluster2_pdf, label='I1',  linewidth=2)
+        plt.plot(x, cluster3_pdf, label='I2', linewidth=2)
         plt.legend()
-        plt.title('PDFs of Cluster 3 and the Two distributions of cluster 0 and 1')
+        plt.title('PDFs of Clusters')
         plt.xlabel('Reliability')
         plt.ylabel('Probability Density')
         plt.legend()
@@ -525,12 +525,20 @@ if __name__ == "__main__":
         print('Probability distribution 3 vs 0', np.sum(norm.logpdf(cluster3_rel, mu0, std0)),'\nProbability distribution 3 vs 1', np.sum(norm.logpdf(cluster3_rel, mu1, std1)))
         plt.figure(figsize=(4, 10))
 
-        import seaborn
-        seaborn.boxplot(x=1, y=cluster0_rel, width=1)
+        from matplotlib.patches import Patch
 
-        seaborn.boxplot(x=2, y=cluster1_rel, width=1)
-        seaborn.boxplot(x=3, y=cluster2_rel, width=1)
-        seaborn.boxplot(x=4, y=cluster3_rel, width=1)
+        legend_elements = [Patch(facecolor='blue', edgecolor='k',label='MC'),
+                           Patch(facecolor='orange', edgecolor='k',label='DT'),
+                           Patch(facecolor='green', edgecolor='k',label='I1'),
+                           Patch(facecolor='red', edgecolor='k',label='I2')]
+
+        import seaborn
+        seaborn.boxplot(x=1, y=cluster0_rel, width=1,color='blue')
+        seaborn.boxplot(x=2, y=cluster1_rel, width=1,color='orange')
+        seaborn.boxplot(x=3, y=cluster2_rel, width=1,color='green')
+        seaborn.boxplot(x=4, y=cluster3_rel, width=1,color='red')
+        plt.ylim(-2,7)
+        plt.legend(handles=legend_elements)
         plt.show()
 
 
@@ -544,7 +552,7 @@ if __name__ == "__main__":
     path_to_data = get_base_path()
     brain_meshes = load_brs(path_to_data, 'raphe')
 
-    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['all_cells_new', 'pa'], load_repaired=True)
+    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
 
 
 
@@ -576,8 +584,8 @@ if __name__ == "__main__":
 
             new_t = (t + prediction_string)
 
-            if (data_path / 'clem_zfish1' / 'all_cells_new'/f'clem_zfish1_{cell.cell_name}').exists():
-                temp_path = data_path / 'clem_zfish1' / 'all_cells_new' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
+            if (data_path / 'clem_zfish1' / 'rec_neurons'/f'clem_zfish1_{cell.cell_name}').exists():
+                temp_path = data_path / 'clem_zfish1' / 'rec_neurons' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
                 with open(temp_path, 'w') as meta:
                     meta.write(new_t)
             if (data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}').exists():
@@ -605,7 +613,30 @@ if __name__ == "__main__":
     plt.xlabel('Manual assigned classes across kmeans clusters')
 
     plt.show()
+    label2class
 
+    color_dict = {
+        "integrator": '#e84d8ab3',
+        "dynamic_threshold": '#64c5ebb3',
+        "motor_command": '#7f58afb3',
+        'neg control': "#a8c256b3"
+    }
+    in_legend = []
+    np.random.seed(1)
+    for i,item in df.iterrows():
+        offset=-0.2+np.random.choice(np.arange(-0.075,0.075,0.01))
+        marker = 'o'
+        if item.imaging_modality == 'photoactivation':
+            offset = 0.2+np.random.choice(np.arange(-0.075,0.075,0.01))
+            marker = 's'
+        if label2class[item.kmeans_labels_int] + " " + item.imaging_modality not in in_legend:
+            plt.scatter(item.kmeans_labels_int+offset,item.reliability,c=color_dict[label2class[item.kmeans_labels_int]],label = label2class[item.kmeans_labels_int] + " " + item.imaging_modality,marker=marker)
+            in_legend.append(label2class[item.kmeans_labels_int] + " " + item.imaging_modality)
+        else:
+            plt.scatter(item.kmeans_labels_int + offset, item.reliability, c=color_dict[label2class[item.kmeans_labels_int]],marker=marker)
+        legend = plt.legend(frameon=False,fontsize='xx-small')
+    plt.ylim(-2,7)
+    plt.show()
 
     #save kmeans regressor
     os.makedirs(data_path / 'make_figures_FK_output' / 'functional_analysis', exist_ok=True)
