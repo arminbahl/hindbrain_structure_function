@@ -224,11 +224,13 @@ def load_train_data(path,file="CLEM_and_PA"):
     all_cells = pd.concat([fmn, pp, ac], axis=1)
 
     # throw out weird jon cells
-    all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521", "cell_576460752723528109", "cell_576460752684182585"]), :]
+    # all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521", "cell_576460752723528109", "cell_576460752684182585"]), :]
 
     # Data Preprocessing
     without_nan_function = all_cells[all_cells['function'] != 'nan']
+    without_nan_function = without_nan_function.loc[~without_nan_function['function'].isin(['off-response', 'no response', 'noisy, little modulation']), :]
     without_nan_function = without_nan_function.sort_values(by=['function', 'morphology', 'imaging_modality', 'neurotransmitter'])
+    without_nan_function = without_nan_function.reset_index(drop=True)
     # Impute NaNs
     columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
     without_nan_function.loc[:, columns_possible_nans] = without_nan_function[columns_possible_nans].fillna(0)
@@ -246,15 +248,13 @@ def load_train_data(path,file="CLEM_and_PA"):
 
     # Replace strings with indices
     columns_replace_string = ['neurotransmitter', 'morphology']
-    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'na': 2}
+    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'nan': 2,'na': 2}
     morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
 
     for work_column in columns_replace_string:
         without_nan_function.loc[:,work_column+"_clone"] = without_nan_function[work_column]
         for key in eval(f'{work_column}2int_dict').keys():
             without_nan_function.loc[without_nan_function[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
-
-    # sort by function an imaging modality
 
 
 
@@ -288,6 +288,7 @@ def load_predict_data(path,file):
     # Data Preprocessing
     without_nan_function = all_cells
     without_nan_function = without_nan_function.sort_values(by=['morphology', 'imaging_modality', 'neurotransmitter'])
+    without_nan_function = without_nan_function.reset_index(drop=True)
 
     # Impute NaNs
     columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
@@ -295,7 +296,7 @@ def load_predict_data(path,file):
 
     # Replace strings with indices
     columns_replace_string = ['neurotransmitter', 'morphology']
-    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'na': 2}
+    neurotransmitter2int_dict = {'excitatory': 0,'inhibitory': 1,'nan': 2,'na': 2}
     morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
 
     for work_column in columns_replace_string:
