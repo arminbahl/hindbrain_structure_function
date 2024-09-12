@@ -7,7 +7,8 @@ from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
-from sklearn.datasets import load_iris
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_old import *
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_classif, chi2, mutual_info_classif
 from sklearn.ensemble import RandomForestRegressor
@@ -20,10 +21,24 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
+
 from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import SelectFromModel
+import matplotlib.patheffects as PathEffects
+from scipy.stats import entropy
+from scipy.stats import hmean
+import sklearn
+import numpy as np
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-def plot_prediction_matrix(features,labels,labels_imaging_modality,path,column_labels,solver='lsqr',shrinkage='auto',title='prediction_plot',match_limit=0.5,return_metrics=False):
+np.set_printoptions(suppress=True)
+def calc_penalty(temp_list):
+    p = 2  # You can adjust this power as needed
+    penalty = np.mean(temp_list) / np.exp(np.std(temp_list) ** p)
+    return penalty
+def plot_prediction_matrix(features,labels,labels_imaging_modality,path,column_labels,solver='lsqr',shrinkage='auto',title='prediction_plot',match_limit=0.5,return_metrics=False,ax=None):
     #init variables
     prob_matrix = np.empty(shape=(features.shape[0],len(np.unique(labels))))
     pred_matrix = np.empty(shape=(features.shape[0],1),dtype='<U24')
@@ -74,113 +89,157 @@ def plot_prediction_matrix(features,labels,labels_imaging_modality,path,column_l
           f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
     percent_correct_per_class_dict = {}
     n_correct_per_class_dict = {}
+    prediction_matrix_dict = {}
+
     for unique_label in np.unique(labels):
         n_correct_per_class_dict[unique_label] = np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label)
         percent_correct_per_class_dict[unique_label] = convert_percent_specific(n_correct_per_class_dict[unique_label], np.sum(labels == unique_label))
+        prediction_matrix_dict[unique_label] = {}
+        for unique_label2 in np.unique(labels):
+            prediction_matrix_dict[unique_label][unique_label2] = np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label2)
+        prediction_matrix_dict[unique_label]['n_no_prediction'] = np.sum(no_predict[np.where(labels == unique_label)])
+        prediction_matrix_dict[unique_label]['n_not_correct'] = np.sum(pred_matrix[np.where(labels == unique_label)] != unique_label)
+        prediction_matrix_dict[unique_label]['n_correct'] = np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label)
+        prediction_matrix_dict[unique_label]['n_total'] = pred_matrix[np.where(labels == unique_label)].shape[0]
+
+
     if return_metrics:
 
 
 
         return n_predictions_correct, n_predictions_incorrect, n_no_predicitons,n_correct_per_class_dict,percent_correct_per_class_dict
     else:
-        color_dict_type = {
-            "integrator ipsilateral": '#feb326b3',
-            "integrator contralateral": '#e84d8ab3',
-            "dynamic threshold": '#64c5ebb3',
-            "motor command": '#7f58afb3',
-            'neg control': "#a8c256b3"
-        }
+        if ax is None:
+            color_dict_type = {
+                "integrator ipsilateral": '#feb326b3',
+                "integrator contralateral": '#e84d8ab3',
+                "dynamic threshold": '#64c5ebb3',
+                "motor command": '#7f58afb3',
+                'neg control': "#a8c256b3"
+            }
 
-        color_dict_modality = {'clem': 'black', "photoactivation": "gray"}
-
-
-
-        fig, ax = plt.subplots(figsize=(40, 8))
-        labels_sort = np.unique(labels)
-        labels_sort.sort()
-        legend_elements = []
-
-        im = ax.pcolormesh(prob_matrix.T)
-
-        fig.colorbar(im, orientation='vertical')
-        plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.1)
-        savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
-        os.makedirs(savepath,exist_ok=True)
-        os.makedirs(savepath/'png', exist_ok=True)
-        os.makedirs(savepath/'pdf', exist_ok=True)
-
-
-        # fig.set_dpi(300)
-
-        #plot functional class indicator
-        def intersection(list_a, list_b):
-            list_a = list_a[0]
-            list_b = list_b[0]
-            return [e for e in list_a if e in list_b]
-        for unique_class in np.unique(labels):
-            for unique_modality in np.unique(labels_imaging_modality[np.where(labels == unique_class)]):
-                intersect = intersection(np.where(labels_imaging_modality == unique_modality),np.where(labels == unique_class))
-                min_index2 = np.min(intersect)
-                max_index2 = np.max(intersect)
-                plt.plot([min_index2, max_index2 + 1], [-0.75, -0.75], c=color_dict_modality[unique_modality],lw=3, solid_capstyle='butt')
-                if not unique_modality in [x.get_label() for x in legend_elements]:
-                    legend_elements.append(Patch(facecolor=color_dict_modality[unique_modality], edgecolor=color_dict_modality[unique_modality], label=unique_modality))
-
-            min_index = np.min(np.where(labels == unique_class))
-            max_index = np.max(np.where(labels == unique_class))
-
-
-            ax.text((max_index+min_index)/2,-0.25,f"{n_correct_per_class_dict[unique_class]}/{np.sum(labels == unique_class)}",font={'size': 10, },horizontalalignment='center',verticalalignment='center')
-
-            plt.plot([min_index,max_index+1],[-0.5,-0.5],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
-            if not unique_class in [x.get_label() for x in legend_elements]:
-                legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
+            color_dict_modality = {'clem': 'black', "photoactivation": "gray"}
 
 
 
-        for unique_class,i in zip(np.unique(labels),range(len(np.unique(labels)))):
-            plt.plot([-1,-1],[i,i+1],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
+            fig, ax = plt.subplots(figsize=(40, 8))
+            labels_sort = np.unique(labels)
+            labels_sort.sort()
+            legend_elements = []
 
-        first_legend = ax.legend(handles=legend_elements, frameon=False, loc=8, ncol=len(legend_elements))
+            im = ax.pcolormesh(prob_matrix.T)
 
-        for x, item in enumerate(pred_matrix):
-            if item != 'nan':
-                y = np.argwhere(labels_sort==item[0]).flatten()[0]
-                plt.plot([x,x],[y,y+1],lw=2,color='red')
-                plt.plot([x, x+1], [y+1, y + 1], lw=2, color='red')
-                plt.plot([x, x + 1], [y, y ], lw=2, color='red')
-                plt.plot([x+1 , x+1], [y, y + 1], lw=2, color='red')
-        used_labels = []
-        for label in column_labels:
-            used_labels.append(Patch(facecolor='white', edgecolor='white', label=label))
-        second_legend = ax.legend(handles=used_labels, frameon=False, ncol=2, loc='upper center', bbox_to_anchor=(1.225, 0.975), alignment='left')
+            fig.colorbar(im, orientation='vertical')
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.1)
+            savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
+            os.makedirs(savepath,exist_ok=True)
+            os.makedirs(savepath/'png', exist_ok=True)
+            os.makedirs(savepath/'pdf', exist_ok=True)
 
-        ax.plot([-1, -1], [-1, -1])
-        ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
-        ax.set_xlim(-2, len(features))
-        ax.set_ylim(-2, len(labels_sort))
-        ax.spines[['right', 'top', 'left', 'bottom']].set_visible(False)
-        ax.set_xticks([])
-        ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
-        ax.set_xlim(-2, len(features))
-        ax.set_ylim(-2, len(labels_sort))
-        ax.add_artist(first_legend)
-        ax.text(1.195, 1.05, f'Used features N={len(column_labels)}', horizontalalignment='center',
-                verticalalignment='center', transform=ax.transAxes, font={'weight': 'heavy', 'size': 20, })
-        ax.add_artist(second_legend)
 
-        plt.title(title +   f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
-                            f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
-                            f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
-        plt.savefig(savepath /'pdf'/ (title.replace('\n'," ") + ".pdf"))
-        plt.savefig(savepath /'png'/ (title.replace('\n'," ")+ ".png"))
+            # fig.set_dpi(300)
 
-        path_to_open = savepath /'pdf'/ (title.replace('\n'," ")+ ".pdf")
+            #plot functional class indicator
+            def intersection(list_a, list_b):
+                list_a = list_a[0]
+                list_b = list_b[0]
+                return [e for e in list_a if e in list_b]
+            for unique_class in np.unique(labels):
+                for unique_modality in np.unique(labels_imaging_modality[np.where(labels == unique_class)]):
+                    intersect = intersection(np.where(labels_imaging_modality == unique_modality),np.where(labels == unique_class))
+                    min_index2 = np.min(intersect)
+                    max_index2 = np.max(intersect)
+                    plt.plot([min_index2, max_index2 + 1], [-0.75, -0.75], c=color_dict_modality[unique_modality],lw=3, solid_capstyle='butt')
+                    if not unique_modality in [x.get_label() for x in legend_elements]:
+                        legend_elements.append(Patch(facecolor=color_dict_modality[unique_modality], edgecolor=color_dict_modality[unique_modality], label=unique_modality))
 
-        os.startfile(path_to_open)
+                min_index = np.min(np.where(labels == unique_class))
+                max_index = np.max(np.where(labels == unique_class))
 
-        plt.show()
-def plot_prediction_matrix_test_train_different(features_train,labels_train,features_test,labels_test,labels_imaging_modality,path,column_labels,train_mod_pa=False,solver='lsqr',shrinkage='auto',title='prediction_plot',match_limit=0.5,return_metrics=False):
+
+                ax.text((max_index+min_index)/2,-0.25,f"{n_correct_per_class_dict[unique_class]}/{np.sum(labels == unique_class)}",font={'size': 10, },horizontalalignment='center',verticalalignment='center')
+
+                plt.plot([min_index,max_index+1],[-0.5,-0.5],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
+                if not unique_class in [x.get_label() for x in legend_elements]:
+                    legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
+
+
+
+            for unique_class,i in zip(np.unique(labels),range(len(np.unique(labels)))):
+                plt.plot([-1,-1],[i,i+1],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
+
+            first_legend = ax.legend(handles=legend_elements, frameon=False, loc=8, ncol=len(legend_elements))
+
+            for x, item in enumerate(pred_matrix):
+                if item != 'nan':
+                    y = np.argwhere(labels_sort==item[0]).flatten()[0]
+                    plt.plot([x,x],[y,y+1],lw=2,color='red')
+                    plt.plot([x, x+1], [y+1, y + 1], lw=2, color='red')
+                    plt.plot([x, x + 1], [y, y ], lw=2, color='red')
+                    plt.plot([x+1 , x+1], [y, y + 1], lw=2, color='red')
+            used_labels = []
+            for label in column_labels:
+                used_labels.append(Patch(facecolor='white', edgecolor='white', label=label))
+            second_legend = ax.legend(handles=used_labels, frameon=False, ncol=2, loc='upper center', bbox_to_anchor=(1.225, 0.975), alignment='left')
+
+            ax.plot([-1, -1], [-1, -1])
+            ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
+            ax.set_xlim(-2, len(features))
+            ax.set_ylim(-2, len(labels_sort))
+            ax.spines[['right', 'top', 'left', 'bottom']].set_visible(False)
+            ax.set_xticks([])
+            ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
+            ax.set_xlim(-2, len(features))
+            ax.set_ylim(-2, len(labels_sort))
+            ax.add_artist(first_legend)
+            ax.text(1.195, 1.05, f'Used features N={len(column_labels)}', horizontalalignment='center',
+                    verticalalignment='center', transform=ax.transAxes, font={'weight': 'heavy', 'size': 20, })
+            ax.add_artist(second_legend)
+
+            plt.title(title +   f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
+                                f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
+                                f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
+            plt.savefig(savepath /'pdf'/ (title.replace('\n'," ").replace("/","_") + ".pdf"))
+            plt.savefig(savepath /'png'/ (title.replace('\n'," ").replace("/","_")+ ".png"))
+
+            path_to_open = savepath /'pdf'/ (title.replace('\n'," ").replace("/","_")+ ".pdf")
+
+            os.startfile(path_to_open)
+
+            plt.show()
+        else:
+            df = pd.DataFrame.from_dict(prediction_matrix_dict, orient='index').astype(int)
+            df_array = df.iloc[:, :5].to_numpy()
+            df_normed = (df.iloc[:, :5] / df.iloc[:, -1]).fillna(0)
+            df_normed_array = df_normed.to_numpy()
+
+            # fig, ax = plt.subplots(1, 1,figsize=(15,15))
+            ax.pcolormesh(df_normed.T, vmax=1, vmin=0, )
+            ax.set_xticks(np.arange(0, 4) + 0.5, [f'{x}\n({df.loc[x, "n_total"]} cells)' for x in df_normed.index], ha='center', va='bottom')
+            ax.set_yticks(np.arange(0, 5) + 0.5, df_normed.columns, rotation=0, ha='left', va='center')
+            ax.xaxis.tick_top()
+
+            ax.set_title(title + f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
+                                 f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
+                                 f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
+
+            for i1 in range(df_array.T.shape[0]):
+                for i2 in range(df_array.T.shape[1]):
+                    text = ax.text(i2 + 0.5, i1 + 0.5, f'{df_array[i2, i1]}', ha='center',
+                                   va='center', font={'weight': 'heavy'}, fontsize=50, c='white')
+                    text.set_path_effects([PathEffects.withStroke(linewidth=2, foreground='black')])
+            ax.invert_yaxis()
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.tick_params(axis='x', which='both', length=0)
+            ax.tick_params(axis='y', which='both', length=0)
+            ax.axis('equal')
+            ax.set_xlim(0, np.min(df_array.shape))
+            plt.tight_layout()
+            return convert_percent(n_predictions_correct)
+def plot_prediction_matrix_test_train_different(features_train,labels_train,features_test,labels_test,labels_imaging_modality,path,column_labels,train_mod_pa=False,solver='lsqr',shrinkage='auto',title='prediction_plot',match_limit=0.5,return_metrics=False,ax=None):
     #init variables
     features = features_test
     labels = labels_test
@@ -268,9 +327,23 @@ def plot_prediction_matrix_test_train_different(features_train,labels_train,feat
           f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
     percent_correct_per_class_dict = {}
     n_correct_per_class_dict = {}
+    prediction_matrix_dict = {}
+
     for unique_label in np.unique(labels):
         n_correct_per_class_dict[unique_label] = np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label)
         percent_correct_per_class_dict[unique_label] = convert_percent_specific(n_correct_per_class_dict[unique_label], np.sum(labels == unique_label))
+        prediction_matrix_dict[unique_label] = {}
+        for unique_label2 in np.unique(labels):
+            prediction_matrix_dict[unique_label][unique_label2] =  np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label2)
+        prediction_matrix_dict[unique_label]['n_no_prediction'] = np.sum(no_predict[np.where(labels == unique_label)])
+        prediction_matrix_dict[unique_label]['n_not_correct'] = np.sum(pred_matrix[np.where(labels == unique_label)] != unique_label)
+        prediction_matrix_dict[unique_label]['n_correct'] = np.sum(pred_matrix[np.where(labels == unique_label)] == unique_label)
+        prediction_matrix_dict[unique_label]['n_total'] = pred_matrix[np.where(labels == unique_label)].shape[0]
+
+
+
+
+
     if return_metrics:
 
 
@@ -288,97 +361,133 @@ def plot_prediction_matrix_test_train_different(features_train,labels_train,feat
         color_dict_modality = {'clem': 'black', "photoactivation": "gray"}
 
 
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(40, 8))
+            labels_sort = np.unique(labels_train)
+            labels_sort.sort()
+            legend_elements = []
 
-        fig, ax = plt.subplots(figsize=(40, 8))
-        labels_sort = np.unique(labels_train)
-        labels_sort.sort()
-        legend_elements = []
+            im = ax.pcolormesh(prob_matrix.T)
 
-        im = ax.pcolormesh(prob_matrix.T)
-
-        fig.colorbar(im, orientation='vertical')
-        plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.1)
-        savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
-        os.makedirs(savepath,exist_ok=True)
-        os.makedirs(savepath/'png', exist_ok=True)
-        os.makedirs(savepath/'pdf', exist_ok=True)
-
-
-        # fig.set_dpi(300)
-
-        #plot functional class indicator
-        def intersection(list_a, list_b):
-            list_a = list_a[0]
-            list_b = list_b[0]
-            return [e for e in list_a if e in list_b]
-        for unique_class in np.unique(labels):
-            for unique_modality in np.unique(labels_imaging_modality[np.where(labels == unique_class)]):
-                intersect = intersection(np.where(labels_imaging_modality == unique_modality),np.where(labels == unique_class))
-                min_index2 = np.min(intersect)
-                max_index2 = np.max(intersect)
-                plt.plot([min_index2, max_index2 + 1], [-0.75, -0.75], c=color_dict_modality[unique_modality],lw=3, solid_capstyle='butt')
-                if not unique_modality in [x.get_label() for x in legend_elements]:
-                    legend_elements.append(Patch(facecolor=color_dict_modality[unique_modality], edgecolor=color_dict_modality[unique_modality], label=unique_modality))
-
-            min_index = np.min(np.where(labels == unique_class))
-            max_index = np.max(np.where(labels == unique_class))
+            fig.colorbar(im, orientation='vertical')
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.1)
+            savepath = path_to_data / 'make_figures_FK_output' / 'LDA_cell_type_prediction'
+            os.makedirs(savepath,exist_ok=True)
+            os.makedirs(savepath/'png', exist_ok=True)
+            os.makedirs(savepath/'pdf', exist_ok=True)
 
 
-            ax.text((max_index+min_index)/2,-0.25,f"{n_correct_per_class_dict[unique_class]}/{np.sum(labels == unique_class)}",font={'size': 10, },horizontalalignment='center',verticalalignment='center')
+            # fig.set_dpi(300)
 
-            plt.plot([min_index,max_index+1],[-0.5,-0.5],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
-            if not unique_class in [x.get_label() for x in legend_elements]:
-                legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
+            #plot functional class indicator
+            def intersection(list_a, list_b):
+                list_a = list_a[0]
+                list_b = list_b[0]
+                return [e for e in list_a if e in list_b]
+            for unique_class in np.unique(labels):
+                for unique_modality in np.unique(labels_imaging_modality[np.where(labels == unique_class)]):
+                    intersect = intersection(np.where(labels_imaging_modality == unique_modality),np.where(labels == unique_class))
+                    min_index2 = np.min(intersect)
+                    max_index2 = np.max(intersect)
+                    plt.plot([min_index2, max_index2 + 1], [-0.75, -0.75], c=color_dict_modality[unique_modality],lw=3, solid_capstyle='butt')
+                    if not unique_modality in [x.get_label() for x in legend_elements]:
+                        legend_elements.append(Patch(facecolor=color_dict_modality[unique_modality], edgecolor=color_dict_modality[unique_modality], label=unique_modality))
 
-        for unique_class in np.unique(labels):
-
-            if not unique_class in [x.get_label() for x in legend_elements]:
-                legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
+                min_index = np.min(np.where(labels == unique_class))
+                max_index = np.max(np.where(labels == unique_class))
 
 
+                ax.text((max_index+min_index)/2,-0.25,f"{n_correct_per_class_dict[unique_class]}/{np.sum(labels == unique_class)}",font={'size': 10, },horizontalalignment='center',verticalalignment='center')
 
-        for unique_class,i in zip(np.unique(labels_train),range(len(np.unique(labels_train)))):
-            plt.plot([-1,-1],[i,i+1],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
+                plt.plot([min_index,max_index+1],[-0.5,-0.5],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
+                if not unique_class in [x.get_label() for x in legend_elements]:
+                    legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
 
-        first_legend = ax.legend(handles=legend_elements, frameon=False, loc=8, ncol=len(legend_elements))
+            for unique_class in np.unique(labels):
 
-        for x, item in enumerate(pred_matrix):
-            if item != 'nan':
-                y = np.argwhere(labels_sort==item[0]).flatten()[0]
-                plt.plot([x,x],[y,y+1],lw=2,color='red')
-                plt.plot([x, x+1], [y+1, y + 1], lw=2, color='red')
-                plt.plot([x, x + 1], [y, y ], lw=2, color='red')
-                plt.plot([x+1 , x+1], [y, y + 1], lw=2, color='red')
-        used_labels = []
-        for label in column_labels:
-            used_labels.append(Patch(facecolor='white', edgecolor='white', label=label))
-        second_legend = ax.legend(handles=used_labels, frameon=False, ncol=2, loc='upper center', bbox_to_anchor=(1.225, 0.975), alignment='left')
+                if not unique_class in [x.get_label() for x in legend_elements]:
+                    legend_elements.append(Patch(facecolor=color_dict_type[unique_class], edgecolor=color_dict_type[unique_class], label=unique_class))
 
-        ax.plot([-1, -1], [-1, -1])
-        ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
-        ax.set_xlim(-2, len(features))
-        ax.set_ylim(-2, len(labels_sort))
-        ax.spines[['right', 'top', 'left', 'bottom']].set_visible(False)
-        ax.set_xticks([])
-        ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
-        ax.set_xlim(-2, len(features))
-        ax.set_ylim(-2, len(labels_sort))
-        ax.add_artist(first_legend)
-        ax.text(1.195, 1.05, f'Used features N={len(column_labels)}', horizontalalignment='center',
-                verticalalignment='center', transform=ax.transAxes, font={'weight': 'heavy', 'size': 20, })
-        ax.add_artist(second_legend)
 
-        plt.title(title +   f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
-                            f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
-                            f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
-        plt.savefig(savepath /'pdf'/ (title.replace('\n'," ") + ".pdf"))
-        plt.savefig(savepath /'png'/ (title.replace('\n'," ")+ ".png"))
 
-        path_to_open = savepath /'pdf'/ (title.replace('\n'," ")+ ".pdf")
+            for unique_class,i in zip(np.unique(labels_train),range(len(np.unique(labels_train)))):
+                plt.plot([-1,-1],[i,i+1],c=color_dict_type[unique_class],lw=3, solid_capstyle='butt')
 
-        os.startfile(path_to_open)
+            first_legend = ax.legend(handles=legend_elements, frameon=False, loc=8, ncol=len(legend_elements))
 
-        plt.show()
+            for x, item in enumerate(pred_matrix):
+                if item != 'nan':
+                    y = np.argwhere(labels_sort==item[0]).flatten()[0]
+                    plt.plot([x,x],[y,y+1],lw=2,color='red')
+                    plt.plot([x, x+1], [y+1, y + 1], lw=2, color='red')
+                    plt.plot([x, x + 1], [y, y ], lw=2, color='red')
+                    plt.plot([x+1 , x+1], [y, y + 1], lw=2, color='red')
+            used_labels = []
+            for label in column_labels:
+                used_labels.append(Patch(facecolor='white', edgecolor='white', label=label))
+            second_legend = ax.legend(handles=used_labels, frameon=False, ncol=2, loc='upper center', bbox_to_anchor=(1.225, 0.975), alignment='left')
+
+            ax.plot([-1, -1], [-1, -1])
+            ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
+            ax.set_xlim(-2, len(features))
+            ax.set_ylim(-2, len(labels_sort))
+            ax.spines[['right', 'top', 'left', 'bottom']].set_visible(False)
+            ax.set_xticks([])
+            ax.set_yticks(np.arange(len(labels_sort)) + 0.5, [x + " prediction" for x in labels_sort])
+            ax.set_xlim(-2, len(features))
+            ax.set_ylim(-2, len(labels_sort))
+            ax.add_artist(first_legend)
+            ax.text(1.195, 1.05, f'Used features N={len(column_labels)}', horizontalalignment='center',
+                    verticalalignment='center', transform=ax.transAxes, font={'weight': 'heavy', 'size': 20, })
+            ax.add_artist(second_legend)
+
+            plt.title(title +   f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
+                                f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
+                                f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
+            plt.savefig(savepath /'pdf'/ (title.replace('\n'," ").replace("/","_") + ".pdf"))
+            plt.savefig(savepath /'png'/ (title.replace('\n'," ").replace("/","_")+ ".png"))
+
+            path_to_open = savepath /'pdf'/ (title.replace('\n'," ").replace("/","_")+ ".pdf")
+
+            os.startfile(path_to_open)
+
+            plt.show()
+        else:
+
+
+            df = pd.DataFrame.from_dict(prediction_matrix_dict, orient='index').astype(int)
+            df_array = df.iloc[:, :5].to_numpy()
+            df_normed = (df.iloc[:, :5] / df.iloc[:, -1]).fillna(0)
+            df_normed_array = df_normed.to_numpy()
+
+            # fig, ax = plt.subplots(1, 1,figsize=(15,15))
+            ax.pcolormesh(df_normed.T, vmax=1, vmin=0, )
+            ax.set_xticks(np.arange(0, 4) + 0.5, [f'{x}\n({df.loc[x, "n_total"]} cells)' for x in df_normed.index], ha='center', va='bottom')
+            ax.set_yticks(np.arange(0, 5) + 0.5, df_normed.columns, rotation=0, ha='left', va='center')
+            ax.xaxis.tick_top()
+
+
+            ax.set_title(title + f'\nPredictions correct: {convert_percent(n_predictions_correct)}%'
+                              f'\nPredictions incorrect: {convert_percent(n_predictions_incorrect)}%'
+                              f'\nNo prediction: {convert_percent(n_no_predicitons)}%\n')
+
+            for i1 in range(df_array.T.shape[0]):
+                for i2 in range(df_array.T.shape[1]):
+                    text = ax.text(i2+0.5, i1+0.5, f'{df_array[i2,i1]}', ha='center',
+                            va='center', font={'weight': 'heavy' },fontsize=50,c='white')
+                    text.set_path_effects([PathEffects.withStroke(linewidth=2, foreground='black')])
+            ax.invert_yaxis()
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.tick_params(axis='x', which='both', length=0)
+            ax.tick_params(axis='y', which='both', length=0)
+            ax.axis('equal')
+            ax.set_xlim(0, np.min(df_array.shape))
+            plt.tight_layout()
+            return convert_percent(n_predictions_correct)
+            # plt.show()
 def determine_important_features(features,labels,feature_labels, repeats=10000,random_seed=42,solver='lsqr',shrinkage='auto',test_size=0.3,stratify=True,return_collection_coef_matrix=False,value_automatic_lim=80,per_class_selection=None):
     #init variables
     collection_coef_matrix = None
@@ -472,7 +581,7 @@ def determine_important_features_RFECV(features,labels,feature_labels,solver='ls
 
 
     return reduced_features,reduced_features_bool
-def find_optimum_SKB(features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod):
+def find_optimum_SKB(features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod,use_std_scale=False):
     pred_correct_dict_over_n = {}
     pred_correct_dict_over_n_per_class = {}
     used_features_idx_over_n = {}
@@ -516,7 +625,12 @@ def find_optimum_SKB(features_train,labels_train,features_test,labels_test,train
                     correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                     percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                     temp_list.append(correct_in_class/percent_correct_in_class)
-                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     elif train_contains_test:
 
@@ -559,7 +673,11 @@ def find_optimum_SKB(features_train,labels_train,features_test,labels_test,train
                     correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                     percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                     temp_list.append(correct_in_class/percent_correct_in_class)
-                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
 
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     else:
@@ -601,9 +719,14 @@ def find_optimum_SKB(features_train,labels_train,features_test,labels_test,train
                     correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                     percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                     temp_list.append(correct_in_class/percent_correct_in_class)
-                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
-def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod):
+def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod,use_std_scale=False):
     evaluator_name = 'permutation importance'
 
     pred_correct_dict_over_n = {}
@@ -631,7 +754,7 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
 
 
             idx = importance>=importance[np.argsort(importance, axis=0)[::-1][no_features-1]]
-            
+
             used_features_idx_over_n[evaluator_name][no_features] = idx
             pred_correct_list = []
             X_new = features_train[:, idx]
@@ -660,7 +783,12 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
                 correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                 percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                 temp_list.append(correct_in_class/percent_correct_in_class)
-            pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     elif train_contains_test:
 
@@ -686,7 +814,7 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
         for no_features in range(1, features_train.shape[1] + 1):
             np.random.seed(42)
             idx = importance>=importance[np.argsort(importance, axis=0)[::-1][no_features-1]]
-            
+
 
             used_features_idx_over_n[evaluator_name][no_features] = idx
             pred_correct_list = []
@@ -714,7 +842,11 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
                 correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                 percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                 temp_list.append(correct_in_class/percent_correct_in_class)
-            pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+            if use_std_scale:
+                penalty = calc_penalty(temp_list)
+                pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+            else:
+                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
 
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     else:
@@ -745,7 +877,7 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
             np.random.seed(42)
 
             idx = importance >= importance[np.argsort(importance, axis=0)[::-1][no_features - 1]]
-            
+
             X_new = features_train[:, idx]
 
             used_features_idx_over_n[evaluator_name][no_features] = idx
@@ -772,9 +904,14 @@ def find_optimum_PI(features_train,labels_train,features_test,labels_test,train_
                 correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                 percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                 temp_list.append(correct_in_class/percent_correct_in_class)
-            pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+            if use_std_scale:
+                penalty = calc_penalty(temp_list)
+                pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+            else:
+                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
-def find_optimum_custom(custom_scorer,features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod):
+def find_optimum_custom(custom_scorer,features_train,labels_train,features_test,labels_test,train_test_identical,train_contains_test,train_mod,use_std_scale=False):
     pred_correct_dict_over_n = {}
     pred_correct_dict_over_n_per_class = {}
     used_features_idx_over_n = {}
@@ -827,7 +964,12 @@ def find_optimum_custom(custom_scorer,features_train,labels_train,features_test,
                     correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                     percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                     temp_list.append(correct_in_class/percent_correct_in_class)
-                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
             return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     elif train_contains_test:
 
@@ -879,7 +1021,11 @@ def find_optimum_custom(custom_scorer,features_train,labels_train,features_test,
                 correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                 percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                 temp_list.append(correct_in_class/percent_correct_in_class)
-            pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+            if use_std_scale:
+                penalty = calc_penalty(temp_list)
+                pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+            else:
+                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
 
         return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
     else:
@@ -930,20 +1076,25 @@ def find_optimum_custom(custom_scorer,features_train,labels_train,features_test,
                     correct_in_class = np.sum([x for x in np.array(pred_correct_list)[np.where(labels_test==unique_label)] if x is not None])
                     percent_correct_in_class = len(np.array(pred_correct_list)[np.where(labels_test==unique_label)])
                     temp_list.append(correct_in_class/percent_correct_in_class)
-                pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+                if use_std_scale:
+                    penalty = calc_penalty(temp_list)
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(penalty)
+                else:
+                    pred_correct_dict_over_n_per_class[evaluator_name].append(np.mean(temp_list))
+
             return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
-def select_features(features_train: np.ndarray, labels_train: np.ndarray, features_test: np.ndarray, labels_test: np.ndarray, test_mod: str, train_mod: str, plot=False,use_assessment_per_class=False,which_selection='SKB'):
+def select_features(features_train: np.ndarray, labels_train: np.ndarray, features_test: np.ndarray, labels_test: np.ndarray, test_mod: str, train_mod: str, plot=False,use_assessment_per_class=False,which_selection='SKB',use_std_scale=False):
     if features_train.shape == features_test.shape:
         train_test_identical = (features_train == features_test).all()
     else:
         train_test_identical = False
     train_contains_test = np.any(np.all(features_train[:, None] == features_test, axis=2), axis=1).any()
     if which_selection == 'SKB':
-        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_SKB(features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod)
+        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_SKB(features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod,use_std_scale=use_std_scale)
     elif which_selection == "PI":
-        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_PI(features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod)
+        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_PI(features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod,use_std_scale=use_std_scale)
     else:
-        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_custom(which_selection,features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod)
+        pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n = find_optimum_custom(which_selection,features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test,train_mod,use_std_scale=use_std_scale)
     if use_assessment_per_class:
         pred_correct_dict_over_n = pred_correct_dict_over_n_per_class
 
@@ -971,102 +1122,70 @@ def select_features(features_train: np.ndarray, labels_train: np.ndarray, featur
         plt.show()
 
     return bool_features_2_use, max_accuracy_no_of_feat, max_accuracy_key, max_accuracy
+def prepare_data_4_metric_calc(df, use_new_neurotransmitter, use_k_means_classes,path_to_data,train_or_predict='train'):
+    if train_or_predict == 'train':
+        df.loc[df['function'].isin(['off-response', 'no response', 'noisy, little modulation']), 'function'] = 'neg_control'
+        df.function = df.function.apply(lambda x: x.replace(' ', "_"))
+        df = df.loc[(df.function != 'nan'), :]
+        df = df.loc[(~df.function.isna()), :]
+    df = df.drop_duplicates(keep='first', inplace=False, subset='cell_name')
+    df = df.reset_index(drop=True)
+    if train_or_predict == 'train':
+        if use_k_means_classes:
+            for i, cell in df.iterrows():
+                temp_path = Path(str(cell.metadata_path)[:-4] + "_with_regressor.txt")
+                temp_path_pa = path_to_data / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
+                if cell.function == "neg_control":
+                    df.loc[i, 'kmeans_function'] = 'neg_control'
+
+                elif temp_path.exists():
+                    if cell.imaging_modality == 'photoactivation':
+                        pass
+                    with open(temp_path, 'r') as f:
+                        t = f.read()
+                        df.loc[i, 'kmeans_function'] = t.split('\n')[21].split(' ')[2].strip('"')
 
 
-if __name__ == "__main__":
-    k_means_classes=True
-    with_neg_control = True
-    np.set_printoptions(suppress=True)
+                elif temp_path_pa.exists():
+                    with open(temp_path_pa, 'r') as f:
+                        t = f.read()
+                        try:
+                            df.loc[i, 'kmeans_function'] = t.split('\n')[17].split(' ')[2].strip('"')
+                        except:
+                            pass
 
-    # Constants
-    repeats = 10000
-    path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')
+            df['function'] = df['kmeans_function']
+        if use_new_neurotransmitter:
+            new_neurotransmitter = pd.read_excel(path_to_data / 'em_zfish1' / 'Figures' / 'Fig 4' / 'cells2show.xlsx', sheet_name='paGFP stack quality', dtype=str)
 
+            neurotransmitter_dict = {'Vglut2a': 'excitatory', 'Gad1b': 'inhibitory'}
+            for i, cell in df.iterrows():
+                if cell.imaging_modality == 'photoactivation':
+                    if new_neurotransmitter.loc[new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0] is np.nan:
+                        df.loc[i, 'neurotransmitter'] == 'nan'
+                    else:
+                        df.loc[i, 'neurotransmitter'] = neurotransmitter_dict[new_neurotransmitter.loc[new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0]]
 
+    return df
 
-    #load clem cells
-    cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['pa','neg_controls','all_cells_new'], load_repaired=True)
-    cells.loc[cells['function'].isin(['off-response', 'no response', 'noisy, little modulation']), 'function'] = 'neg_control'
-    cells.function = cells.function.apply(lambda x: x.replace(' ',"_"))
-    cells = cells.loc[(cells.function != 'nan'), :]
-    cells = cells.loc[(~cells.function.isna()), :]
-    cells = cells.drop_duplicates(keep='first', inplace=False, subset='cell_name')
-    cells = cells.reset_index(drop=True)
+def load_metrics_train(file_name,path_to_data,with_neg_control=False):
 
-    for i,cell in cells.iterrows():
-        temp_path = Path(str(cell.metadata_path)[:-4] + "_with_regressor.txt")
-        temp_path_pa = path_to_data / 'paGFP'/cell.cell_name/f"{cell.cell_name}_metadata_with_regressor.txt"
-        if cell.function == "neg_control":
-            cells.loc[i, 'kmeans_function'] = 'neg_control'
+    file_path = path_to_data / 'make_figures_FK_output' / f'{file_name}_train_features.hdf5'
 
-        elif temp_path.exists():
-            if cell.imaging_modality == 'photoactivation':
-                pass
-            with open(temp_path,'r') as f:
-                t = f.read()
-                cells.loc[i, 'kmeans_function'] = t.split('\n')[21].split(' ')[2].strip('"')
-
-
-        elif temp_path_pa.exists():
-            with open(temp_path_pa,'r') as f:
-                t = f.read()
-                try:
-                    cells.loc[i, 'kmeans_function'] = t.split('\n')[17].split(' ')[2].strip('"')
-                except:
-                    pass
-
-    cells['function'] = cells['kmeans_function']
-
-
-
-    #load metrics
-    calculate_metric2df(cells, 'FINAL', path_to_data, force_new=False, train_or_predict='train')
-    # cells_features = load_train_data_df(path_to_data,'clem_clem_predict_pa_prediction_project_neg_controls')
-    # cells_features = cells_features.drop_duplicates(keep='first', inplace=False, subset='cell_name').reset_index(drop=True)
-    # cells = cells.loc[(cells.cell_name.isin(cells_features.cell_name)), :]
-    # cells = cells.drop_duplicates(keep='first', inplace=False, subset='cell_name').reset_index(drop=True)
-    # if not with_neg_control:
-    #     cells = cells.loc[~(cells['function'] == 'neg_control'), :]
-
-
-
-
-    # cells_features= cells_features.loc[cells_features['function']!='neg control',:]
-    # features = cells_features.iloc[:,5:].to_numpy()
-    # labels = cells_features.loc[:,'function'].to_numpy()
-    # labels_imaging_modality = cells_features.loc[:,'imaging_modality'].to_numpy()
-    # column_labels = cells_features.iloc[:,5:].columns
-
-
-
-
-
-    file_path = path_to_data / 'make_figures_FK_output' / 'clem_clem_predict_pa_prediction_project_neg_controls_train_features.hdf5'
     all_cells = pd.read_hdf(file_path, 'complete_df')
-    all_cells = all_cells.sort_values(by=['function', 'imaging_modality', 'morphology'])
 
-    file_path2 = path_to_data / 'make_figures_FK_output' / 'FINAL_train_features.hdf5'
-    all_cells = pd.read_hdf(file_path2, 'complete_df')
-    all_cells = all_cells.sort_values(by=['function', 'imaging_modality', 'morphology'])
-
+    # throw out weird jon cells
     # all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521", "cell_576460752723528109", "cell_576460752684182585"]), :]
-    all_cells.loc[all_cells['function'].isin(['no response','off-response','noisy, little modulation']),'function'] = 'neg_control'
-    if not with_neg_control:
-        all_cells = all_cells.loc[~(all_cells['function']=='neg_control'), :]
+
+    #Data Preprocessing
     all_cells = all_cells[all_cells['function'] != 'nan']
+    all_cells = all_cells.sort_values(by=['function', 'morphology', 'imaging_modality', 'neurotransmitter'])
     all_cells = all_cells.reset_index(drop=True)
 
 
-    #write kmeans determined function as function
-    if k_means_classes:
-        for i,cell in all_cells.iterrows():
-            kmeans_function = cells.loc[cells['cell_name'] == cell.cell_name, 'kmeans_function'].iloc[0]
-            if (kmeans_function!= 'nan') & (cell.function !='neg_control'):
-                all_cells.loc[i,'function'] = kmeans_function
-        all_cells = all_cells.sort_values(by=['function', 'imaging_modality','morphology'])
-
-
-
+    all_cells.loc[all_cells['function'].isin(['no response', 'off-response', 'noisy, little modulation']), 'function'] = 'neg_control'
+    if not with_neg_control:
+        all_cells = all_cells.loc[~(all_cells['function'] == 'neg_control'), :]
 
     # Impute NaNs
     columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
@@ -1074,216 +1193,527 @@ if __name__ == "__main__":
 
     # Function string replacement
     all_cells.loc[:, 'function'] = all_cells['function'].str.replace('_', ' ')
-    all_cells_pa = all_cells[all_cells['imaging_modality'] == 'photoactivation'].copy()
-    all_cells_pa.loc[:, 'function'] = all_cells_pa['function'].str.replace('_', ' ')
-    all_cells_clem = all_cells[all_cells['imaging_modality'] == 'clem'].copy()
-    all_cells_clem.loc[:, 'function'] = all_cells_clem['function'].str.replace('_', ' ')
-
 
     # Update 'integrator' function
     def update_integrator(df):
         integrator_mask = df['function'] == 'integrator'
         df.loc[integrator_mask, 'function'] += " " + df.loc[integrator_mask, 'morphology']
 
-
     update_integrator(all_cells)
-    update_integrator(all_cells_pa)
-    update_integrator(all_cells_clem)
+
 
     # Replace strings with indices
-    columns_replace_string = ['neurotransmitter', 'morphology']
-    for work_column in columns_replace_string:
-        for i, unique_feature in enumerate(all_cells[work_column].unique()):
-            all_cells.loc[all_cells[work_column] == unique_feature, work_column] = i
 
-    # sort by function an imaging modality
-    all_cells = all_cells.sort_values(by=['function', 'imaging_modality','morphology'])
-    all_cells_pa = all_cells_pa.sort_values(by=['function', 'imaging_modality','morphology'])
-    all_cells_clem = all_cells_clem.sort_values(by=['function', 'imaging_modality', 'morphology'])
+    columns_replace_string = ['neurotransmitter', 'morphology']
+    neurotransmitter2int_dict = {'excitatory': 0, 'inhibitory': 1, 'na': 2, 'nan': 2}
+    morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
+
+    for work_column in columns_replace_string:
+        all_cells.loc[:, work_column + "_clone"] = all_cells[work_column]
+        for key in eval(f'{work_column}2int_dict').keys():
+            all_cells.loc[all_cells[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
+
+
 
     # Extract labels
     labels = all_cells['function'].to_numpy()
     labels_imaging_modality = all_cells['imaging_modality'].to_numpy()
-    labels_imaging_modality_pa = all_cells_pa['imaging_modality'].to_numpy()
-    labels_imaging_modality_clem = all_cells_clem['imaging_modality'].to_numpy()
-    labels_pa = all_cells_pa['function'].to_numpy()
-    labels_clem = all_cells_clem['function'].to_numpy()
-    column_labels = list(all_cells.columns[3:])
+    column_labels = list(all_cells.columns[3:-len(columns_replace_string)])
 
     # Extract features
-    features = all_cells.iloc[:, 3:].to_numpy()
-    features_pa = all_cells[all_cells['imaging_modality'] == 'photoactivation'].iloc[:, 3:].to_numpy()
-    features_clem = all_cells[all_cells['imaging_modality'] == 'clem'].iloc[:, 3:].to_numpy()
+    features = all_cells.iloc[:, 3:-len(columns_replace_string)].to_numpy()
 
     # Standardize features
     scaler = StandardScaler()
     features = scaler.fit_transform(features)
-    features_pa = scaler.transform(features_pa)
-    features_clem = scaler.transform(features_clem)
+
+    return [features,labels,labels_imaging_modality],column_labels,all_cells
+
+def load_metrics_predict(file_name,path_to_data,with_neg_control=False):
+    file_path = path_to_data / 'make_figures_FK_output' / f'{file_name}_predict_features.hdf5'
+
+    all_cells = pd.read_hdf(file_path, 'complete_df')
+
+    # throw out weird jon cells
+    # all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521", "cell_576460752723528109", "cell_576460752684182585"]), :]
+
+    # Data Preprocessing
+    all_cells = all_cells.sort_values(by=['morphology','neurotransmitter'])
+    all_cells = all_cells.reset_index(drop=True)
+
+    # Impute NaNs
+    columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
+    all_cells.loc[:, columns_possible_nans] = all_cells[columns_possible_nans].fillna(0)
 
 
-    #REDUCED PLOTS
+    # Replace strings with indices
 
-    # # Train BOTH Test PA
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-    #                                                                                          features_pa, labels_pa,
-    #                                                                                          test_mod='PA', train_mod='ALL', plot=True,which_selection=RandomForestClassifier(n_estimators=1000))
-    # plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-    #                                             features_pa[:,reduced_features_index],labels_pa,
-    #                                             labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title=f'Reduced features\nTrained on Both\nTested on PA',match_limit=0.5)
+    columns_replace_string = ['neurotransmitter', 'morphology']
+    neurotransmitter2int_dict = {'excitatory': 0, 'inhibitory': 1, 'na': 2, 'nan': 2}
+    morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
+
+    for work_column in columns_replace_string:
+        all_cells.loc[:, work_column + "_clone"] = all_cells[work_column]
+        for key in eval(f'{work_column}2int_dict').keys():
+            all_cells.loc[all_cells[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
+
+    # Extract labels
+    labels_imaging_modality = all_cells['imaging_modality'].to_numpy()
+    column_labels = list(all_cells.columns[2:-len(columns_replace_string)])
+
+    # Extract features
+    features = all_cells.iloc[:, 2:-len(columns_replace_string)].to_numpy()
+
+    # Standardize features
+    scaler = StandardScaler()
+    features = scaler.fit_transform(features)
+
+    return [features, labels_imaging_modality], column_labels, all_cells
+
+
+if __name__ == "__main__":
+    use_k_means_classes=True
+    use_new_neurotransmitter = False
+    with_neg_control = False
+    path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')
+
+    #load cells, prepare and calculate metrics
+    cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['pa','clem'], load_repaired=True)
+    cells = prepare_data_4_metric_calc(cells,use_new_neurotransmitter,use_k_means_classes,path_to_data=path_to_data)
+    calculate_metric2df_semiold(cells, 'FINAL', path_to_data, force_new=True, train_or_predict='train')
+
+    #load preexisting metrics
+    all,column_labels,all_cells = load_metrics_train('FINAL',path_to_data=path_to_data) #clem_clem_predict_pa_prediction_project_neg_controls
+
+    #unpack metrics
+    features, labels, labels_imaging_modality = all
+    features_pa, labels_pa, labels_imaging_modality_pa = features[labels_imaging_modality=='photoactivation'],labels[labels_imaging_modality=='photoactivation'],labels_imaging_modality[labels_imaging_modality=='photoactivation']
+    features_clem, labels_clem, labels_imaging_modality_clem = features[labels_imaging_modality=='clem'],labels[labels_imaging_modality=='clem'],labels_imaging_modality[labels_imaging_modality=='clem']
+
+    #find optimal metrics by plotting confusion_matrices
+    path_to_save = path_to_data / 'make_figures_FK_output' / 'confusion_matrix'
+    os.makedirs(path_to_save,exist_ok=True)
+
+    # solver='eigen'
+    # for train_mod,test_mod,ftrain,ftest,ltrain,ltest, in (zip(['ALL','PA'],
+    #                                                                                   ['CLEM','CLEM'],
+    #                                                                                   [features,features_pa],
+    #                                                                                   [features_clem,features_clem],
+    #                                                                                   [labels,labels_pa],
+    #                                                                                   [labels_clem,labels_clem])):
     #
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-    #                                                                                          features_pa, labels_pa,
-    #                                                                                          test_mod='PA', train_mod='ALL', plot=True,use_assessment_per_class=False)
-    # plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-    #                                             features_pa[:,reduced_features_index],labels_pa,
-    #                                             labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title=f'Reduced features\nTrained on Both\nTested on PA',match_limit=0.5)
     #
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-    #                                                                                          features_pa, labels_pa,
-    #                                                                                          test_mod='PA', train_mod='ALL', plot=True,use_assessment_per_class=True)
-    # plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-    #                                             features_pa[:,reduced_features_index],labels_pa,
-    #                                             labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title=f'Reduced features\nTrained on Both\nTested on PA',match_limit=0.5)
+    #     for feature_selector in ['NONE','SKB','RFC','DTC','XGBC','PI']:
     #
+    #
+    #         if feature_selector == 'SKB':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(ftrain, ltrain,
+    #                                                                                                      ftest, ltest,
+    #                                                                                                      test_mod=test_mod, train_mod=train_mod, plot=False,use_assessment_per_class=True,use_std_scale=True)
+    #         elif feature_selector == 'NONE':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = np.full(ftrain.shape[1], True), np.sum(np.full(ftrain.shape[1], True)), 'All features', 'idk'
+    #         elif feature_selector == 'RFC':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(ftrain, ltrain,
+    #                                                                                                          ftest, ltest,
+    #                                                                                                          test_mod=test_mod, train_mod=train_mod, plot=False,which_selection=RandomForestClassifier(n_estimators=1000),use_assessment_per_class=True,use_std_scale=True)
+    #         elif feature_selector == 'DTC':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(ftrain, ltrain,
+    #                                                                                                          ftest, ltest,
+    #                                                                                                          test_mod=test_mod, train_mod=train_mod, plot=False, which_selection=DecisionTreeClassifier(),use_assessment_per_class=True,use_std_scale=True)
+    #         elif feature_selector == 'XGBC':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(ftrain, ltrain,
+    #                                                                                                          ftest, ltest,
+    #                                                                                                          test_mod=test_mod, train_mod=train_mod, plot=False, which_selection=XGBClassifier(),use_assessment_per_class=True,use_std_scale=True)
+    #         elif feature_selector == 'PI':
+    #             reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(ftrain, ltrain,
+    #                                                                                                          ftest, ltest,
+    #                                                                                                          test_mod=test_mod, train_mod=train_mod, plot=False, which_selection='PI',use_assessment_per_class=True,use_std_scale=True)
+    #
+    #
+    #
+    #
+    #         total_correct = []
+    #         fig, ax = plt.subplots(2, 2, figsize=(30, 30))
+    #         a = plot_prediction_matrix(features_pa[:,reduced_features_index], labels_pa,
+    #                                labels_imaging_modality_pa, path_to_data,
+    #                                np.array(column_labels)[reduced_features_index], solver = solver, shrinkage = 'auto',
+    #                                title = 'Trained on PA\n Tested on PA',
+    #                                match_limit = 0.5, return_metrics = False,
+    #                                ax = ax[0, 0])
+    #         total_correct.append(a)
+    #         a = plot_prediction_matrix_test_train_different(features_pa[:,reduced_features_index], labels_pa,
+    #                                                     features_clem[:,reduced_features_index], labels_clem,
+    #                                                     labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa = True,
+    #                                                     solver = solver, shrinkage = 'auto', title = f'Trained on PA\nTested on CLEM', match_limit = 0.5, return_metrics = False, ax = ax[0,1])
+    #         total_correct.append(a)
+    #         a = plot_prediction_matrix(features[:,reduced_features_index], labels,
+    #                                labels_imaging_modality, path_to_data,
+    #                                np.array(column_labels)[reduced_features_index], solver = solver, shrinkage = 'auto',
+    #                                title = 'Trained on PA/CLEM\n Tested on PA/CLEM',
+    #                                match_limit = 0.5, return_metrics = False,
+    #                                ax = ax[1, 0])
+    #         total_correct.append(a)
+    #         a = plot_prediction_matrix_test_train_different(features[:,reduced_features_index], labels,
+    #                                                     features_clem[:,reduced_features_index], labels_clem,
+    #                                                     labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa = False,
+    #                                                     solver = solver, shrinkage = 'auto', title = f'Trained on PA/CLEM\nTested on CLEM', match_limit = 0.5, return_metrics = False, ax = ax[1,1])
+    #         total_correct.append(a)
+    #         plt.suptitle(f'Features selected {train_mod} --> {test_mod}\nSelected with: {evaluation_method}\nNo. features: {no_of_featurs}\nTotal correct: {np.round(np.mean(total_correct),2)}%',fontsize='large')
+    #         plt.savefig(path_to_save / f'train_{train_mod}_test_{test_mod}_{evaluation_method}_{np.round(np.mean(total_correct),2)}.png')
+    #         plt.show()
+    #
+    #         # a = plot_prediction_matrix(features_pa[:,reduced_features_index], labels_pa,
+    #         #                        labels_imaging_modality_pa, path_to_data,
+    #         #                        np.array(column_labels)[reduced_features_index], solver = solver, shrinkage = 'auto',
+    #         #                        title = 'Trained on PA\n Tested on PA',
+    #         #                        match_limit = 0.5, return_metrics = False)
+    #         # a = plot_prediction_matrix_test_train_different(features_pa[:,reduced_features_index], labels_pa,
+    #         #                                             features_clem[:,reduced_features_index], labels_clem,
+    #         #                                             labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa = True,
+    #         #                                             solver = solver, shrinkage = 'auto', title = f'Trained on PA\nTested on CLEM', match_limit = 0.5, return_metrics = False)
+    #         # a = plot_prediction_matrix(features[:,reduced_features_index], labels,
+    #         #                        labels_imaging_modality, path_to_data,
+    #         #                        np.array(column_labels)[reduced_features_index], solver = solver, shrinkage = 'auto',
+    #         #                        title = 'Trained on PA/CLEM\n Tested on PA/CLEM',
+    #         #                        match_limit = 0.5, return_metrics = False)
+    #         # a = plot_prediction_matrix_test_train_different(features[:,reduced_features_index], labels,
+    #         #                                             features_clem[:,reduced_features_index], labels_clem,
+    #         #                                             labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa = False,
+    #         #                                             solver = solver, shrinkage = 'auto', title = f'Trained on PA/CLEM\nTested on CLEM', match_limit = 0.5, return_metrics = False)
 
 
 
-    # Train BOTH Test CLEM
 
     reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
                                                                                              features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True, which_selection='PI')
+                                                                                             test_mod='CLEM', train_mod="PA", plot=True, which_selection=DecisionTreeClassifier(), use_assessment_per_class=False,
+                                                                                             use_std_scale=False)
 
-    plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-                                                features_clem[:,reduced_features_index],labels_clem,
-                                                labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with PI\nTrained on Both\nTested on CLEM',match_limit=0.5)
+    # reduced_features, reduced_features_index = determine_important_features(features_clem,labels_clem,column_labels)
 
 
-    reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-                                                                                             features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True,which_selection=RandomForestClassifier(n_estimators=1000))
+    import copy
 
-    plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-                                                features_clem[:,reduced_features_index],labels_clem,
-                                                labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with RFC\nTrained on Both\nTested on CLEM',match_limit=0.5)
 
-    reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-                                                                                             features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True, which_selection=DecisionTreeClassifier())
+
+
+    fig,ax = fig, ax = plt.subplots(2, 2, figsize=(30, 30))
+    total_correct = []
+    fig, ax = plt.subplots(2, 2, figsize=(30, 30))
+    a = plot_prediction_matrix(features_pa[:, reduced_features_index], labels_pa,
+                               labels_imaging_modality_pa, path_to_data,
+                               np.array(column_labels)[reduced_features_index], solver='lsqr', shrinkage='auto',
+                               title='Trained on PA\n Tested on PA',
+                               match_limit=0.5, return_metrics=False,
+                               ax=ax[0, 0])
+    total_correct.append(a)
+    a = plot_prediction_matrix_test_train_different(features_pa[:, reduced_features_index], labels_pa,
+                                                    features_clem[:, reduced_features_index], labels_clem,
+                                                    labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa=True,
+                                                    solver='lsqr', shrinkage='auto', title=f'Trained on PA\nTested on CLEM', match_limit=0.5, return_metrics=False, ax=ax[0, 1])
+    total_correct.append(a)
+    a = plot_prediction_matrix(features[:, reduced_features_index], labels,
+                               labels_imaging_modality, path_to_data,
+                               np.array(column_labels)[reduced_features_index], solver='lsqr', shrinkage='auto',
+                               title='Trained on PA/CLEM\n Tested on PA/CLEM',
+                               match_limit=0.5, return_metrics=False,
+                               ax=ax[1, 0])
+    total_correct.append(a)
+    a = plot_prediction_matrix_test_train_different(features[:, reduced_features_index], labels,
+                                                    features_clem[:, reduced_features_index], labels_clem,
+                                                    labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa=False,
+                                                    solver='lsqr', shrinkage='auto', title=f'Trained on PA/CLEM\nTested on CLEM', match_limit=0.5, return_metrics=False, ax=ax[1, 1])
+    total_correct.append(a)
+    plt.suptitle(f'Features selected ALL --> CLEM\nSelected with: DecisionTreeClassifier\nNo. features: {no_of_featurs}\nTotal correct: {np.round(np.mean(total_correct), 2)}%', fontsize='large')
+    plt.savefig(path_to_save / f'FINAL_config.png')
+    plt.savefig(path_to_save / f'FINAL_config.pdf',dpi=600)
+    plt.show()
+    np.array(column_labels)[reduced_features_index]
+
+    #2d reduction
+
+    priors = [len(labels[labels == x]) / len(labels) for x in np.unique(labels)]
+    clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors,n_components=2)
+    clf = clf.fit(features[:, reduced_features_index], labels)
+
+
+    sklearn.metrics.accuracy_score(labels, clf.predict(features[:, reduced_features_index]))
+
+
+
+
+    solver = 'eigen'
+    # You can choose either of these depending on your use case
+    feat_transform = features
+    feat_transform = features[:, reduced_features_index]
+
+    # Fit the LDA model
+    clf = LinearDiscriminantAnalysis(solver=solver, shrinkage='auto', priors=priors, n_components=2)
+    clf.fit(feat_transform, labels)
+    if solver == 'eigen':
+        if clf.n_components == 2:
+
+            color_dict = {
+                "integrator ipsilateral": '#feb326b3',
+                "integrator contralateral": '#e84d8ab3',
+                "dynamic threshold": '#64c5ebb3',
+                "motor command": '#7f58afb3',
+                'neg control': "#a8c256b3"
+            }
+            X_r2 = clf.transform(feat_transform)
+
+
+
+            X_r2 = clf.transform(feat_transform)
+
+            plt.figure(figsize=(15, 10))
+            sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], c=[color_dict[x] for x in labels], s=100)
+            plt.title(solver + " real lables on 2d transform()")
+            plt.axis('equal')
+            plt.show()
+
+            clf2 = LinearDiscriminantAnalysis(solver=solver, shrinkage='auto', priors=priors, n_components=2)
+            clf2.fit(X_r2, labels)
+
+            plt.figure(figsize=(15, 10))
+            sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], c=[color_dict[x] for x in clf2.predict(X_r2)], s=100)
+            plt.title(solver + " predicted lables on 2d transform()")
+            plt.axis('equal')
+            plt.show()
+
+        elif clf.n_components == 3:
+            color_dict = {
+                "integrator ipsilateral": '#feb326b3',
+                "integrator contralateral": '#e84d8ab3',
+                "dynamic threshold": '#64c5ebb3',
+                "motor command": '#7f58afb3',
+                'neg control': "#a8c256b3"
+            }
+
+            X_r2 = clf.transform(feat_transform)
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Plot data
+            scatter = ax.scatter(X_r2[:, 0], X_r2[:, 1], X_r2[:, 2], c=[color_dict[x] for x in labels], marker='o')
+
+            # Set labels
+            ax.set_xlabel('X axis')
+            ax.set_ylabel('Y axis')
+            ax.set_zlabel('Z axis')
+
+            # Show the plot
+            plt.show()
+
+    sklearn.metrics.accuracy_score(labels, clf.predict(feat_transform))
+    # Compute class means and overall mean
+    class_means = clf.means_
+    overall_mean = np.mean(feat_transform, axis=0)
+
+    # Compute Between-Class Scatter Matrix (S_B)
+    S_B = np.zeros((feat_transform.shape[1], feat_transform.shape[1]))
+    for i, mean_vec in enumerate(class_means):
+        n = feat_transform[labels == clf.classes_[i]].shape[0]
+        mean_vec = mean_vec.reshape(-1, 1)
+        overall_mean_vec = overall_mean.reshape(-1, 1)
+        S_B += n * (mean_vec - overall_mean_vec).dot((mean_vec - overall_mean_vec).T)
+
+    # Compute Within-Class Scatter Matrix (S_W)
+    S_W = np.zeros((feat_transform.shape[1], feat_transform.shape[1]))
+    for i, mean_vec in enumerate(class_means):
+        for row in feat_transform[labels == clf.classes_[i]]:
+            row = row.reshape(-1, 1)
+            mean_vec = mean_vec.reshape(-1, 1)
+            S_W += (row - mean_vec).dot((row - mean_vec).T)
+
+    # Regularize S_W to avoid singular matrix error
+    reg_param = 1e-6  # Small regularization parameter (can be tuned)
+    S_W += reg_param * np.eye(S_W.shape[0])
+
+    # Solve the eigenvalue problem
+    eigenvalues, eigenvectors = np.linalg.eig(np.linalg.inv(S_W).dot(S_B))
+
+    # Sort eigenvectors by eigenvalues in descending order
+    eig_pairs = [(np.abs(eigenvalues[i]), eigenvectors[:, i]) for i in range(len(eigenvalues))]
+    eig_pairs = sorted(eig_pairs, key=lambda k: k[0], reverse=True)
+
+    # Select top n_components eigenvectors
+    W = np.real(np.hstack([eig_pairs[i][1].reshape(-1, 1) for i in range(clf.n_components)]))
+
+    # Transform the data using the selected eigenvectors
+    X_r2 = feat_transform.dot(W)
+    X_r2 = np.real(X_r2)
+
+
+
+    sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], hue=clf.predict(feat_transform))
+    plt.title(solver + " predicted labels")
+    plt.show()
+
+    clf3 = LinearDiscriminantAnalysis(solver=solver, shrinkage='auto', priors=priors, n_components=2)
+    clf3.fit(X_r2, labels)
+
+    savepath = path_to_data / 'make_figures_FK_output' / '2D_LDA_PROJECTION'
+    os.makedirs(savepath, exist_ok=True)
+
+    plt.figure(figsize=(15,10))
+    sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], c=[color_dict[x] for x in clf.predict(feat_transform)],s=100)
+    plt.title(solver + " predicted lables")
+    plt.axis('equal')
+    plt.savefig(savepath / (solver + " predicted lables own calc.pdf"),dpi=400)
+    plt.show()
+
+    plt.figure(figsize=(15,10))
+    sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], c=[color_dict[x] for x in labels],s=100)
+    plt.title(solver + " real lables")
+    plt.axis('equal')
+    plt.savefig(savepath / (solver + " real labels own calc.pdf"),dpi=400)
+    plt.show()
+
+    plt.figure(figsize=(15, 10))
+    sns.scatterplot(x=X_r2[:, 0], y=X_r2[:, 1], c=[color_dict[x] for x in clf3.predict(X_r2)], s=100)
+    plt.title(solver + " predicted lables on 2d")
+    plt.savefig(savepath / (solver + " predicted lables on 2d own calc.pdf"),dpi=400)
+    plt.axis('equal')
+
+
+    plt.show()
+
+
+
+
+
+
+
+    #KDE
+
+    import numpy as np
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from scipy.stats import gaussian_kde
+    import matplotlib.pyplot as plt
+
+    # Generate some sample data
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import gaussian_kde
+
+    # Generate some sample data
+    data = np.random.normal(loc=0, scale=1, size=1000)
+    color_dict = {
+        "integrator ipsilateral": '#feb326b3',
+        "integrator contralateral": '#e84d8ab3',
+        "dynamic threshold": '#64c5ebb3',
+        "motor command": '#7f58afb3',
+        'neg control': "#a8c256b3"
+    }
+
+    # Plot KDE and sample from it
+    def inflate_array(array, new_size):
+        # Count the occurrences of each unique value
+        unique, counts = np.unique(array, return_counts=True)
+
+        # Calculate how many times each unique value needs to be repeated
+        total_count = sum(counts)
+        repeat_counts = np.round((counts / total_count) * new_size).astype(int)
+
+        # Adjust the repeat counts to ensure the new size matches exactly
+        while sum(repeat_counts) < new_size:
+            repeat_counts[np.argmax(repeat_counts)] += 1
+        while sum(repeat_counts) > new_size:
+            repeat_counts[np.argmax(repeat_counts)] -= 1
+
+        # Create the new inflated array
+        inflated_array = np.concatenate([np.full(repeat_count, value)
+                                         for value, repeat_count in zip(unique, repeat_counts)])
+        return inflated_array
+
+    how_many_per_class = 10000
+
+    artifical_features = None
+    artifical_labels = None
+    for l in np.unique(labels):
+        temp_feat_array = np.empty((how_many_per_class,reduced_features_index.sum()))
+        temp_label_array = np.full(how_many_per_class, l)
+        for i in range(features[:, reduced_features_index].shape[1]):
+                if i == 0:
+                    if len(np.unique(features[labels == l][:,i])) == 1:
+
+                        sampled_values = np.full(how_many_per_class, np.unique(features[labels == l][:,i])[0])
+                        # data = features[labels == l][:, reduced_features_index][:, i]
+                        # kde = gaussian_kde(data, bw_method=0.5)
+                        #
+                        # # Generate points for KDE plot
+                        # x = np.linspace(data.min() - 1, data.max() + 1, 1000)
+                        # kde_values = kde.evaluate(x)
+                        #
+                        # # Randomly sample one value from KDE
+                        # sampled_values = kde.resample(how_many_per_class).flatten()
+                    else:
+                        i_array = inflate_array(features[labels == l][:,i],10000)
+                        # Randomly sample one value from KDE
+                        sampled_values = np.random.choice(i_array)
+
+                        # data = features[labels == l][:, reduced_features_index][:, i]
+                        # kde = gaussian_kde(data, bw_method=0.5)
+                        #
+                        # # Generate points for KDE plot
+                        # x = np.linspace(data.min() - 1, data.max() + 1, 1000)
+                        # kde_values = kde.evaluate(x)
+                        #
+                        # # Randomly sample one value from KDE
+                        # sampled_values = kde.resample(how_many_per_class).flatten()
+
+                else:
+                    data = features[labels == l][:, reduced_features_index][:, i]
+                    kde = gaussian_kde(data, bw_method=0.5)
+
+                    # Generate points for KDE plot
+                    x = np.linspace(data.min() - 1, data.max() + 1, 1000)
+                    kde_values = kde.evaluate(x)
+
+                    # Randomly sample one value from KDE
+                    sampled_values = kde.resample(how_many_per_class).flatten()
+
+
+                temp_feat_array[:,i] = sampled_values
+
+
+
+
+        if artifical_features is None:
+            artifical_features= temp_feat_array
+            artifical_labels= temp_label_array
+        else:
+            artifical_features = np.concatenate([artifical_features,temp_feat_array])
+            artifical_labels = np.concatenate([artifical_labels,temp_label_array])
+
+    clf = LinearDiscriminantAnalysis(solver=solver, shrinkage='auto', priors=priors, n_components=2)
+    clf.fit(artifical_features, artifical_labels)
+    sklearn.metrics.accuracy_score(labels_clem, clf.predict(features_clem[:,reduced_features_index]))
+    fig,ax = plt.subplots(1,2,figsize=(15,15))
+    plot_prediction_matrix_test_train_different(artifical_features, artifical_labels,
+                                                features_clem[:, reduced_features_index], labels_clem,
+                                                labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa=False,
+                                                solver='lsqr', shrinkage='auto', title=f'Trained on Artifical\nTested on CLEM', match_limit=0.5, return_metrics=False, ax=ax[0])
+
+
+    sklearn.metrics.accuracy_score(labels_clem, clf.predict(features_clem[:,reduced_features_index]))
+
 
     plot_prediction_matrix_test_train_different(features[:, reduced_features_index], labels,
                                                 features_clem[:, reduced_features_index], labels_clem,
-                                                labels_imaging_modality_clem, path=path_to_data, column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with CART\nTrained on Both\nTested on CLEM', match_limit=0.5)
-
-    reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-                                                                                             features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True, which_selection=XGBClassifier())
-
-    plot_prediction_matrix_test_train_different(features[:, reduced_features_index], labels,
-                                                features_clem[:, reduced_features_index], labels_clem,
-                                                labels_imaging_modality_clem, path=path_to_data, column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with XGBClassifier\nTrained on Both\nTested on CLEM', match_limit=0.5)
+                                                labels_imaging_modality_clem, path_to_data, np.array(column_labels)[reduced_features_index], train_mod_pa=False,
+                                                solver='lsqr', shrinkage='auto', title=f'Trained on PA/CLEM\nTested on CLEM', match_limit=0.5, return_metrics=False, ax=ax[1])
+    plt.show()
 
 
 
 
-    reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-                                                                                             features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True)
-    plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-                                                features_clem[:,reduced_features_index],labels_clem,
-                                                labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with SKB\nTrained on Both\nTested on CLEM',match_limit=0.5)
-
-    reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-                                                                                             features_clem, labels_clem,
-                                                                                             test_mod='CLEM', train_mod='ALL', plot=True,use_assessment_per_class=True)
-    plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-                                                features_clem[:,reduced_features_index],labels_clem,
-                                                labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with SKB assessment per class\nTrained on Both\nTested on CLEM',match_limit=0.5)
-
-    reduced_features, reduced_features_index, collection_coef_matrix = determine_important_features(features, labels, column_labels, repeats=10000, return_collection_coef_matrix=True, value_automatic_lim=80,
-                                                                                                    per_class_selection=None)
-    plot_prediction_matrix_test_train_different(features[:,reduced_features_index],labels,
-                                                features_clem[:,reduced_features_index],labels_clem,
-                                                labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-                                                title=f'Reduced features\nSelected with 10000 repeats\nTrained on Both\nTested on CLEM',match_limit=0.5)
 
 
 
-    # # Train BOTH Test BOTH
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features, labels,
-    #                                                                                          features, labels,
-    #                                                                                          test_mod='ALL', train_mod='ALL', plot=True)
-    # plot_prediction_matrix(features[:,reduced_features_index],labels,
-    #                        labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                        title=f'Reduced features\nTrained on Both\nTested on Both',match_limit=0.5)
-    #
-    # # Train CLEM Test BOTH
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_clem, labels_clem,
-    #                                                                                          features, labels,
-    #                                                                                          test_mod='ALL', train_mod='CLEM', plot=True)
-    # plot_prediction_matrix_test_train_different(features_clem[:,reduced_features_index],labels_clem,
-    #                                             features[:,reduced_features_index],labels,
-    #                                             labels_imaging_modality,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title='Reduced features\nTrained on CLEM\nTested on Both')
-    #
-    # # Train CLEM Test PA
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_clem, labels_clem,
-    #                                                                                          features_pa, labels_pa,
-    #                                                                                          test_mod='PA', train_mod='CLEM', plot=True)
-    # plot_prediction_matrix_test_train_different(features_clem[:,reduced_features_index],labels_clem,
-    #                                             features_pa[:,reduced_features_index],labels_pa,
-    #                                             labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title='Reduced features\nTrained on CLEM\nTested on PA',train_mod_pa=False)
-    #
-    # # Train CLEM Test CLEM
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_clem, labels_clem,
-    #                                                                                          features_clem, labels_clem,
-    #                                                                                          test_mod='CLEM', train_mod='CLEM', plot=True)
-    # plot_prediction_matrix(features_clem[:,reduced_features_index],labels_clem,
-    #                        labels_imaging_modality_clem,path=path_to_data,
-    #                        title='Reduced features\nTrained on CLEM\nTested on CLEM',column_labels=np.array(column_labels)[reduced_features_index])
-    #
-    # # Train PA Test BOTH
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_pa, labels_pa,
-    #                                                                                          features, labels,
-    #                                                                                          test_mod='ALL', train_mod='PA', plot=True)
-    # plot_prediction_matrix_test_train_different(features_pa[:,reduced_features_index],labels_pa,
-    #                                             features[:,reduced_features_index],labels,labels_imaging_modality,
-    #                                             path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title='Reduced features\nTrained on PA\nTested on Both',train_mod_pa=True)
-    #
-    # # Train PA Test CLEM
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_pa, labels_pa,
-    #                                                                                          features_clem, labels_clem,
-    #                                                                                          test_mod='CLEM', train_mod='PA', plot=True)
-    # plot_prediction_matrix_test_train_different(features_pa[:,reduced_features_index],labels_pa,
-    #                                             features_clem[:,reduced_features_index],labels_clem,
-    #                                             labels_imaging_modality_clem,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                                             title='Reduced features\nTrained on PA\nTested on CLEM',train_mod_pa=True)
-    #
-    # # Train PA Test PA
-    # reduced_features_index, no_of_featurs, evaluation_method, max_accuracy = select_features(features_pa, labels_pa,
-    #                                                                                          features_pa, labels_pa,
-    #                                                                                          test_mod='PA', train_mod='PA', plot=True)
-    # plot_prediction_matrix(features_pa[:,reduced_features_index],labels_pa,
-    #                        labels_imaging_modality_pa,path=path_to_data,column_labels=np.array(column_labels)[reduced_features_index],
-    #                        title=f'Reduced features\nTrained on PA\nTested on PA',match_limit=0.5)
-    #
-    #
-    #
-    #
-    #
-    #
     # ##THE PLOT OVER ALL COMBINATIONS FEATURE SEACRCH
     # ##make the plots for feature selection
     # pred_correct_dict = {}
@@ -1375,7 +1805,7 @@ if __name__ == "__main__":
     #                 ax[i1][i2].set_xticks(np.arange(0, train_features.shape[1], 3), np.arange(2, train_features.shape[1] + 3, 3))
     #
     #     fig.tight_layout()
-    #     fig.suptitle(evaluator_name,fontsize='xx-large')
+    #     fig.suptitle(evaluator_name,fontsize=50)
     #
     #     plt.subplots_adjust(left=0.05, right=0.95, top=0.90, bottom=0.1)
     #     plt.show()
@@ -1383,39 +1813,38 @@ if __name__ == "__main__":
     #
     #
     #
-    # select_features(features_pa, labels_pa, features_clem, labels_clem, test_mod='CLEM', train_mod='PA', plot=True)
-
-    # feature selection
-    # RANDOM FOREST
-    X, y = features[:,reduced_features_index], labels
-
-    unique_strings = list(set(y))
-    string_to_int = {string: idx for idx, string in enumerate(y)}
-
-    y = [string_to_int[string] for string in y]
-
-
-    # define the model
-    model = RandomForestClassifier().fit(X, y)
-    importance = model.feature_importances_
-
-    #plot
-    importance_df = pd.DataFrame(np.stack([np.array(column_labels)[reduced_features_index],importance]).T).sort_values(1).reset_index(drop=True)
-    importance_df.iloc[:,1] = importance_df.iloc[:,1].astype(float)
-    plt.figure(figsize=(30,15))
-    plt.bar(importance_df.index,importance_df[1])
-    plt.xticks(np.arange(0,len(importance)),importance_df[0],rotation=45,horizontalalignment='right',verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-    plt.figure(figsize=(30, 15))
-    plt.bar([x for x in range(len(importance))], importance)
-    plt.xticks(np.arange(0, len(importance)), np.array(column_labels)[reduced_features_index], rotation=45, horizontalalignment='right', verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-
-
-    # CART
-
+    #
+    # # feature selection
+    # # RANDOM FOREST
+    # X, y = features[:,reduced_features_index], labels
+    #
+    # unique_strings = list(set(y))
+    # string_to_int = {string: idx for idx, string in enumerate(y)}
+    #
+    # y = [string_to_int[string] for string in y]
+    #
+    #
+    # # define the model
+    # model = RandomForestClassifier().fit(X, y)
+    # importance = model.feature_importances_
+    #
+    # #plot
+    # importance_df = pd.DataFrame(np.stack([np.array(column_labels)[reduced_features_index],importance]).T).sort_values(1).reset_index(drop=True)
+    # importance_df.iloc[:,1] = importance_df.iloc[:,1].astype(float)
+    # plt.figure(figsize=(30,15))
+    # plt.bar(importance_df.index,importance_df[1])
+    # plt.xticks(np.arange(0,len(importance)),importance_df[0],rotation=45,horizontalalignment='right',verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
+    # plt.figure(figsize=(30, 15))
+    # plt.bar([x for x in range(len(importance))], importance)
+    # plt.xticks(np.arange(0, len(importance)), np.array(column_labels)[reduced_features_index], rotation=45, horizontalalignment='right', verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
+    #
+    #
+    # # CART
+    #
     X, y = features, labels
 
     unique_strings = list(set(y))
@@ -1441,58 +1870,59 @@ if __name__ == "__main__":
     plt.show()
 
 
-    #XGBOOST
-    X, y = features, labels
 
-    unique_strings = list(set(y))
-    string_to_int = {string: idx for idx, string in enumerate(unique_strings)}
-    y = [string_to_int[string] for string in y]
-
-    model = XGBClassifier().fit(X, y)
-
-    # get importance
-    importance = model.feature_importances_
-    # summarize feature importance
-
-    # plot feature importance
-    importance_df = pd.DataFrame(np.stack([column_labels, importance]).T).sort_values(1).reset_index(drop=True)
-    importance_df.iloc[:, 1] = importance_df.iloc[:, 1].astype(float)
-    plt.figure(figsize=(30, 15))
-    plt.bar(importance_df.index, importance_df[1])
-    plt.xticks(np.arange(0, len(importance)), importance_df[0], rotation=45, horizontalalignment='right', verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-    plt.figure(figsize=(30, 15))
-    plt.bar([x for x in range(len(importance))], importance)
-    plt.xticks(np.arange(0, len(importance)), column_labels, rotation=45, horizontalalignment='right', verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-
-
-    #PERMUTATION FEATURE IMORTANCE
-
-    X, y = features, labels
-
-    unique_strings = list(set(y))
-    string_to_int = {string: idx for idx, string in enumerate(unique_strings)}
-    y = [string_to_int[string] for string in y]
-
-    model = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto').fit(X, y)
-    results = permutation_importance(model, X, y, scoring='accuracy',n_repeats=1000)
-    importance = results.importances_mean
-
-    #plot
-    importance_df = pd.DataFrame(np.stack([column_labels,importance]).T)
-    importance_df.iloc[:,1] = importance_df.iloc[:,1].astype(np.float64)
-    importance_df = importance_df.sort_values(1).reset_index(drop=True)
-    plt.figure(figsize=(30,15))
-    plt.bar(importance_df.index,importance_df[1])
-    plt.xticks(np.arange(0,len(importance)),importance_df[0],rotation=45,horizontalalignment='right',verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-    plt.figure(figsize=(30, 15))
-    plt.bar([x for x in range(len(importance))], importance)
-    plt.xticks(np.arange(0, len(importance)), column_labels, rotation=45, horizontalalignment='right', verticalalignment='top')
-    plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
-    plt.show()
-
+    #
+    # #XGBOOST
+    # X, y = features, labels
+    #
+    # unique_strings = list(set(y))
+    # string_to_int = {string: idx for idx, string in enumerate(unique_strings)}
+    # y = [string_to_int[string] for string in y]
+    #
+    # model = XGBClassifier().fit(X, y)
+    #
+    # # get importance
+    # importance = model.feature_importances_
+    # # summarize feature importance
+    #
+    # # plot feature importance
+    # importance_df = pd.DataFrame(np.stack([column_labels, importance]).T).sort_values(1).reset_index(drop=True)
+    # importance_df.iloc[:, 1] = importance_df.iloc[:, 1].astype(float)
+    # plt.figure(figsize=(30, 15))
+    # plt.bar(importance_df.index, importance_df[1])
+    # plt.xticks(np.arange(0, len(importance)), importance_df[0], rotation=45, horizontalalignment='right', verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
+    # plt.figure(figsize=(30, 15))
+    # plt.bar([x for x in range(len(importance))], importance)
+    # plt.xticks(np.arange(0, len(importance)), column_labels, rotation=45, horizontalalignment='right', verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
+    #
+    #
+    # #PERMUTATION FEATURE IMORTANCE
+    #
+    # X, y = features, labels
+    #
+    # unique_strings = list(set(y))
+    # string_to_int = {string: idx for idx, string in enumerate(unique_strings)}
+    # y = [string_to_int[string] for string in y]
+    #
+    # model = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto').fit(X, y)
+    # results = permutation_importance(model, X, y, scoring='accuracy',n_repeats=1000)
+    # importance = results.importances_mean
+    #
+    # #plot
+    # importance_df = pd.DataFrame(np.stack([column_labels,importance]).T)
+    # importance_df.iloc[:,1] = importance_df.iloc[:,1].astype(np.float64)
+    # importance_df = importance_df.sort_values(1).reset_index(drop=True)
+    # plt.figure(figsize=(30,15))
+    # plt.bar(importance_df.index,importance_df[1])
+    # plt.xticks(np.arange(0,len(importance)),importance_df[0],rotation=45,horizontalalignment='right',verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
+    # plt.figure(figsize=(30, 15))
+    # plt.bar([x for x in range(len(importance))], importance)
+    # plt.xticks(np.arange(0, len(importance)), column_labels, rotation=45, horizontalalignment='right', verticalalignment='top')
+    # plt.subplots_adjust(left=0.1, right=0.9, top=0.7, bottom=0.2)
+    # plt.show()
