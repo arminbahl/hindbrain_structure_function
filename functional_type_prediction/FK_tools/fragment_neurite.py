@@ -306,11 +306,10 @@ def direct_angle_and_crossing_extraction(nodes_df,angle2zaxis=False,projection="
 
         if projection == '3d':
             angle = angle_between_vectors(main_branch_vector, first_branch_vector,angle2zaxis)
-        first_branch.iloc[0,-1] = -1
+        first_branch.iloc[0].loc["parent_id"] = -1
         if projection == '2d':
             angle = angle_between_vectors2d(main_branch_vector, first_branch_vector, angle2zaxis)
         angle = round(angle, 2)
-        first_branch.iloc[0, -1] = -1
 
         # VALIDATION PLOTTING
         calculate_vector(main_branch)
