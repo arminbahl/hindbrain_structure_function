@@ -32,8 +32,9 @@ import h5py
 from tqdm import tqdm
 
 
-def load_zebrafish_nblast_matrix(return_smat_obj=False,prune=True,modalities=["pa"]):
-    path_to_data = get_base_path()
+def load_zebrafish_nblast_matrix(return_smat_obj=False,prune=True,modalities=["pa"],path_to_data = None):
+    if path_to_data is  None:
+        path_to_data = get_base_path()
     all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=modalities, use_smooth=True)
     if prune:
         all_cells.loc[:, 'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in all_cells['swc']]
