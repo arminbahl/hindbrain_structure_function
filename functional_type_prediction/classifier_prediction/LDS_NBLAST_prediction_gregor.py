@@ -3,6 +3,7 @@ from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matri
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.LDS_single_cell_prediction import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.make_dendrogramms import *
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.LDS_single_cell_prediction_with_neutral import *
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
@@ -28,9 +29,10 @@ if __name__ == '__main__':
     predict_cells_em = predict_cells_em.reset_index(drop=True)
 
     train_cells1 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
-    train_cells2 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'],
-                                                             load_repaired=True)
-    train_cells = pd.concat([train_cells1,train_cells2])
+    # train_cells2 = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['prediction_project'],
+    #                                                          load_repaired=True)
+    # train_cells = pd.concat([train_cells1,train_cells2])
+    train_cells = train_cells1
     train_cells = train_cells.drop_duplicates(keep='first', inplace=False,subset='cell_name')
     train_cells_no_function =  train_cells.loc[(train_cells.function == 'nan'), :]
     train_cells = train_cells.loc[(train_cells.function != 'nan'), :]
@@ -54,25 +56,30 @@ if __name__ == '__main__':
 
 
     #calculate metrics
-    print('PREDICT')
-    calculate_metric(predict_cells_em,'predict_complete_em',path_to_data,force_new=False,train_or_predict='predict')
-    print('TRAIN')
-    calculate_metric(train_cells, 'train_complete',path_to_data, force_new=False,train_or_predict='train')
-    print('\nFINISHED CALCULATING METRICS\n')
+    # print('PREDICT')
+    # calculate_metric(predict_cells_em,'predict_complete_em',path_to_data,force_new=False,train_or_predict='predict')
+    # print('TRAIN')
+    # calculate_metric(train_cells, 'train_complete',path_to_data, force_new=False,train_or_predict='train')
+    # print('\nFINISHED CALCULATING METRICS\n')
 
 
     #Load data to train model
-    features_train, labels_train, labels_imaging_modality_train, column_labels_train, df_train = load_train_data(path_to_data,file='train_complete')
-    
+    features_train, labels_train, labels_imaging_modality_train, column_labels_train, df_train = load_train_data(path_to_data,file='train_complete') #train_complete #FINAL_train
+    features_train = features_train[labels_train != 'neg control',:]
+
+    labels_imaging_modality_train = labels_imaging_modality_train[labels_train != 'neg control']
+    df_train = df_train.iloc[labels_train != 'neg control', :]
+    labels_train = labels_train[labels_train != 'neg control']
     #load predict data
-    features_predict_em, labels_imaging_modality_predict_em, column_labels_predict_em, df_predict_em,cell_names_em = load_predict_data(path_to_data,'predict_complete_em')
+    features_predict_em, labels_imaging_modality_predict_em, column_labels_predict_em, df_predict_em,cell_names_em = load_predict_data(path_to_data,'predict_complete_em') #predict_complete_em #FINAL_predict
 
     #find reduced features
     # _, reduced_features_index_train = determine_important_features_RFECV(features_train, labels_train, column_labels_train, scoring='roc_auc_ovo')
+    features_train[np.isnan(features_train)] = 0
     _, reduced_features_index, _ = determine_important_features(features_train, labels_train, column_labels_train, return_collection_coef_matrix=True)
 
     #select cells via nblast
-    smat_fish = load_zebrafish_nblast_matrix(return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
+    smat_fish = load_zebrafish_nblast_matrix(path_to_data=path_to_data,return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
 
     #nb = nblast_two_groups(train_cells,train_cells,shift_neurons=False)
     nb_all = nblast_two_groups_custom_matrix(train_cells,train_cells,custom_matrix=smat_fish,shift_neurons=False)
@@ -109,8 +116,9 @@ if __name__ == '__main__':
             "integrator contralateral": '#e84d8ab3',
             "dynamic threshold": '#64c5ebb3',
             "motor command": '#7f58afb3',
+            'neg control':'green'
         }
-    acronym_dict = {'dynamic threshold': "DT", 'integrator contralateral': "CI", 'integrator ipsilateral': "II", 'motor command': "MC"}
+    acronym_dict = {'dynamic threshold': "DT", 'integrator contralateral': "CI", 'integrator ipsilateral': "II", 'motor command': "MC",'neg control':"NC"}
 
 
     #subset based on nblast
@@ -214,7 +222,7 @@ if __name__ == '__main__':
             f.write(new_t)
             f.close()
 
-        if (np.max(y_prob)>0.7) and cell_name in subset_predict_cells and nblast_test_specific:
+        if (np.max(y_prob_reduced)>0.7) and cell_name in subset_predict_cells and nblast_test_specific:
             temp_swc = predict_cells_em.loc[predict_cells_em['cell_name']==cell_name,'swc'].iloc[0]
             temp_node_id = temp_swc.nodes.loc[temp_swc.nodes.type=='root','node_id'].iloc[0]
             temp_swc.soma = temp_node_id
@@ -256,6 +264,7 @@ if __name__ == '__main__':
         os.makedirs(path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_em', exist_ok=True)
         temp_file_name = path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_em' / f"all_cells_em.html"
         plotly.offline.plot(fig, filename=str(temp_file_name), auto_open=True, auto_play=False)
+
 
 
 
