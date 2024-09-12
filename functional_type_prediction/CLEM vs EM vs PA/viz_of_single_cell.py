@@ -18,11 +18,20 @@ if __name__ == "__main__":
     cells_clem = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem'], load_repaired=True, load_both=True,
                                              mirror=True)
     tc = cells_clem.loc[cells_clem['cell_name'] == 'cell_576460752731091853', :]
+    tc = tc.iloc[0]
+
+    tc.swc = navis.prune_twigs(tc.swc, 20, recursive=True)
+    tc.swc = navis.smooth_skeleton(tc.swc, 15)
+    tc.swc = navis.cut_skeleton(tc['swc'], 9112)[1]
+    tc.swc = navis.prune_twigs(tc.swc, 20, recursive=True)
+
+    aaa = tc['swc'].nodes
+    tc.swc = tc['swc'].resample('10um')
+    tc.swc.soma = 0
+    fig = navis.plot3d(tc['swc'], backend='plotly',  colors='cyan', lw=4, width=2000, height=2000, hover_name=True)
+    fig = navis.plot3d(brain_meshes, backend='plotly',width=2000, height=2000,fig=fig, hover_name=True)
 
 
-
-    fig = navis.plot3d(brain_meshes, backend='plotly',width=2000, height=2000, hover_name=True)
-    fig = navis.plot3d(list(tc['swc']), backend='plotly', fig=fig, colors='cyan', lw=4,width=2000, height=2000, hover_name=True)
 
     fig.update_layout(
         scene={
@@ -33,29 +42,12 @@ if __name__ == "__main__":
             'aspectmode': "data",
             'aspectratio': {"x": 1, "y": 1, "z": 1},
             'camera': {'projection': {'type': 'orthographic'},
-                       'eye':{"x":-0.5,"y":-0.75,"z":0.3},
-                       'center':{"x":-0.2,"y":-0.2,"z":-0.3}},}
+                       'eye':{"x":0,"y":0,"z":1},
+                       'center':{"x":0,"y":0,"z":0}},}
 
     )
-    # fig.update_scenes(xaxis_range=[xmin,xmax])
     plotly.offline.plot(fig, filename=r"C:\Users\ag-bahl\Downloads\test.html", auto_open=True, auto_play=False)
 
 
 
-
-
-
-    # fig.update_layout(
-    #     scene={
-    #         'xaxis': {'showgrid': True, 'showline': True, 'gridcolor': 'black'},  # reverse !!!
-    #         'yaxis': {'autorange': True, 'showgrid': True, 'showline': True, 'gridcolor': 'black'},
-    #
-    #         'zaxis': {'autorange': True, 'showgrid': True, 'gridcolor': 'black', 'showline': True},
-    #         'aspectmode': "data",
-    #         'aspectratio': {"x": 1, "y": 1, "z": 1},
-    #         'camera': {'projection': {'type': 'orthographic'}}}
-    #
-    # )
-    # # fig.update_scenes(xaxis_range=[xmin,xmax])
-    # plotly.offline.plot(fig, filename=r"C:\Users\ag-bahl\Downloads\test.html", auto_open=True, auto_play=False)
 
