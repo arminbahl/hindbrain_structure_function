@@ -25,6 +25,10 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
         #prune
         # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in cell_df['swc']]
         # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in cell_df['swc']]
+        #resample
+        cell_df.loc[:, 'not_resampled_swc'] = cell_df['swc']
+        cell_df.loc[:,'swc'] = cell_df.swc.apply(lambda x: x.resample("0.5 micron"))
+        # cell_df.loc[:, 'swc'] = cell_df['swc']
 
         #reset index
         cell_df = cell_df.reset_index(drop=True)
@@ -57,7 +61,7 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
         cell_df.loc[:, 'soma_z'] = cell_df.loc[:, "swc"].apply(lambda x: np.mean(x.nodes.loc[0,"z"]))
 
         #
-        # cell_df.loc[:, 'tortuosity'] = cell_df.loc[:, "swc"].apply(lambda x: navis.tortuosity(x))
+        cell_df.loc[:, 'tortuosity'] = cell_df.loc[:, "swc"].apply(lambda x: navis.tortuosity(x))
 
         #add n_leafs
         cell_df.loc[:,'n_leafs'] = cell_df.loc[:, "swc"].apply(lambda x: x.n_leafs)
@@ -95,7 +99,7 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
                 branches_df = pd.concat([branches_df,temp])
 
 
-        for i,cell in cell_df.iterrows():
+        for i,cell in tqdm(cell_df.iterrows()):
             cell_df.loc[i,"main_path_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
                                                                               (branches_df['main_path'])&
                                                                               (branches_df['end_type']!='end'), 'longest_neurite_in_branch'].iloc[0]
@@ -132,12 +136,10 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
 
 
             #biggest major branch
-            cell_df.loc[i, "biggest_branch_longest_neurite"] =  branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
-                                                                (~branches_df['main_path']) &
-                                                                (branches_df['end_type'] != 'end'), :].sort_values('total_branch_length', ascending=False)['longest_neurite_in_branch'].iloc[0]
-            cell_df.loc[i,"biggest_branch_total_branch_length"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name)&
-                                                                                  (~branches_df['main_path'])&
-                                                                                  (branches_df['end_type']!='end'), 'total_branch_length'].iloc[0]
+
+            cell_df.loc[i, "biggest_branch_longest_neurite"] = navis.longest_neurite(navis.split_into_fragments(cell_df.loc[i, "swc"],2)[1]).cable_length
+            cell_df.loc[i, "biggest_branch_total_branch_length"] = navis.split_into_fragments(cell_df.loc[i, "swc"],2)[1].cable_length
+
 
             cell_df.loc[i, "longest_connected_path"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name),'longest_connected_path'].iloc[0]
 
@@ -162,6 +164,42 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
             cell_df.loc[i, 'fraction_contra'] = (cell.swc.nodes.x>(width_brain/2)).sum()/len(cell.swc.nodes.x)
             cell_df.loc[i, 'y_extent_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2),"y"].max()-cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2),"y"].min()
             cell_df.loc[i, 'z_extent_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "z"].max() - cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "z"].min()
+
+            cell_df.loc[i, 'max_x_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "x"].max()
+            cell_df.loc[i, 'max_y_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "y"].max()
+            cell_df.loc[i, 'max_z_ipsi'] =  cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "z"].max()
+
+            cell_df.loc[i, 'min_x_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "x"].min()
+            cell_df.loc[i, 'min_y_ipsi'] = cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "y"].min()
+            cell_df.loc[i, 'min_z_ipsi'] =  cell.swc.nodes.loc[cell.swc.nodes.x < (width_brain / 2), "z"].min()
+
+            cell_df.loc[i, 'max_x_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "x"].max()
+            cell_df.loc[i, 'max_y_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "y"].max()
+            cell_df.loc[i, 'max_z_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "z"].max()
+
+            cell_df.loc[i, 'min_x_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "x"].min()
+            cell_df.loc[i, 'min_y_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "y"].min()
+            cell_df.loc[i, 'min_z_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "z"].min()
+            if np.isnan(cell_df.loc[i, 'max_x_contra']):
+                cell_df.loc[i, 'max_x_contra'] = 0
+                cell_df.loc[i, 'max_y_contra'] = 0
+                cell_df.loc[i, 'max_z_contra'] = 0
+                cell_df.loc[i, 'min_x_contra'] = 0
+                cell_df.loc[i, 'min_y_contra'] = 0
+                cell_df.loc[i, 'min_z_contra'] = 0
+            cell_df.loc[i,'avg_delta_death_birth_persitence'] = np.mean([row['death']-row['birth'] for i,row in navis.persistence_points(cell.swc).iterrows()])
+            cell_df.loc[i, 'median_delta_death_birth_persitence'] = np.mean([row['death'] - row['birth'] for i, row in navis.persistence_points(cell.swc).iterrows()])
+            cell_df.loc[i, 'std_delta_death_birth_persitence'] = np.std([row['death'] - row['birth'] for i, row in navis.persistence_points(cell.swc).iterrows()])
+
+            # ff = navis.form_factor(cell.swc,progress =False)
+            # for ff_it, ff_item in enumerate(ff):
+            #     cell_df.loc[i, f'ff_{str(ff_it).zfill(3)}'] = ff_item
+            # pv = navis.persistence_vectors(cell.swc)
+            # for pv_it, pv_item in enumerate(pv[0][0]):
+            #     cell_df.loc[i, f'pv0_{str(pv_it).zfill(3)}'] = pv_item
+            # for pv_it, pv_item in enumerate(pv[1]):
+            #     cell_df.loc[i, f'pv1_{str(pv_it).zfill(3)}'] = pv_item
+
 
 
             cell_df.loc[i, 'z_extent_contra'] = cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "z"].max() - cell.swc.nodes.loc[cell.swc.nodes.x > (width_brain / 2), "z"].min()
@@ -198,8 +236,8 @@ def calculate_metric2df(cell_df,file_name,path_to_data,force_new=False,train_or_
             if cell.morphology == 'contralateral':
                 #pass
 
-                angle,crossing_coords,fragments_list = direct_angle_and_crossing_extraction(cell['swc'].nodes,projection="3d")
-                angle2d, crossing_coords, fragments_list = direct_angle_and_crossing_extraction(cell['swc'].nodes, projection="2d")
+                angle,crossing_coords,fragments_list = direct_angle_and_crossing_extraction(cell['not_resampled_swc'].nodes,projection="3d")
+                angle2d, crossing_coords, fragments_list = direct_angle_and_crossing_extraction(cell['not_resampled_swc'].nodes, projection="2d")
 
                 if np.isnan(angle):
                     pass
