@@ -23,7 +23,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
     if 'clem' in modalities:
-        clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('all_cells'))
+        clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('rec_neurons'))
 
 
         table_list.append(clem_table)
