@@ -50,6 +50,7 @@ if __name__ == '__main__':
     solver = 'lsqr'
     shrinkage = 'auto'
     width_brain = 495.56
+    custom_priors = True
 
     #New segment: Prepare Train data
     use_k_means_classes=True
@@ -62,7 +63,7 @@ if __name__ == '__main__':
     cells_train = prepare_data_4_metric_calc(cells_train,use_new_neurotransmitter,use_k_means_classes,path_to_data,train_or_predict='train')
 
     #cells_train.loc[:, 'swc'] = [navis.prune_twigs(x, '10 microns', recursive=True) for x in cells_train['swc']]
-    calculate_metric2df(cells_train, 'FINAL', path_to_data, force_new=True, train_or_predict='train')
+    calculate_metric2df(cells_train, 'FINAL', path_to_data, force_new=False, train_or_predict='train')
 
     #load preexisting metrics
     all_wn,column_labels_train_wn,train_df_wn = load_metrics_train('FINAL',path_to_data=path_to_data,with_neg_control=True)
@@ -96,7 +97,7 @@ if __name__ == '__main__':
             cells_predict.loc[i, 'morphology_n'] = 'ipsilateral'
 
     #cells_predict.loc[:,'swc'] = [navis.prune_twigs(x, '10 microns', recursive=True) for x in cells_predict['swc']]
-    calculate_metric2df(cells_predict, 'FINAL', path_to_data, force_new=True, train_or_predict='predict')
+    calculate_metric2df(cells_predict, 'FINAL', path_to_data, force_new=False, train_or_predict='predict')
 
     #load preexisting metrics
     all,column_labels,predict_df = load_metrics_predict('FINAL',path_to_data)
@@ -155,19 +156,23 @@ if __name__ == '__main__':
        'x_location_index', 'fraction_contra', 'angle', 'angle2d',
        'x_cross', 'y_cross', 'z_cross']
 
-    turned_on_features3 = list(np.array(column_labels_train)[reduced_features_index]) + ['y_cross']
+    turned_on_features3 = list(np.array(column_labels_train)[reduced_features_index]) + ['max_y_contra']# + ['fraction_contra'] # + ['n_nodes_contra_hemisphere'] + ['n_nodes_contra_hemisphere_fraction']
 
     turned_on_features = turned_on_features3
-    # turned_on_features = turned_on_features3
+
 
 
 
 
     copy_index = [True if x in turned_on_features else False for x in np.array(column_labels)]
-    # reduced_features_index = copy_index
+    reduced_features_index = copy_index
 
     #New segment: Test that no ipsi get predicted as contra and vice versa
-    priors = [len(labels_train[labels_train == x]) / len(labels_train) for x in np.unique(labels_train)]
+    if custom_priors:
+        priors = [0.1,0.25,0.25,0.4]
+    else:
+        priors = [len(labels_train[labels_train == x]) / len(labels_train) for x in np.unique(labels_train)]
+
     # priors = None
     clf = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train, labels_train.flatten())
     clf_reduced = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train[:,reduced_features_index], labels_train.flatten())
@@ -292,8 +297,6 @@ if __name__ == '__main__':
     clf = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train, labels_train.flatten())
     clf_reduced = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage, priors=priors).fit(features_train[:,reduced_features_index], labels_train.flatten())
 
-    color_list = []
-    swc_list = []
 
     for i,cell in predict_df.iterrows():
         #prediction
@@ -425,7 +428,7 @@ if __name__ == '__main__':
 
     predict_df['swc'] = predict_df['swc'].apply(lambda x: restore_some(x))
 
-    cell_selection = predict_df.loc[(predict_df['nblast_general']),:]
+    cell_selection = predict_df#.loc[(predict_df['nblast_general']),:]
     fig = navis.plot3d(list(cell_selection['swc']), backend='plotly', colors=[color_dict[x] for x in cell_selection['predicted']],
                        width=1920, height=1080, hover_name=True, alpha=1, title=temp_title)
     fig = navis.plot3d(brain_meshes, backend='plotly', fig=fig,
@@ -457,10 +460,81 @@ if __name__ == '__main__':
     #New segment: print how many of manual predicted DTs are predicted as DT
     manual_predicted_DTs = [173141, 131678,133334,141963,146884,153284,168586,175440]
     manual_predicted_DTs = [str(x) for x in manual_predicted_DTs]
+    print(Fore.RED + 'Reduced'+ Fore.BLACK)
     print(f'{np.sum([x in list(cell_selection.loc[cell_selection["predicted_reduced"] == "dynamic threshold","cell_name"]) for x in manual_predicted_DTs])} of {len(manual_predicted_DTs)} manual predicted DTs predicted as DTs\n')
     print(str(cell_selection.loc[cell_selection['cell_name'].isin(manual_predicted_DTs)].groupby(['predicted_reduced']).size())+ "\n")
     print(cell_selection.loc[cell_selection['cell_name'].isin(manual_predicted_DTs),['prob_reduced_DT', 'prob_reduced_CI','prob_reduced_II', 'prob_reduced_MC']])
+
+
+    print(Fore.RED + '\nAll'+ Fore.BLACK)
+    print(f'{np.sum([x in list(cell_selection.loc[cell_selection["predicted"] == "dynamic threshold","cell_name"]) for x in manual_predicted_DTs])} of {len(manual_predicted_DTs)} manual predicted DTs predicted as DTs\n')
+    print(str(cell_selection.loc[cell_selection['cell_name'].isin(manual_predicted_DTs)].groupby(['predicted']).size())+ "\n")
+    print(cell_selection.loc[cell_selection['cell_name'].isin(manual_predicted_DTs),['prob_DT', 'prob_CI','prob_II', 'prob_MC']])
+
     # New segment: alarm
     duration = 200  # milliseconds
     freq = 440  # Hz
     winsound.Beep(freq, duration)
+
+
+    #New segment: two class prediction
+
+    dict_0 = {'dynamic threshold':0, 'integrator contralateral':0,
+       'integrator ipsilateral':1, 'motor command':1}
+    dict_1 = {'dynamic threshold':0, 'integrator contralateral':1,
+       'integrator ipsilateral':1, 'motor command':0}
+
+    labels_0 = np.array([dict_0[x] for x in labels_train]) #label DT/II as same and MC/CI as same
+    labels_1 = np.array([dict_1[x] for x in labels_train]) #label DT/MC as same and II.CI as same
+
+
+    LDA0 = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage).fit(features_train, labels_0.flatten())
+    LDA1 = LinearDiscriminantAnalysis(solver=solver, shrinkage=shrinkage).fit(features_train, labels_1.flatten())
+
+    result0 = LDA0.predict(features_predict)
+    result0_proba = LDA0.predict_proba(features_predict)
+
+    predict_df['bi0_proba'] = result0_proba[:,0]
+
+    result1 = LDA1.predict(features_predict)
+    result1_proba = LDA1.predict_proba(features_predict)
+    predict_df['bi1'] = result1
+    predict_df['bi1_proba'] = result1_proba[:,0]
+
+    plt.scatter(predict_df['bi0_proba'],predict_df['bi1_proba'],c=['red' if x in manual_predicted_DTs else 'blue' for x in predict_df['cell_name']])
+    plt.axhline(0.5)
+    plt.axvline(0.5)
+    plt.show()
+
+    predict_df.loc[(predict_df['bi0_proba']>0.5)&
+                   (predict_df['bi1_proba']>0.5),'bi_predicted'] = 'dynamic threshold'
+
+    predict_df.loc[(predict_df['bi0_proba'] < 0.5) &
+                   (predict_df['bi1_proba'] > 0.5), 'bi_predicted'] = 'motor command'
+
+    predict_df.loc[(predict_df['bi0_proba'] < 0.5) &
+                   (predict_df['bi1_proba'] < 0.5), 'bi_predicted'] = 'integrator ipsilateral'
+
+    predict_df.loc[(predict_df['bi0_proba'] > 0.5) &
+                   (predict_df['bi1_proba'] < 0.5), 'bi_predicted'] = 'integrator contralateral'
+
+    cell_selection = predict_df  # .loc[(predict_df['nblast_general']),:]
+    fig = navis.plot3d(list(cell_selection['swc']), backend='plotly', colors=[color_dict[x] for x in cell_selection['bi_predicted']],
+                       width=1920, height=1080, hover_name=True, alpha=1, title=temp_title)
+    fig = navis.plot3d(brain_meshes, backend='plotly', fig=fig,
+                       width=1920, height=1080, hover_name=True, title=temp_title)
+    fig.update_layout(
+        scene={
+            'xaxis': {'autorange': 'reversed'},  # reverse !!!
+            'yaxis': {'autorange': True},
+
+            'zaxis': {'autorange': True},
+            'aspectmode': "data",
+            'aspectratio': {"x": 1, "y": 1, "z": 1}},
+        title=dict(text='all_cells prediction', font=dict(size=20), automargin=True, yref='paper')
+    )
+    os.makedirs(path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_em', exist_ok=True)
+    temp_file_name = path_to_data / 'make_figures_FK_output' / 'LDS_NBLAST_predictions_em' / f"bi_predicted.html"
+    plotly.offline.plot(fig, filename=str(temp_file_name), auto_open=True, auto_play=False)
+
+
