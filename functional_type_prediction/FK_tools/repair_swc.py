@@ -209,23 +209,7 @@ if __name__ == '__main__':
     name_time = datetime.now()
     # set path
     path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')   # Ensure this path is set in path_configuration.txt
-    #load em data
-    # all_cells_em = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["em"],mirror=False,load_repaired=False)
-    # all_cells_em = all_cells_em.sort_values('classifier')
-    #
-    # #load pa cells
-    # all_cells_pa = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=False)
-    # all_cells_pa_smooth = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["pa"],use_smooth=True)
-    # all_cells_pa.loc[:,'swc_smooth'] = all_cells_pa_smooth['swc']
-    # all_cells_pa = all_cells_pa.dropna(subset='swc',axis=0)
-    #
-    # #load clem cells
-    # all_cells_clem = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"],mirror=False,load_repaired=False)
-    # all_cells_clem = all_cells_clem.dropna(subset='swc',axis=0)
-    # all_cells_clem_predict = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem_predict"], mirror=False, load_repaired=False)
-    # all_cells_clem_predict = all_cells_clem_predict.dropna(subset='swc', axis=0)
-    #
-    # all_cells = pd.concat([all_cells_clem_predict,all_cells_em,all_cells_clem,all_cells_pa])
+
     all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["neg_controls"], mirror=False, load_repaired=False)
     all_cells = all_cells.dropna(subset='swc', axis=0)
     #repair all_swcs
