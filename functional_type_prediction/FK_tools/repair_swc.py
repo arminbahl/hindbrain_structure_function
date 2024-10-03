@@ -210,7 +210,7 @@ if __name__ == '__main__':
     # set path
     path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')   # Ensure this path is set in path_configuration.txt
 
-    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["neg_controls"], mirror=False, load_repaired=False)
+    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"], mirror=False, load_repaired=False)
     all_cells = all_cells.dropna(subset='swc', axis=0)
     #repair all_swcs
 
@@ -235,4 +235,3 @@ if __name__ == '__main__':
 
         print(f"em_zfish1_{cell.cell_name}_repaired.swc finished")
 
-    send_slack_message('repair_swc finished')
