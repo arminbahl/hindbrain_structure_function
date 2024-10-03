@@ -19,8 +19,8 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         clem_path_new = path / 'clem_zfish1' / 'all_cells_new' / cell_name_clem / 'mapped'
         clem_path_to_predict = path / 'clem_zfish1' / 'to_predict' / cell_name_clem / 'mapped'
         clem_path_neg_controls = path / 'clem_zfish1' / 'neg_controls' / cell_name_clem / 'mapped'
-        clem_path_new = path / 'clem_zfish1' / 'rec_neurons' / cell_name_clem / 'mapped'
-        rec_neurons = path / 'clem_zfish1' / 'rec_neurons' / cell_name_clem / 'mapped'
+        clem_path_new = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
+        rec_neurons = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
     elif cell['imaging_modality'] == 'clem' and load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path = path / 'clem_zfish1' / 'all_cells_repaired'
@@ -28,7 +28,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         regular_clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
         clem_path_neg_controls = path / 'clem_zfish1' / 'neg_controls' / cell_name_clem / 'mapped'
         clem_path_new = path / 'clem_zfish1' / 'all_cells_new' / cell_name_clem / 'mapped'
-        rec_neurons = path / 'clem_zfish1' / 'rec_neurons' / cell_name_clem / 'mapped'
+        rec_neurons = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
 
 
 
