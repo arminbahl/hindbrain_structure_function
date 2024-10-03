@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
     #CLEM cells
 
-    cells = os.listdir(data_path / 'clem_zfish1' / 'rec_neurons')
-    base_path_clem = data_path / 'clem_zfish1' / 'rec_neurons'
+    cells = os.listdir(data_path / 'clem_zfish1' / 'functionally_imaged')
+    base_path_clem = data_path / 'clem_zfish1' / 'functionally_imaged'
     clem_rel = h5py.File(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\activity_recordings\all_cells_temp.h5")
     cells = [x for x in cells if (base_path_clem /x/ (f'{x}_dynamics.hdf5')).exists()]
 
@@ -207,9 +207,9 @@ if __name__ == "__main__":
                 manual_class = eval(t.split("\n")[7][19:])[0].replace(" ", "_")
 
 
-            swc = navis.read_swc(data_path / 'clem_zfish1'/ 'rec_neurons' / directory /'mapped'/ f'{directory}_mapped.swc')
+            swc = navis.read_swc(data_path / 'clem_zfish1'/ 'functionally_imaged' / directory /'mapped'/ f'{directory}_mapped.swc')
             left_hemisphere = swc.nodes.iloc[0]['x'] < width_brain / 2
-            temp_path = data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_dynamics.hdf5'
+            temp_path = data_path / 'clem_zfish1'/ 'functionally_imaged' / directory / f'{directory}_dynamics.hdf5'
             with h5py.File(temp_path, 'r') as f:
                 df_F_left_dots_avg = np.array(f['dF_F/average_rdms_left_dF_F_calculated_on_single_trials'])
                 df_F_right_dots_avg = np.array(f['dF_F/average_rdms_right_dF_F_calculated_on_single_trials'])
@@ -231,6 +231,9 @@ if __name__ == "__main__":
             # rel = np.array(clem_rel[neuron_functional_id]['reliability_trials_left'])[np.newaxis][0]
             rel = np.nanmean(np.mean(st,axis=0)/np.nanstd(st,axis=0), axis=0)
             peak = 0.90 * np.nanmax(PD[40:120])  # 90% of the peak
+            if np.nanmax(PD[40:120])<0:
+                peak = 1.1 * np.nanmax(PD[40:120])
+
             peak_indices = np.where(PD[40:120] >= peak)[0]
 
             ca = cronbach_alpha(st)
@@ -269,19 +272,19 @@ if __name__ == "__main__":
 
             prediction_equals_manual = f'prediction_equals_manual = {manual_class == class_label}\n'
             prediction_equals_manual_st = f'prediction_equals_manual = {manual_class == st_class_label}\n'
-            meta = open(data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_metadata.txt', 'r')
+            meta = open(data_path / 'clem_zfish1'/ 'functionally_imaged' / directory / f'{directory}_metadata.txt', 'r')
             t = meta.read()
             if not t[-1:] == '\n':
                 t = t + '\n'
 
             new_t = (t + prediction_string + correlation_test + prediction_equals_manual + prediction_string_single_trial +correlation_test_single_trial+prediction_equals_manual_st)
             meta.close()
-            if (data_path / 'clem_zfish1'/ 'rec_neurons' / directory).exists():
-                meta = open(data_path / 'clem_zfish1'/ 'rec_neurons' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
+            if (data_path / 'clem_zfish1'/ 'functionally_imaged' / directory).exists():
+                meta = open(data_path / 'clem_zfish1'/ 'functionally_imaged' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
                 meta.write(new_t)
                 meta.close()
-            if (data_path / 'clem_zfish1' / 'rec_neurons' / directory).exists():
-                meta = open(data_path / 'clem_zfish1' / 'rec_neurons' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
+            if (data_path / 'clem_zfish1' / 'functionally_imaged' / directory).exists():
+                meta = open(data_path / 'clem_zfish1' / 'functionally_imaged' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
                 meta.write(new_t)
                 meta.close()
 
@@ -431,13 +434,13 @@ if __name__ == "__main__":
     plt.title('BIC for GMM')
 
     plt.tight_layout()  # Adjust spacing between plots for better readability
-    plt.show()
+    # plt.show()
 
     #Kmeans clustering
     n_clusters =4
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
-    label2class = {0:'motor_command',1:'dynamic_threshold',2:'integrator',3:'integrator'}
+    label2class = {0:'integrator',1:'dynamic_threshold',2:'motor_command',3:'integrator'}
     # label2class = {2:'motor_command',1:'dynamic_threshold',0:'integrator'}
     for i in range(kmeans.cluster_centers_.shape[0]):
         plt.plot(kmeans.cluster_centers_[i],label=i)
@@ -447,15 +450,9 @@ if __name__ == "__main__":
 
     print(label2class)
     plt.legend()
-    plt.show()
+    # plt.show()
 
     #check if cluster 3 rather belongs to cluster 0 or 1
-
-
-
-
-
-
 
     df['kmeans_labels'] = [label2class[x] for x in kmeans.labels_]
     df['kmeans_labels_int'] = kmeans.labels_
@@ -474,10 +471,12 @@ if __name__ == "__main__":
     kk = df.loc[:,['cell_name','manual_assigned_class','kmeans_labels','kmeans_labels_int']]
     kk['match'] = kk['manual_assigned_class'] == kk['kmeans_labels']
     kk['cell_name'] = kk['cell_name'].apply(lambda x: x[12:] if 'cell' in x else x)
-
+    plt.clf()
+    fig, ax = plt.subplots(n_clusters,1,figsize=(5,3.5*n_clusters))
     for i in range(kmeans.cluster_centers_.shape[0]):
-        plt.plot(all_PD[kmeans.labels_ == i, :].T)
-        plt.show()
+        ax[i].title.set_text(f'cluster {i}')
+        ax[i].plot(all_PD[kmeans.labels_ == i, :].T)
+    plt.show()
 
     from scipy.stats import norm, kstest
 
@@ -584,8 +583,8 @@ if __name__ == "__main__":
 
             new_t = (t + prediction_string)
 
-            if (data_path / 'clem_zfish1' / 'rec_neurons'/f'clem_zfish1_{cell.cell_name}').exists():
-                temp_path = data_path / 'clem_zfish1' / 'rec_neurons' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
+            if (data_path / 'clem_zfish1' / 'functionally_imaged'/f'clem_zfish1_{cell.cell_name}').exists():
+                temp_path = data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
                 with open(temp_path, 'w') as meta:
                     meta.write(new_t)
             if (data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}').exists():
@@ -612,7 +611,8 @@ if __name__ == "__main__":
     plt.ylabel('reliability')
     plt.xlabel('Manual assigned classes across kmeans clusters')
 
-    plt.show()
+    #plt.show()
+    plt.clf()
     label2class
 
     color_dict = {
