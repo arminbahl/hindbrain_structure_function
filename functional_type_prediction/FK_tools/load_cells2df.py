@@ -23,7 +23,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
     if 'clem' in modalities:
-        clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('rec_neurons'))
+        clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('functionally_imaged'))
 
 
         table_list.append(clem_table)
@@ -145,6 +145,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                         all_cells.loc[i, 'morphology'] = label
                     elif label in cell_type_categories['function']:
                         all_cells.loc[i, 'function'] = label
+                        if label == 'nan':
+                            pass
                     elif label in cell_type_categories['neurotransmitter']:
                         all_cells.loc[i, 'neurotransmitter'] = label
                 try:
@@ -187,7 +189,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
     all_cells = all_cells.dropna(how='all')
-
+    all_cells['function'] = all_cells['function'].apply(lambda x: x.replace("_"," "))
     return all_cells
 
 if __name__ == '__main__':
