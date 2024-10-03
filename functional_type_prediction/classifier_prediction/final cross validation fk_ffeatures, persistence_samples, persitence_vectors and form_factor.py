@@ -663,54 +663,7 @@ def check_duplicates(train, test):
     else:
         pass
         return False
-
-get_gb = lambda x: sys.getsizeof(x) / (1024 ** 3)
-if __name__ == "__main__":
-    # New segment: set constants
-    path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')
-    path_to_save = path_to_data / 'make_figures_FK_output' / 'all_confusion_matrices'
-    os.makedirs(path_to_save, exist_ok=True)
-    n_estimators_rf = 100
-    use_new_neurotransmitter = True
-    use_k_means_classes = True
-
-    # New segment: load FK_features
-    all, column_labels, all_cells = load_metrics_train('FINAL', path_to_data=path_to_data)  # clem_clem_predict_pa_prediction_project_neg_controls
-
-    # unpack metrics
-    features_fk, labels_fk, labels_imaging_modality = all
-
-    # New segment: load all cells and calculate persistence_vectors, persistence_samples, form_factor
-    cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['pa', 'clem'], load_repaired=True)
-    cells = prepare_data_4_metric_calc(cells, use_new_neurotransmitter, use_k_means_classes, path_to_data=path_to_data)
-    cells = cells.set_index('cell_name').loc[all_cells['cell_name']].reset_index()
-    cells['swc'] = cells['swc'].apply(lambda x: x.resample("1 micron"))
-
-
-
-    # features_pv = np.stack([navis.persistence_vectors(x, samples=300)[0] for x in cells.swc])[:, 0, :]  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
-    # features_ps = np.stack([navis.persistence_vectors(x, samples=300)[1] for x in cells.swc])  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
-    # features_ff = navis.form_factor(navis.NeuronList(cells.swc), n_cores=15, parallel=True, num=300)  # https://link.springer.com/article/10.1007/s12021-017-9341-1
-
-    cells['class'] = cells.loc[:, ['function', 'morphology']].apply(lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
-    labels = cells['class'].to_numpy()
-
-    #subset to specific classes
-    cells = cells.loc[cells['class'].isin(['integrator_contralateral','motor_command']),:]
-    features_fk = features_fk[(labels_fk=='motor command')|(labels_fk=='integrator contralateral')]
-    labels = labels[(labels_fk == 'motor command') | (labels_fk == 'integrator contralateral')]
-    labels_fk = labels_fk[(labels_fk=='motor command')|(labels_fk=='integrator contralateral')]
-
-
-    clem_idx = (cells['imaging_modality'] == 'clem').to_numpy()
-    pa_idx = (cells['imaging_modality'] == 'photoactivation').to_numpy()
-
-    clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
-    clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
-    clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
-    clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
-
-    def do_cv(method: str, clf, features_train, labels_train, features_test, labels_test, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False):
+def do_cv(method: str, clf, features_train, labels_train, features_test, labels_test, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,fraction_across_classes=True):
         acronym_dict = {'dynamic_threshold': "DT", 'integrator_contralateral': "CI", 'integrator_ipsilateral': "II", 'motor_command': "MC"}
 
         try:
@@ -745,8 +698,11 @@ if __name__ == "__main__":
                     except:
 
                         pass
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
 
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
             elif check_test_in_train:
                 ss = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
                 for train_index, test_index in ss.split(features_train):
@@ -766,7 +722,10 @@ if __name__ == "__main__":
                     except:
                         pass
 
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             elif check_train_in_test:
                 ss = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
                 for train_index, test_index in ss.split(features_test):
@@ -787,7 +746,10 @@ if __name__ == "__main__":
                         true_labels.extend(y_test)
                     except:
                         pass
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             else:
                 ss_train = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
                 ss_test = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
@@ -807,7 +769,10 @@ if __name__ == "__main__":
                     except:
                         pass
 
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             split = f'{int((1 - test_size) * 100)}:{int((test_size) * 100)}'
             if ax is None:
                 fig, ax = plt.subplots(figsize=(10, 10))
@@ -853,7 +818,10 @@ if __name__ == "__main__":
 
                     pred_labels.extend(clf_work.predict(X_test))
 
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             elif check_test_in_train:
                 lpo = LeavePOut(p=p)
                 for train_index, test_index in lpo.split(features_train):
@@ -872,7 +840,10 @@ if __name__ == "__main__":
                     except:
                         pass
 
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             elif check_train_in_test:
                 lpo = LeavePOut(p=p)
                 for train_index, test_index in lpo.split(features_train):
@@ -890,7 +861,10 @@ if __name__ == "__main__":
                         true_labels.extend(list(y_test))
                     except:
                         pass
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             else:
                 lpo = LeavePOut(p=p)
                 for train_index, test_index in lpo.split(features_train):
@@ -905,7 +879,10 @@ if __name__ == "__main__":
                         true_labels.extend(list(y_test))
                     except:
                         pass
-                cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                if fraction_across_classes:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+                else:
+                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
             if ax is None:
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
@@ -937,6 +914,55 @@ if __name__ == "__main__":
                     ax.spines['left'].set_linewidth(2)
                     ax.spines['right'].set_linewidth(2)
 
+get_gb = lambda x: sys.getsizeof(x) / (1024 ** 3)
+if __name__ == "__main__":
+    # New segment: set constants
+    path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')
+    path_to_save = path_to_data / 'make_figures_FK_output' / 'all_confusion_matrices'
+    os.makedirs(path_to_save, exist_ok=True)
+    n_estimators_rf = 100
+    use_new_neurotransmitter = True
+    use_k_means_classes = True
+    fraction_across_classes = False
+
+    # New segment: load FK_features
+    all, column_labels, all_cells = load_metrics_train('FINAL', path_to_data=path_to_data)  # clem_clem_predict_pa_prediction_project_neg_controls
+
+    # unpack metrics
+    features_fk, labels_fk, labels_imaging_modality = all
+
+    # New segment: load all cells and calculate persistence_vectors, persistence_samples, form_factor
+    cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['pa', 'clem'], load_repaired=True)
+    cells = prepare_data_4_metric_calc(cells, use_new_neurotransmitter, use_k_means_classes, path_to_data=path_to_data)
+    cells = cells.set_index('cell_name').loc[all_cells['cell_name']].reset_index()
+    cells['swc'] = cells['swc'].apply(lambda x: x.resample("1 micron"))
+
+
+
+    features_pv = np.stack([navis.persistence_vectors(x, samples=300)[0] for x in cells.swc])[:, 0, :]  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
+    features_ps = np.stack([navis.persistence_vectors(x, samples=300)[1] for x in cells.swc])  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
+    features_ff = navis.form_factor(navis.NeuronList(cells.swc), n_cores=15, parallel=True, num=300)  # https://link.springer.com/article/10.1007/s12021-017-9341-1
+
+    cells['class'] = cells.loc[:, ['function', 'morphology']].apply(lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
+    labels = cells['class'].to_numpy()
+
+    #subset to specific classes
+    # cells = cells.loc[cells['class'].isin(['integrator_contralateral','motor_command']),:]
+    # features_fk = features_fk[(labels_fk=='motor command')|(labels_fk=='integrator contralateral')]
+    # labels = labels[(labels_fk == 'motor command') | (labels_fk == 'integrator contralateral')]
+    # labels_fk = labels_fk[(labels_fk=='motor command')|(labels_fk=='integrator contralateral')]
+
+
+    clem_idx = (cells['imaging_modality'] == 'clem').to_numpy()
+    pa_idx = (cells['imaging_modality'] == 'photoactivation').to_numpy()
+
+    clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
+    clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
+    clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
+    clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
+
+
+
     target_train_test = ['ALLCLEM', 'CLEMCLEM', 'PAPA']
 
     # #New segment: FK features, selected with PA:PA
@@ -950,9 +976,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('lpo', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_lpo1.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_lpo1.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -960,9 +987,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_ss70_30_dtc.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_ss70_30_dtc.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -970,9 +998,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_ss99_1_dtc.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_ss99_1_dtc.pdf')
     plt.show()
 
     print(Fore.RED + 'FINISHED FK features, selected with PA:PA DTC' + Fore.BLACK)
@@ -989,9 +1018,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('lpo', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_lpo1_xgb.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_lpo1_xgb.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -999,9 +1029,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_ss70_30_xgb.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_ss70_30_xgb.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -1009,9 +1040,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_pa_pa_ss99_1_xgb.png')
+    plt.savefig(path_to_save / 'FK_features_pa_pa_ss99_1_xgb.pdf')
     plt.show()
 
     print(Fore.RED + 'FINISHED FK features, selected with PA:PA XGB' + Fore.BLACK)
@@ -1028,9 +1060,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('lpo', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_all_clem_lpo_dtc.png')
+    plt.savefig(path_to_save / 'FK_features_all_clem_lpo_dtc.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -1038,9 +1071,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_all_clem_ss70_30_dtc.png')
+    plt.savefig(path_to_save / 'FK_features_all_clem_ss70_30_dtc.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -1048,9 +1082,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_all_clem_ss99_1_dtc.png')
+    plt.savefig(path_to_save / 'FK_features_all_clem_ss99_1_dtc.pdf')
     plt.show()
     print(Fore.RED + 'FINISHED FK features, selected with ALL:CLEM DTC' + Fore.BLACK)
 
@@ -1066,9 +1101,10 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('lpo', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_clem_clem_lpo1.png')
+    plt.savefig(path_to_save / 'FK_features_clem_clem_lpo1.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -1079,6 +1115,7 @@ if __name__ == "__main__":
                   figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y])
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_clem_clem_ss70_30.png')
+    plt.savefig(path_to_save / 'FK_features_clem_clem_ss70_30.pdf')
     plt.show()
 
     fig, ax = plt.subplots(3, 3, figsize=(20, 20))
@@ -1086,106 +1123,116 @@ if __name__ == "__main__":
         for test_idx, test_mod, loc_y in zip([np.full(features_fk.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
             spines_red = train_mod + test_mod in target_train_test
             do_cv('ss', clf_fk, features_fk[:, reduced_features_index][train_idx], labels[train_idx], features_fk[:, reduced_features_index][test_idx], labels[test_idx],
-                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red)
+                  figure_label=f'FK features\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01, n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
     fig.suptitle(f'Feature selected {evaluation_method}\nTEST:TRAIN\n{trm}:{tem}',fontsize='xx-large')
     plt.savefig(path_to_save / 'FK_features_clem_clem_ss99_1.png')
+    plt.savefig(path_to_save / 'FK_features_clem_clem_ss99_1.pdf')
     plt.show()
 
     print(Fore.RED + 'FINISHED FK features, selected with CLEM:CLEM DTC' + Fore.BLACK)
 
 
-    # # New segment: Persistence Sample (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184)
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('lpo', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y],
-    #               spines_red=spines_red)
-    # fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PS_lpo1.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
-    # fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PS_ss70_30.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
-    #               n_repeats=1000, spines_red=spines_red)
-    # fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PS_ss99_1.png')
-    # plt.show()
-    #
-    # print(Fore.RED + 'FINISHED persistence samples' + Fore.BLACK)
-    #
-    # # New segment: Persistence Vector (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184)
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('lpo', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y],
-    #               spines_red=spines_red)
-    # fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PV_lpo1.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
-    # fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PV_ss70_30.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
-    #               n_repeats=1000, spines_red=spines_red)
-    # fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'PV_ss99_1.png')
-    # plt.show()
-    # print(Fore.RED + 'FINISHED persistence vectors' + Fore.BLACK)
-    #
-    # # New segment: Form factor (https://link.springer.com/article/10.1007/s12021-017-9341-1)
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('lpo', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
-    # fig.suptitle(f'Form factors Kanari et al. 2018',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'FF_lpo1.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red)
-    # fig.suptitle(f'Form factors Kanari et al. 2018',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'FF_ss70_30.png')
-    # plt.show()
-    #
-    # fig, ax = plt.subplots(3, 3, figsize=(20, 20))
-    # for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #     for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
-    #         spines_red = train_mod + test_mod in target_train_test
-    #         do_cv('ss', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
-    #               n_repeats=1000, spines_red=spines_red)
-    # fig.suptitle(f'Form factors Kanari et al. 2018',fontsize='xx-large')
-    # plt.savefig(path_to_save / 'FF_ss99_1.png')
-    # plt.show()
-    # print(Fore.RED + 'FINISHED form factors' + Fore.BLACK)
+    # New segment: Persistence Sample (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184)
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('lpo', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y],
+                  spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PS_lpo1.png')
+    plt.savefig(path_to_save / 'PS_lpo1.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PS_ss70_30.png')
+    plt.savefig(path_to_save / 'PS_ss70_30.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ps.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_ps, features_ps[train_idx], labels[train_idx], features_ps[test_idx], labels[test_idx], figure_label=f'Persistence samples\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
+                  n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence samples Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PS_ss99_1.png')
+    plt.savefig(path_to_save / 'PS_ss99_1.pdf')
+    plt.show()
+
+    print(Fore.RED + 'FINISHED persistence samples' + Fore.BLACK)
+
+    # New segment: Persistence Vector (https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184)
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('lpo', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y],
+                  spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PV_lpo1.png')
+    plt.savefig(path_to_save / 'PV_lpo1.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PV_ss70_30.png')
+    plt.savefig(path_to_save / 'PV_ss70_30.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_pv.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_pv, features_pv[train_idx], labels[train_idx], features_pv[test_idx], labels[test_idx], figure_label=f'Persistence vectors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
+                  n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Persistence vectors Li et al. 2017',fontsize='xx-large')
+    plt.savefig(path_to_save / 'PV_ss99_1.png')
+    plt.savefig(path_to_save / 'PV_ss99_1.pdf')
+    plt.show()
+    print(Fore.RED + 'FINISHED persistence vectors' + Fore.BLACK)
+
+    # New segment: Form factor (https://link.springer.com/article/10.1007/s12021-017-9341-1)
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('lpo', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Form factors Choi et al. 2022',fontsize='xx-large')
+    plt.savefig(path_to_save / 'FF_lpo1.png')
+    plt.savefig(path_to_save / 'FF_lpo1.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Form factors Choi et al. 2022',fontsize='xx-large')
+    plt.savefig(path_to_save / 'FF_ss70_30.png')
+    plt.savefig(path_to_save / 'FF_ss70_30.pdf')
+    plt.show()
+
+    fig, ax = plt.subplots(3, 3, figsize=(20, 20))
+    for train_idx, train_mod, loc_x in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+        for test_idx, test_mod, loc_y in zip([np.full(features_ff.shape[0], True), clem_idx, pa_idx], ['ALL', "CLEM", "PA"], range(3)):
+            spines_red = train_mod + test_mod in target_train_test
+            do_cv('ss', clf_ff, features_ff[train_idx], labels[train_idx], features_ff[test_idx], labels[test_idx], figure_label=f'Form factors\n{train_mod}:{test_mod}', ax=ax[loc_x, loc_y], test_size=0.01,
+                  n_repeats=1000, spines_red=spines_red,fraction_across_classes=fraction_across_classes)
+    fig.suptitle(f'Form factors Choi et al. 2022',fontsize='xx-large')
+    plt.savefig(path_to_save / 'FF_ss99_1.png')
+    plt.savefig(path_to_save / 'FF_ss99_1.pdf')
+    plt.show()
+    print(Fore.RED + 'FINISHED form factors' + Fore.BLACK)
