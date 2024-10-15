@@ -881,6 +881,7 @@ class class_predictor:
 
 
     def do_cv(self,method: str, clf,feature_type, train_mod,test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,fraction_across_classes=True,idx=None,plot=True):
+
         def check_duplicates(train, test):
             # Convert both arrays to sets of rows
             train_set = set(map(tuple, train))
@@ -900,37 +901,29 @@ class class_predictor:
         acronym_dict = {'dynamic_threshold': "DT", 'integrator_contralateral': "CI", 'integrator_ipsilateral': "II", 'motor_command': "MC",
                         'dynamic threshold': "DT", 'integrator contralateral': "CI", 'integrator ipsilateral': "II", 'motor command': "MC"}
 
-        mod2idx = {'all':np.full(len(self.pa_idx),True),'pa':self.pa_idx,'clem':self.clem_idx}
+        mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
+
+        def extract_features(feature_type, model_to_index, mode, idx):
+            if feature_type == 'fk':
+                return self.features_fk_train[model_to_index[mode]][:, idx]
+            elif feature_type == 'pv':
+                return self.features_pv[model_to_index[mode]]
+            elif feature_type == 'ps':
+                return self.features_ps[model_to_index[mode]]
+            elif feature_type == 'ff':
+                return self.features_ff[model_to_index[mode]]
+
+            labels_train = self.labels_fk_train[mod2idx[train_mod]]
+            labels_test = self.labels_fk_train[mod2idx[test_mod]]
+
+
         if idx is None:
-            if feature_type == 'fk':
-                features_train = self.features_fk_train[mod2idx[train_mod]][:,self.reduced_features_idx]
-                features_test = self.features_fk_train[mod2idx[test_mod]][:,self.reduced_features_idx]
-            elif feature_type == 'pv':
-                features_train = self.features_pv[mod2idx[train_mod]]
-                features_test = self.features_pv[mod2idx[test_mod]]
-            elif feature_type == 'ps':
-                features_train = self.features_ps[mod2idx[train_mod]]
-                features_test = self.features_ps[mod2idx[test_mod]]
-            elif feature_type == 'ff':
-                features_train = self.features_ff[mod2idx[train_mod]]
-                features_test = self.features_ff[mod2idx[test_mod]]
-        else:
-            if feature_type == 'fk':
-                features_train = self.features_fk_train[mod2idx[train_mod]][:,idx]
-                features_test = self.features_fk_train[mod2idx[test_mod]][:,idx]
-            elif feature_type == 'pv':
-                features_train = self.features_pv[mod2idx[train_mod]]
-                features_test = self.features_pv[mod2idx[test_mod]]
-            elif feature_type == 'ps':
-                features_train = self.features_ps[mod2idx[train_mod]]
-                features_test = self.features_ps[mod2idx[test_mod]]
-            elif feature_type == 'ff':
-                features_train = self.features_ff[mod2idx[train_mod]]
-                features_test = self.features_ff[mod2idx[test_mod]]
-
-
+            idx = self.reduced_features_idx
+        features_train = extract_features(feature_type, mod2idx, train_mod, idx)
+        features_test = extract_features(feature_type, mod2idx, test_mod, idx)
         labels_train = self.labels_fk_train[mod2idx[train_mod]]
         labels_test = self.labels_fk_train[mod2idx[test_mod]]
+
 
 
 
@@ -953,79 +946,91 @@ class class_predictor:
         true_labels = []
         pred_labels = []
 
-        if method == 'ss':
-            if check_test_equals_train:
-                ss = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
-                for train_index, test_index in ss.split(features_train):
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = features_train[train_index], features_test[test_index], labels_train[train_index], labels_test[test_index]
-                    if check_duplicates(X_train, X_test):
-                        pass
+
+
+        if method == 'lpo':
+            splitter =  LeavePOut(p=p)
+        elif method == 'ss':
+            splitter = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
+
+
+        if check_test_equals_train:
+
+
+            for train_index, test_index in splitter.split(features_train):
+                clf_work = clone(clf)
+                X_train, X_test, y_train, y_test = features_train[train_index], features_test[test_index], labels_train[train_index], labels_test[test_index]
+                if check_duplicates(X_train, X_test):
+                    pass
+                clf_work.fit(X_train, y_train)
+
+                try:
+                    true_labels.extend(y_test)
+                    pred_labels.extend(clf_work.predict(X_test))
+                except:
+                    pass
+        elif check_test_in_train:
+            lpo = LeavePOut(p=p)
+            true_labels = []
+            pred_labels = []
+            for train_index, test_index in splitter.split(features_train):
+                bool_train = np.full_like(mod2idx[test_mod],False)
+                bool_test = np.full_like(mod2idx[test_mod],False)
+                bool_train[train_index] = True
+                bool_test[test_index] = True
+
+                clf_work = clone(clf)
+                X_train, X_test, y_train, y_test = (features_train[bool_train*mod2idx[train_mod]],
+                                                    features_train[bool_test*mod2idx[test_mod]],
+                                                    labels_train[bool_train*mod2idx[train_mod]],
+                                                    labels_train[bool_test*mod2idx[test_mod]])
+                if y_test.size != 0:
+
                     clf_work.fit(X_train, y_train)
-
-                    try:
-                        pred_labels.extend(clf_work.predict(X_test))
-                        true_labels.extend(y_test)
-
-
-                    except:
-
-                        pass
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-
-            elif check_test_in_train:
-                ss = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
-                for train_index, test_index in ss.split(features_train):
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = features_train[train_index], features_train[test_index], labels_train[train_index], labels_train[test_index]
-
-                    bool_test = np.any(np.all(features_test[:, None] == X_test, axis=2), axis=1)
-                    X_test, y_test = features_test[bool_test], labels_test[bool_test]
-                    if check_duplicates(X_train, X_test):
-                        pass
-
-                    clf_work.fit(X_train, y_train)
-
                     try:
                         pred_labels.extend(clf_work.predict(X_test))
                         true_labels.extend(list(y_test))
                     except:
                         pass
+        elif check_train_in_test:
+            true_labels = []
+            pred_labels = []
+            for train_index, test_index in splitter.split(features_test):
+                bool_train = np.full_like(mod2idx[test_mod],False)
+                bool_test = np.full_like(mod2idx[test_mod],False)
+                bool_train[train_index] = True
+                bool_test[test_index] = True
 
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-            elif check_train_in_test:
-                ss = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
-                for train_index, test_index in ss.split(features_test):
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = features_test[train_index], features_test[test_index], labels_test[train_index], labels_test[test_index]
-
-                    bool_train = np.any(np.all(features_train[:, None] == X_train, axis=2), axis=1)
-                    X_train, y_train = features_train[bool_train], labels_train[bool_train]
-
-                    # Example usage
-                    if check_duplicates(X_train, X_test):
-                        pass
+                clf_work = clone(clf)
+                X_train, X_test, y_train, y_test = (features_test[bool_train*mod2idx[train_mod]],
+                                                    features_test[bool_test*mod2idx[test_mod]],
+                                                    labels_test[bool_train*mod2idx[train_mod]],
+                                                    labels_test[bool_test*mod2idx[test_mod]])
+                if y_test.size != 0:
 
                     clf_work.fit(X_train, y_train)
-
                     try:
                         pred_labels.extend(clf_work.predict(X_test))
-                        true_labels.extend(y_test)
+                        true_labels.extend(list(y_test))
                     except:
                         pass
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-            else:
-                ss_train = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
-                ss_test = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
+        else:
+            if method == 'lpo':
+                for train_index, test_index in splitter.split(features_train):
+                    clf_work = clone(clf)
+                    X_train, X_test, y_train, y_test = features_train[train_index], features_test, labels_train[train_index], labels_test
+
+                    if check_duplicates(X_train, X_test):
+                        pass
+                    clf_work.fit(X_train, y_train)
+                    try:
+                        pred_labels.extend(clf_work.predict(X_test))
+                        true_labels.extend(list(y_test))
+                    except:
+                        pass
+            elif method == 'ss':
+                ss_train = clone(splitter)
+                ss_test = clone(splitter)
                 for train_indeces, test_indeces in zip(ss_train.split(features_train), ss_test.split(features_test)):
                     clf_work = clone(clf)
                     train_index = train_indeces[0]
@@ -1041,170 +1046,51 @@ class class_predictor:
                         true_labels.extend(y_test)
                     except:
                         pass
+        if fraction_across_classes:
+            cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+        else:
+            cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
 
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-            split = f'{int((1 - test_size) * 100)}:{int((test_size) * 100)}'
-            if plot:
-                if ax is None:
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
+        if plot:
+            split = f"{(1-test_size)*100}:{test_size*100}"
+            if ax is None:
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
+                if method == "ss":
                     plt.title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
-                    ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    if spines_red:
-                        ax.spines['bottom'].set_color('red')
-                        ax.spines['top'].set_color('red')
-                        ax.spines['left'].set_color('red')
-                        ax.spines['right'].set_color('red')
-                        ax.spines['bottom'].set_linewidth(2)
-                        ax.spines['top'].set_linewidth(2)
-                        ax.spines['left'].set_linewidth(2)
-                        ax.spines['right'].set_linewidth(2)
-
-                else:
-                    ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
-                    ax.title.set_text(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
-                    ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    if spines_red:
-                        ax.spines['bottom'].set_color('red')
-                        ax.spines['top'].set_color('red')
-                        ax.spines['left'].set_color('red')
-                        ax.spines['right'].set_color('red')
-                        ax.spines['bottom'].set_linewidth(2)
-                        ax.spines['top'].set_linewidth(2)
-                        ax.spines['left'].set_linewidth(2)
-                        ax.spines['right'].set_linewidth(2)
-        if method == 'lpo':
-            if check_test_equals_train:
-                lpo = LeavePOut(p=p)
-                for train_index, test_index in lpo.split(features_train):
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = features_train[train_index], features_test[test_index], labels_train[train_index], labels_test[test_index]
-                    true_labels.extend(y_test)
-                    if check_duplicates(X_train, X_test):
-                        pass
-
-                    clf_work.fit(X_train, y_train)
-
-                    pred_labels.extend(clf_work.predict(X_test))
-
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-            elif check_test_in_train:
-                lpo = LeavePOut(p=p)
-                true_labels = []
-                pred_labels = []
-                for train_index, test_index in lpo.split(features_train):
-                    bool_train = np.full_like(mod2idx[test_mod],False)
-                    bool_test = np.full_like(mod2idx[test_mod],False)
-                    bool_train[train_index] = True
-                    bool_test[test_index] = True
-
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = (features_train[bool_train*mod2idx[train_mod]],
-                                                        features_train[bool_test*mod2idx[test_mod]],
-                                                        labels_train[bool_train*mod2idx[train_mod]],
-                                                        labels_train[bool_test*mod2idx[test_mod]])
-                    if y_test.size != 0:
-
-                        clf_work.fit(X_train, y_train)
-                        try:
-                            pred_labels.extend(clf_work.predict(X_test))
-                            true_labels.extend(list(y_test))
-                        except:
-                            pass
-
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-
-            elif check_train_in_test:
-                lpo = LeavePOut(p=p)
-                true_labels = []
-                pred_labels = []
-                for train_index, test_index in lpo.split(features_test):
-                    bool_train = np.full_like(mod2idx[test_mod],False)
-                    bool_test = np.full_like(mod2idx[test_mod],False)
-                    bool_train[train_index] = True
-                    bool_test[test_index] = True
-
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = (features_test[bool_train*mod2idx[train_mod]],
-                                                        features_test[bool_test*mod2idx[test_mod]],
-                                                        labels_test[bool_train*mod2idx[train_mod]],
-                                                        labels_test[bool_test*mod2idx[test_mod]])
-                    if y_test.size != 0:
-
-                        clf_work.fit(X_train, y_train)
-                        try:
-                            pred_labels.extend(clf_work.predict(X_test))
-                            true_labels.extend(list(y_test))
-                        except:
-                            pass
-
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-
-
+                elif method == 'lpo':
+                    plt.title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
+                ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
+                if spines_red:
+                    ax.spines['bottom'].set_color('red')
+                    ax.spines['top'].set_color('red')
+                    ax.spines['left'].set_color('red')
+                    ax.spines['right'].set_color('red')
+                    ax.spines['bottom'].set_linewidth(2)
+                    ax.spines['top'].set_linewidth(2)
+                    ax.spines['left'].set_linewidth(2)
+                    ax.spines['right'].set_linewidth(2)
 
             else:
-                lpo = LeavePOut(p=p)
-                for train_index, test_index in lpo.split(features_train):
-                    clf_work = clone(clf)
-                    X_train, X_test, y_train, y_test = features_train[train_index], features_test, labels_train[train_index], labels_test
+                ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
+                if method == "ss":
+                    ax.title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                elif method == 'lpo':
+                    ax.title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
+                ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
+                if spines_red:
+                    ax.spines['bottom'].set_color('red')
+                    ax.spines['top'].set_color('red')
+                    ax.spines['left'].set_color('red')
+                    ax.spines['right'].set_color('red')
+                    ax.spines['bottom'].set_linewidth(2)
+                    ax.spines['top'].set_linewidth(2)
+                    ax.spines['left'].set_linewidth(2)
+                    ax.spines['right'].set_linewidth(2)
 
-                    if check_duplicates(X_train, X_test):
-                        pass
-                    clf_work.fit(X_train, y_train)
-                    try:
-                        pred_labels.extend(clf_work.predict(X_test))
-                        true_labels.extend(list(y_test))
-                    except:
-                        pass
-                if fraction_across_classes:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
-                else:
-                    cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
-            if plot:
-                if ax is None:
-                    fig, ax = plt.subplots(figsize=(10, 10))
-                    ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
-                    plt.title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
-                    ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    if spines_red:
-                        ax.spines['bottom'].set_color('red')
-                        ax.spines['top'].set_color('red')
-                        ax.spines['left'].set_color('red')
-                        ax.spines['right'].set_color('red')
-                        ax.spines['bottom'].set_linewidth(2)
-                        ax.spines['top'].set_linewidth(2)
-                        ax.spines['left'].set_linewidth(2)
-                        ax.spines['right'].set_linewidth(2)
 
-                else:
-                    ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
-                    ax.title.set_text(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
-                    ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
-                    if spines_red:
-                        ax.spines['bottom'].set_color('red')
-                        ax.spines['top'].set_color('red')
-                        ax.spines['left'].set_color('red')
-                        ax.spines['right'].set_color('red')
-                        ax.spines['bottom'].set_linewidth(2)
-                        ax.spines['top'].set_linewidth(2)
-                        ax.spines['left'].set_linewidth(2)
-                        ax.spines['right'].set_linewidth(2)
         return round(accuracy_score(true_labels, pred_labels) * 100, 2)
 
     def confusion_matrices(self,clf,method: str, n_repeats=100,
