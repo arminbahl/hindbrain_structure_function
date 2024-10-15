@@ -13,7 +13,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                                   path_to_data=Path(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data"),
                                   use_smooth=True,
                                   load_repaired=False,
-                                  load_both=False):
+                                  load_both=False,
+                                  summarize_off_response=True):
     # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
     table_list = []
     if 'pa' in modalities:
@@ -136,7 +137,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     neurotransmitter_dict = {'gad1b':'inhibitory','gad1':'inhibitory','vglut':'excitatory','vglut2':'excitatory','vglut2a':'excitatory'}
     cell_type_categories = {'morphology': ['ipsilateral', 'contralateral'],
                             'neurotransmitter': ['inhibitory', 'excitatory'],
-                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command','no response','off-response','motion responsive',"noisy, little modulation"]}
+                            'function': ['integrator', 'dynamic_threshold', 'dynamic threshold', 'motor_command', 'motor command','no response','off-response','motion responsive',"noisy, little modulation","non-direction-selective, on response"]}
     for i, cell in all_cells.iterrows():
         if cell.imaging_modality != "EM":
             if type(cell.cell_type_labels) == list:
@@ -189,7 +190,14 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
     all_cells = all_cells.dropna(how='all')
-    all_cells['function'] = all_cells['function'].apply(lambda x: x.replace("_"," "))
+
+
+
+    all_cells.loc[all_cells['function'].isna(), 'function'] = 'nan'
+    all_cells['function'] = all_cells['function'].apply(lambda x: x.replace(" ","_"))
+    if summarize_off_response:
+        all_cells.loc[(~all_cells['function'].isin(['integrator','dynamic_threshold','motor_command']))&
+                      (all_cells['function']!='nan'), 'function'] = 'neg_control'
     return all_cells
 
 if __name__ == '__main__':
