@@ -35,6 +35,7 @@ if __name__ == "__main__":
     np.set_printoptions(suppress=True)
     width_brain = 495.56
     data_path = Path(('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data'))
+    data_path = Path(r'D:\hindbrain_structure_function\nextcloud')
 
     regressors = np.load(data_path / 'paGFP' /  "regressors_old.npy")
     regressors = regressors[:,:120]
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     dt = 0.5
 
     #load all cell infortmation
-    cell_data = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem','pa'], load_repaired=True)
+    cell_data = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem','pa'], load_repaired=True)
     cell_data = cell_data.drop_duplicates(subset='cell_name')
     cell_data = cell_data.loc[cell_data['function'].isin(['integrator', 'dynamic_threshold', 'motor_command', 'dynamic threshold','motor command'])]
 
@@ -193,7 +194,7 @@ if __name__ == "__main__":
 
     cells = os.listdir(data_path / 'clem_zfish1' / 'functionally_imaged')
     base_path_clem = data_path / 'clem_zfish1' / 'functionally_imaged'
-    clem_rel = h5py.File(r"C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data\clem_zfish1\activity_recordings\all_cells_temp.h5")
+    clem_rel = h5py.File(data_path / r"clem_zfish1/activity_recordings/all_cells_temp.h5")
     cells = [x for x in cells if (base_path_clem /x/ (f'{x}_dynamics.hdf5')).exists()]
 
     for directory in cells:
@@ -436,8 +437,9 @@ if __name__ == "__main__":
     plt.tight_layout()  # Adjust spacing between plots for better readability
     # plt.show()
 
+
     #Kmeans clustering
-    n_clusters =4
+    n_clusters =3
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
     label2class = {0:'integrator',1:'dynamic_threshold',2:'motor_command',3:'integrator'}
@@ -480,7 +482,7 @@ if __name__ == "__main__":
 
     from scipy.stats import norm, kstest
 
-    extra_analysis = True
+    extra_analysis = False
     if extra_analysis:
         cluster3_rel = df.loc[(df['kmeans_labels_int'] == 3) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
         cluster0_rel = df.loc[(df['kmeans_labels_int'] == 0) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
@@ -551,7 +553,7 @@ if __name__ == "__main__":
     path_to_data = get_base_path()
     brain_meshes = load_brs(path_to_data, 'raphe')
 
-    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['clem', 'pa'], load_repaired=True)
+    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
 
 
 
