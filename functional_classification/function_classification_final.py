@@ -13,6 +13,9 @@ from scipy import stats
 from tqdm import tqdm
 from scipy import stats
 import seaborn as sns
+from sklearn.cluster import KMeans
+import scipy
+from matplotlib.patches import Patch
 
 
 def cronbach_alpha(data):
@@ -341,17 +344,8 @@ if __name__ == "__main__":
         df = df.reset_index(drop=True)
     except:
         pass
-    print(f'Without threshold: {df["manual_matches_regressor"].sum()/df.shape[0]}')
-    lll = df[df['passed_correlation']]
-    print(f'With threshold: {lll["manual_matches_regressor"].sum() / lll.shape[0]}')
 
 
-    def generate_intervals_with_min_delta(length, min_delta=1):
-        intervals = []
-        for start in range(length):
-            for end in range(start + min_delta, length):
-                intervals.append((start, end))
-        return intervals
 
 
 
@@ -371,72 +365,7 @@ if __name__ == "__main__":
                 all_PD[i][::-1][i2] = all_PD[i][::-1][i2-1]
     all_PD = (all_PD - np.nanmin(all_PD, axis=1)[:, np.newaxis]) / (np.nanmax(all_PD, axis=1)[:, np.newaxis] - np.nanmin(all_PD, axis=1)[:, np.newaxis])
 
-    # Determine optimal cluster size
-    from sklearn.metrics import silhouette_score
-    from sklearn.cluster import KMeans
-    from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score
-    from sklearn.mixture import GaussianMixture
-    silhouette_scores = []
-    wcss = []
-    calinski_harabasz_scores = []
-    davies_bouldin_scores = []
-    bic_scores = []
-    K = range(2, 20)
 
-    for k in K:
-        kmeans = KMeans(n_clusters=k)
-        kmeans.fit(all_PD)
-        wcss.append(kmeans.inertia_)
-        score = silhouette_score(all_PD, kmeans.labels_)
-        silhouette_scores.append(score)
-        calinski_harabasz_scores.append(calinski_harabasz_score(all_PD, kmeans.labels_))
-        davies_bouldin_scores.append(davies_bouldin_score(all_PD, kmeans.labels_))
-        gmm = GaussianMixture(n_components=k, random_state=42)
-        gmm.fit(all_PD)
-        bic_scores.append(gmm.bic(all_PD))
-
-    # Plotting the Elbow Method (WCSS vs. Number of Clusters)
-    import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(14, 12))
-
-    # WCSS plot
-    plt.subplot(3, 2, 1)
-    plt.plot(K, wcss, 'bo-')
-    plt.xlabel('Number of clusters, k')
-    plt.ylabel('WCSS (Inertia)')
-    plt.title('Elbow Method for Optimal k')
-
-    # Silhouette Score plot
-    plt.subplot(3, 2, 2)
-    plt.plot(K, silhouette_scores, 'bo-')
-    plt.xlabel('Number of clusters, k')
-    plt.ylabel('Silhouette Score')
-    plt.title('Silhouette Score for Optimal k')
-
-    # Calinski-Harabasz Index plot
-    plt.subplot(3, 2, 3)  # subplot index starts from 1, not 0
-    plt.plot(K, calinski_harabasz_scores, 'bo-')
-    plt.xlabel('Number of clusters, k')
-    plt.ylabel('Calinski-Harabasz Index')
-    plt.title('Calinski-Harabasz Index')
-
-    # Davies-Bouldin Index plot
-    plt.subplot(3, 2, 4)  # subplot index starts from 1, not 0
-    plt.plot(K, davies_bouldin_scores, 'bo-')
-    plt.xlabel('Number of clusters, k')
-    plt.ylabel('Davies-Bouldin Index')
-    plt.title('Davies-Bouldin Index')
-
-    # BIC plot (assuming bic_scores is for BIC)
-    plt.subplot(3, 2, 5)  # Reuse the last subplot (2, 2, 4)
-    plt.plot(K, bic_scores, 'bo-')  # Overplot on the same subplot
-    plt.xlabel('Number of clusters, k')
-    plt.ylabel('BIC (Gaussian Mixture Model)')
-    plt.title('BIC for GMM')
-
-    plt.tight_layout()  # Adjust spacing between plots for better readability
-    # plt.show()
 
 
     #Kmeans clustering
@@ -488,79 +417,6 @@ if __name__ == "__main__":
     kk['cell_name'] = kk['cell_name'].apply(lambda x: x[12:] if 'cell' in x else x)
 
 
-    from scipy.stats import norm, kstest
-
-    extra_analysis = True
-    if extra_analysis:
-        cluster3_rel = df.loc[(df['kmeans_labels_int'] == 3) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
-        cluster0_rel = df.loc[(df['kmeans_labels_int'] == 0) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
-        cluster1_rel = df.loc[(df['kmeans_labels_int'] == 1) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
-        cluster2_rel = df.loc[(df['kmeans_labels_int'] == 2) & (df['manual_assigned_class'] != 'nan'), 'reliability'].to_numpy()
-
-        mu3, std3 = norm.fit(cluster3_rel)
-        mu2, std2 = norm.fit(cluster2_rel)
-        mu0, std0 = norm.fit(cluster0_rel)
-        mu1, std1 = norm.fit(cluster1_rel)
-
-        x = np.linspace(min(np.min(cluster3_rel), np.min(cluster0_rel), np.min(cluster1_rel), np.min(cluster2_rel)) - 1,
-                        max(np.max(cluster3_rel), np.max(cluster0_rel), np.max(cluster1_rel),np.max(cluster2_rel)) + 1, 1000)
-        cluster3_pdf = norm.pdf(x, mu3, std3)
-        cluster0_pdf=norm.pdf(x, mu0, std0)
-        cluster1_pdf =  norm.pdf(x, mu1, std1)
-        cluster2_pdf = norm.pdf(x, mu2, std2)
-
-
-
-        plt.figure(figsize=(10, 6))
-        plt.plot(x, cluster0_pdf, label='IS',  linewidth=2)
-        plt.plot(x, cluster1_pdf, label='MC',  linewidth=2)
-        plt.plot(x, cluster2_pdf, label='DT',  linewidth=2)
-        plt.plot(x, cluster3_pdf, label='IF', linewidth=2)
-        plt.legend()
-        plt.title('PDFs of Clusters')
-        plt.xlabel('Reliability')
-        plt.ylabel('Probability Density')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
-
-
-
-        ks_stat0, p_value0 = kstest(cluster3_rel, lambda x: norm.cdf(x, mu0, std0))
-        ks_stat1, p_value1 = kstest(cluster3_rel, lambda x: norm.cdf(x, mu1, std1))
-        print('ks_stat(3vs0)', ks_stat0, '\nks_stat(3vs1)', ks_stat1, '\np_valu(3vs0)', p_value0, '\np_value(3vs1)', p_value1)
-
-        print('Probability distribution 3 vs 0', np.sum(norm.logpdf(cluster3_rel, mu0, std0)),'\nProbability distribution 3 vs 1', np.sum(norm.logpdf(cluster3_rel, mu1, std1)))
-        plt.figure(figsize=(4, 10))
-
-        from matplotlib.patches import Patch
-
-        legend_elements = [Patch(facecolor='blue', edgecolor='k',label='IS'),
-                           Patch(facecolor='orange', edgecolor='k',label='MC'),
-                           Patch(facecolor='green', edgecolor='k',label='DT'),
-                           Patch(facecolor='red', edgecolor='k',label='IF')]
-
-        import seaborn
-        seaborn.boxplot(x=1, y=cluster0_rel, width=1,color='blue')
-        seaborn.boxplot(x=2, y=cluster1_rel, width=1,color='orange')
-        seaborn.boxplot(x=3, y=cluster2_rel, width=1,color='green')
-        seaborn.boxplot(x=4, y=cluster3_rel, width=1,color='red')
-        plt.ylim(-2,7)
-        plt.legend(handles=legend_elements)
-        plt.show()
-
-
-
-
-
-
-    from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
-    import navis
-    import plotly
-    path_to_data = get_base_path()
-    brain_meshes = load_brs(path_to_data, 'raphe')
-
     em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
     em_pa_cells = em_pa_cells.loc[em_pa_cells['function']!='neg_control',:]
 
@@ -573,8 +429,6 @@ if __name__ == "__main__":
     accepted_function = ['integrator', 'motor_command', 'dynamic_threshold', 'integrator','dynamic threshold','motor command']
 
     for i,cell in em_pa_cells.iterrows():
-        if cell.cell_name == 'cell_576460752729506060':
-            pass
         if cell['kmeans_functional_label_str'] is not np.nan and cell['kmeans_functional_label_str']!= 'nan' and cell.function in accepted_function:
 
             meta_path = Path(str(cell.metadata_path)[:-4] + '_with_regressor.txt')
@@ -586,11 +440,6 @@ if __name__ == "__main__":
                     t = t + '\n'
 
                 prediction_string = f"kmeans_predicted_class = {cell['kmeans_functional_label_str']}\n"
-
-
-
-            if directory== 'clem_zfish1_cell_576460752608135541':
-                pass
 
             new_t = (t + prediction_string)
 
@@ -607,24 +456,6 @@ if __name__ == "__main__":
                 with open(temp_path, 'w') as meta:
                     meta.write(new_t)
 
-    #reliability in subset
-    class2location = {'integrator': -0.2, 'motor_command': 0, 'dynamic_threshold': 0.2}
-    x_modifier = {0: -0.2, 1: -0.1, 2: +0.1,3:0.2}
-
-
-
-    plt.figure(dpi=300)
-    for i in range(len([x for x in df['kmeans_labels_int'].unique() if x!='nan'])):
-        temp = df.loc[(df['kmeans_labels_int'] == i) & (df['manual_assigned_class'] != 'nan'), :]
-        plt.scatter([i + class2location[x] for x in temp['manual_assigned_class']], temp['reliability'])
-    plt.xticks([-0.2, 0, 0.2, 0.8, 1, 1.2,1.8,2,2.2,2.8,3,3.2],['I','MC','DT']*4)
-    plt.xlim(-0.4,3.4)
-    plt.ylabel('reliability')
-    plt.xlabel('Manual assigned classes across kmeans clusters')
-
-    #plt.show()
-    plt.clf()
-    label2class
 
     color_dict = {
         "integrator": '#e84d8ab3',
@@ -632,6 +463,8 @@ if __name__ == "__main__":
         "motor_command": '#7f58afb3',
         'neg control': "#a8c256b3"
     }
+    #figure showing reliability per kmeans cluster with modality split scatter
+    plt.figure(dpi=300)
     in_legend = []
     np.random.seed(1)
     for i,item in df.iterrows():
@@ -640,6 +473,7 @@ if __name__ == "__main__":
         if item.imaging_modality == 'photoactivation':
             offset = 0.2+np.random.choice(np.arange(-0.075,0.075,0.01))
             marker = 's'
+
         if int2class[item.kmeans_labels_int] + " " + item.imaging_modality not in in_legend:
             plt.scatter(item.kmeans_labels_int+offset,item.reliability,c=color_dict[int2class[item.kmeans_labels_int]],label = int2class[item.kmeans_labels_int] + " " + item.imaging_modality,marker=marker)
             in_legend.append(int2class[item.kmeans_labels_int] + " " + item.imaging_modality)
@@ -649,11 +483,50 @@ if __name__ == "__main__":
     plt.ylim(-2,7)
     plt.show()
 
-    #save kmeans regressor
+    #figure showing reliability per kmeans cluster with modality split barplot
+    plt.figure(dpi=300)
+    in_legend = []
+    x_ticks_labels = []
+    loc = 0
+    for kli in df.kmeans_labels_int.unique():
+        for im in df.imaging_modality.unique():
+
+            loc+=1
+            plt.bar(loc,np.mean(df.loc[(df['kmeans_labels_int']==kli)&(df['imaging_modality']==im),'reliability']),
+                      yerr=scipy.stats.sem(df.loc[(df['kmeans_labels_int']==kli)&(df['imaging_modality']==im),'reliability']),
+                      edgecolor=color_dict[int2class[kli]],
+                      color='white')
+            x_ticks_labels.append(im[0] +"_"+int2class[kli][0])
+
+            for i, item in df.loc[(df['kmeans_labels_int']==kli)&(df['imaging_modality']==im),:].iterrows():
+                scatter_loc = loc + np.random.choice(np.arange(-0.075,0.075,0.01))
+                marker = 'o'
+                if item.imaging_modality == 'photoactivation':
+                    offset = 0.2 + np.random.choice(np.arange(-0.075, 0.075, 0.01))
+                    marker = 's'
+
+
+                plt.scatter(scatter_loc, item.reliability, c=color_dict[int2class[item.kmeans_labels_int]], marker=marker)
+
+    from matplotlib.lines import Line2D
+    in_legend = [Line2D([0], [0], marker='o', color='k', label='CLEM',markerfacecolor='w', linestyle='None'),
+                 Line2D([0], [0], marker='s', color='k', label='Photoactivation',markerfacecolor='w', linestyle='None'),
+                 Patch(facecolor='#64c5ebb3', edgecolor='#64c5ebb3',label='Dynamic Threshold'),
+                 Patch(facecolor='#e84d8ab3', edgecolor='#e84d8ab3', label='Integrator'),
+                 Patch(facecolor='#7f58afb3', edgecolor='#7f58afb3', label='Motor Command')]
+    plt.legend(handles=in_legend,frameon=False, fontsize='x-small')
+    plt.ylim(-2, 7)
+    plt.show()
+
+
+
+
+
+    #save class assignment
     os.makedirs(data_path / 'make_figures_FK_output' / 'functional_analysis', exist_ok=True)
-    np.save(data_path / 'make_figures_FK_output' / 'functional_analysis'/'new_regressors.npy',kmeans.cluster_centers_)
-    em_pa_cells.loc[:,['cell_name','functional_id','kmeans_functional_label_str']].to_excel('assignment_.xlsx')
+    em_pa_cells.loc[:,['cell_name','functional_id','kmeans_functional_label_str']].to_excel(data_path / 'make_figures_FK_output' / 'functional_analysis'/'assignment_.xlsx')
 
 
+    #save regressor
     regressors = np.vstack([kmeans.cluster_centers_[1:],kmeans_2nd.cluster_centers_])
-    np.save('kmeans_regressors.npy',regressors,)
+    np.save(data_path / 'make_figures_FK_output' / 'functional_analysis'/ 'kmeans_regressors.npy',regressors,)
