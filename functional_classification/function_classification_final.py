@@ -117,22 +117,15 @@ if __name__ == "__main__":
             class_label = ['integrator','dynamic_threshold','motor_command'][np.argmax(ci)]
 
 
-            prediction_string = f'regressor_predicted_class = "{class_label}"\n'
-            correlation_test = f'correlation_test_passed = "{ci[np.argmax(ci)] > custom_cutoff[class_label]}"\n'
-            prediction_string_single_trial = f'regressor_predicted_class_single_trial = "{st_class_label}"\n'
-            correlation_test_single_trial = f'correlation_test_single_trial_passed = {ci[np.argmax(ci_st)] > custom_cutoff[st_class_label]}\n'
-
 
 
             meta = open(data_path / 'paGFP' / directory / f'{directory}metadata.txt', 'r')
             t = meta.read()
             manual_class = eval(t.split("\n")[1][19:])[0].replace(" ", "_")
-            prediction_equals_manual = f'prediction_equals_manual = {manual_class == class_label}\n'
-            prediction_equals_manual_st = f'prediction_equals_manual = {manual_class == st_class_label}\n'
             if not t[-1:] == '\n':
                 t = t + '\n'
 
-            new_t = (t + prediction_string + correlation_test + prediction_equals_manual + prediction_string_single_trial +correlation_test_single_trial+prediction_equals_manual_st)
+            new_t = (t)
             meta.close()
 
             meta = open(data_path / 'paGFP' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
@@ -143,21 +136,7 @@ if __name__ == "__main__":
 
             print(directory)
             temp_df = pd.DataFrame({'cell_name':[directory],
-                                    'manual_assigned_class':[eval(new_t.split('\n')[1][19:])[0]],
-                                    'predicted_class':[class_label],
-                                    'predicted_class_single_trial': [st_class_label],
-                                    'max_correlation':[ci[np.argmax(ci)]],
-                                    'max_correlation_single_trial': st_best_fit,
-                                    'correlation_mc': np.corrcoef(PD[20:-20], regressors[2][20:-20])[0, 1],
-                                    'correlation_dt': np.corrcoef(PD[20:-20], regressors[1][20:-20])[0, 1],
-                                    'correlation_i': np.corrcoef(PD[20:-20], regressors[0][20:-20])[0, 1],
-                                    'passed_correlation':[ci[np.argmax(ci)] > custom_cutoff[class_label]],
-                                    'passed_correlation_single_trial': [st_best_fit > custom_cutoff[st_class_label]],
-                                    'manual_matches_regressor':[eval(new_t.split('\n')[1][19:])[0]==class_label],
-                                    'manual_matches_regressor_St': [eval(new_t.split('\n')[1][19:])[0].replace(" ", "_") == st_class_label],
-                                    'modality':'pa',
                                     'reliability':rel,
-                                    'cronbach':ca,
                                     'time_constant':peak_indices[0]})
 
             for it in ['PD', 'ND']:
@@ -269,20 +248,12 @@ if __name__ == "__main__":
 
             class_label = ['integrator', 'dynamic_threshold', 'motor_command'][np.argmax(ci)]
 
-            prediction_string = f'regressor_predicted_class = "{class_label}"\n'
-            correlation_test = f'correlation_test_passed = {ci[np.argmax(ci)] > custom_cutoff[class_label]}\n'
-            prediction_string_single_trial = f'regressor_predicted_class_single_trial = "{class_label}"\n'
-            correlation_test_single_trial = f'correlation_test_single_trial_passed = {ci[np.argmax(ci)] > custom_cutoff[st_class_label]}\n'
-
-
-            prediction_equals_manual = f'prediction_equals_manual = {manual_class == class_label}\n'
-            prediction_equals_manual_st = f'prediction_equals_manual = {manual_class == st_class_label}\n'
             meta = open(data_path / 'clem_zfish1'/ 'functionally_imaged' / directory / f'{directory}_metadata.txt', 'r')
             t = meta.read()
             if not t[-1:] == '\n':
                 t = t + '\n'
 
-            new_t = (t + prediction_string + correlation_test + prediction_equals_manual + prediction_string_single_trial +correlation_test_single_trial+prediction_equals_manual_st)
+            new_t = (t)
             meta.close()
             if (data_path / 'clem_zfish1'/ 'functionally_imaged' / directory).exists():
                 meta = open(data_path / 'clem_zfish1'/ 'functionally_imaged' / directory / f'{directory}_metadata_with_regressor.txt', 'w')
@@ -297,21 +268,7 @@ if __name__ == "__main__":
 
             st_class_label
             temp_df = pd.DataFrame({'cell_name': [directory],
-                                    'manual_assigned_class': [eval(new_t.split('\n')[7][19:])[0]],
-                                    'predicted_class': [class_label],
-                                    'predicted_class_single_trial': [st_class_label],
-                                    'max_correlation': [ci[np.argmax(ci)]],
-                                    'max_correlation_single_trial' :st_best_fit,
-                                    'correlation_mc':np.corrcoef(PD[40:-40], regressors[2][20:-20])[0, 1],
-                                    'correlation_dt':np.corrcoef(PD[40:-40], regressors[1][20:-20])[0, 1],
-                                    'correlation_i':np.corrcoef(PD[40:-40], regressors[0][20:-20])[0, 1],
-                                    'passed_correlation': [ci[np.argmax(ci)] > custom_cutoff[class_label]],
-                                    'passed_correlation_single_trial': [st_best_fit > custom_cutoff[st_class_label]],
-                                    'manual_matches_regressor': [eval(new_t.split('\n')[7][19:])[0].replace(" ","_") == class_label],
-                                    'manual_matches_regressor_St': [eval(new_t.split('\n')[7][19:])[0].replace(" ", "_") == st_class_label],
-                                    'modality': 'clem',
                                     'reliability':rel,
-                                    'cronbach': ca,
                                     'time_constant':peak_indices[0]})
 
             for it in ['PD', 'ND']:
@@ -349,11 +306,9 @@ if __name__ == "__main__":
 
 
 
-    df['manual_assigned_class'] = df['manual_assigned_class'].apply(lambda x: x.replace(" ", "_"))
 
 
-    sub_mot_int = df.loc[(df['manual_assigned_class'].isin(['motor_command','motor command',"integrator"]))&(df['manual_matches_regressor']),:]
-    sub_mot_int['manual_assigned_class'] = sub_mot_int['manual_assigned_class'].apply(lambda x: x.replace(" ","_"))
+
 
 
     all_PD = np.stack(df.PD.to_numpy())
@@ -411,9 +366,8 @@ if __name__ == "__main__":
         df.loc[i, 'functional_id'] = functional_id_target
         df.loc[i, 'imaging_modality'] = imaging_modality
 
-    kk = df.loc[:,['cell_name','manual_assigned_class','kmeans_labels_final','kmeans_labels_int']]
-    kk.columns = ['cell_name', 'manual_assigned_class', 'kmeans_labels', 'kmeans_labels_int']
-    kk['match'] = kk['manual_assigned_class'] == kk['kmeans_labels']
+    kk = df.loc[:,['cell_name','kmeans_labels_final','kmeans_labels_int']]
+    kk.columns = ['cell_name', 'kmeans_labels', 'kmeans_labels_int']
     kk['cell_name'] = kk['cell_name'].apply(lambda x: x[12:] if 'cell' in x else x)
 
 
