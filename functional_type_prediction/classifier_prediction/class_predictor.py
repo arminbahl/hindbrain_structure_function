@@ -1075,9 +1075,9 @@ class class_predictor:
             else:
                 ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
                 if method == "ss":
-                    ax.title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    ax.set_title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
                 elif method == 'lpo':
-                    ax.title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    ax.set_title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
                 ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
                 ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
                 if spines_red:
