@@ -44,26 +44,20 @@ class class_predictor:
         if self.train_or_predict == 'train':
             if self.kmeans_classes:
                 for i, cell in df.iterrows():
-                    temp_path = Path(str(cell.metadata_path)[:-4] + "_with_regressor.txt")
-                    temp_path_pa = self.path / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
-                    if cell.function == "neg_control":
-                        df.loc[i, 'kmeans_function'] = 'neg_control'
-
-                    elif temp_path.exists():
-                        if cell.imaging_modality == 'photoactivation':
-                            pass
-                        with open(temp_path, 'r') as f:
-                            t = f.read()
-                            df.loc[i, 'kmeans_function'] = t.split('\n')[21].split(' ')[2].strip('"')
-
-
-                    elif temp_path_pa.exists():
+                    if cell.imaging_modality == "photoactivation":
+                        temp_path_pa = self.path / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
                         with open(temp_path_pa, 'r') as f:
                             t = f.read()
-                            try:
-                                df.loc[i, 'kmeans_function'] = t.split('\n')[17].split(' ')[2].strip('"')
-                            except:
-                                pass
+                            df.loc[i, 'kmeans_function'] = t.split('\n')[11].split(' ')[2].strip('"')
+                    elif cell.imaging_modality == "clem":
+                        if cell.function == "neg_control":
+                            df.loc[i, 'kmeans_function'] = 'neg_control'
+                        else:
+                            temp_path_clem = (str(cell.metadata_path)[:-4] + "_with_regressor.txt")
+                            with open(temp_path_clem, 'r') as f:
+                                t = f.read()
+                                df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
+
 
                 df['function'] = df['kmeans_function']
             if self.new_neurotransmitter:
