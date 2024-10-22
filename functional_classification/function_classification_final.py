@@ -14,8 +14,13 @@ if __name__ == "__main__":
     # set variables
     np.set_printoptions(suppress=True)
     width_brain = 495.56
+
+
     data_path = Path(('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data'))
     data_path = Path(r'D:\hindbrain_structure_function\nextcloud')
+    savepath = data_path / 'make_figures_FK_output' / 'functional_analysis'
+    os.makedirs(savepath, exist_ok=True)
+
 
     # load all cell infortmation
     cell_data = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
@@ -250,7 +255,7 @@ if __name__ == "__main__":
         'neg control': "#a8c256b3"
     }
 
-    def plot_fig(df, color_dict: dict, int2class: dict, attribute: str, ylim=None):
+    def plot_fig(df, color_dict: dict, int2class: dict, attribute: str,savepath, ylim=None):
         plt.figure(dpi=300)
         loc = 0
         for kli in df.kmeans_labels_int.unique():
@@ -273,18 +278,19 @@ if __name__ == "__main__":
         if ylim is not None:
             plt.ylim(ylim)
         plt.title(attribute)
+        plt.savefig(savepath/(attribute+'.png'))
+        plt.savefig(savepath / (attribute + '.pdf'))
         plt.show()
 
 
     # Now you can call the function for each attribute
-    plot_fig(df, color_dict, int2class, 'reliability', (-2, 7))
-    plot_fig(df, color_dict, int2class, 'time_constant')
-    plot_fig(df, color_dict, int2class, 'direction_selectivity')
+    plot_fig(df, color_dict, int2class, 'reliability',savepath=savepath, ylim = (-2, 7))
+    plot_fig(df, color_dict, int2class, 'time_constant',savepath=savepath)
+    plot_fig(df, color_dict, int2class, 'direction_selectivity',savepath=savepath)
 
     # save class assignment
-    os.makedirs(data_path / 'make_figures_FK_output' / 'functional_analysis', exist_ok=True)
-    em_pa_cells.loc[:, ['cell_name', 'functional_id', 'kmeans_functional_label_str']].to_excel(data_path / 'make_figures_FK_output' / 'functional_analysis' / 'assignment_.xlsx')
+    em_pa_cells.loc[:, ['cell_name', 'functional_id', 'kmeans_functional_label_str']].to_excel(savepath / 'assignment_.xlsx')
 
     # save regressor
     regressors = np.vstack([kmeans.cluster_centers_[1:], kmeans_2nd.cluster_centers_])
-    np.save(data_path / 'make_figures_FK_output' / 'functional_analysis' / 'kmeans_regressors.npy', regressors, )
+    np.save(savepath / 'kmeans_regressors.npy', regressors, )
