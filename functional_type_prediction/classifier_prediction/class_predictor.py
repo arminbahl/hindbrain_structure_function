@@ -20,6 +20,14 @@ from sklearn.model_selection import ShuffleSplit
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
+from sklearn.linear_model import LogisticRegression, RidgeClassifier, Perceptron, PassiveAggressiveClassifier
+from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import BaggingClassifier
+from sklearn.feature_selection import RFE
+from sklearn.feature_selection import RFECV
+from sklearn.model_selection import StratifiedKFold, KFold
 
 np.set_printoptions(suppress=True)
 
@@ -786,30 +794,46 @@ class class_predictor:
 
         return bool_features_2_use, max_accuracy_key,  train_mod, test_mod
 
-    def select_features_RFE(self,train_mod,test_mod,cv=False):
+    def select_features_RFE(self,train_mod,test_mod,cv=False,estimator=None,scoring=None,cv_method=None,save_features=False):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
 
 
-        from sklearn.linear_model import LogisticRegression, RidgeClassifier, Perceptron, PassiveAggressiveClassifier
-        from sklearn.svm import LinearSVC
-        from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
-        from sklearn.tree import DecisionTreeClassifier
-        from sklearn.ensemble import BaggingClassifier
-        from sklearn.feature_selection import RFE
-        from sklearn.feature_selection import RFECV
-        from sklearn.model_selection import StratifiedKFold, KFold
+        if estimator is None:
+            all_estimator = [LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                          LogisticRegression(random_state=0),
+                          LinearSVC(random_state=0),
+                          RidgeClassifier(random_state=0),
+                          Perceptron(random_state=0),
+                          PassiveAggressiveClassifier(random_state=0),
+                          RandomForestClassifier(random_state=0),
+                          GradientBoostingClassifier(random_state=0),
+                          ExtraTreesClassifier(random_state=0),
+                          AdaBoostClassifier(random_state=0),
+                          DecisionTreeClassifier(random_state=0)]
+        else:
+            if type(scoring) != list:
+                all_estimator = [estimator]
+            else:
+                all_estimator = estimator
 
-        all_estimator = [LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
-                      LogisticRegression(random_state=0),
-                      LinearSVC(random_state=0),
-                      RidgeClassifier(random_state=0),
-                      Perceptron(random_state=0),
-                      PassiveAggressiveClassifier(random_state=0),
-                      RandomForestClassifier(random_state=0),
-                      GradientBoostingClassifier(random_state=0),
-                      ExtraTreesClassifier(random_state=0),
-                      AdaBoostClassifier(random_state=0),
-                      DecisionTreeClassifier(random_state=0)]
+        if scoring is None:
+            all_scoring = ['accuracy', 'balanced_accuracy', 'average_precision', 'f1', 'f1_weighted']
+        else:
+            if type(scoring) != list:
+                all_scoring = [scoring]
+            else:
+                all_scoring = scoring
+
+        if cv_method is None:
+            cv_method = [ShuffleSplit(n_splits=100, test_size=0.3, random_state=0), LeavePOut(p=1), StratifiedKFold(n_splits=5), KFold(n_splits=5)]
+        else:
+            if type(cv_method) != list:
+                cv_method = [cv_method]
+
+
+
+
+
 
 
 
@@ -847,13 +871,22 @@ class class_predictor:
                 plt.savefig(temp_path / f"{temp_str}.png")
 
                 plt.show()
-                pass
+            if save_features:
+                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list)+1, step=1).fit(self.features_fk_train, self.labels_fk_train)
+
+                self.reduced_features_idx = selector.support_
+                self.select_train_mod = train_mod
+                self.select_test_mod = test_mod
+                self.select_method = str(str(estimator))
+
+
+
 
 
         elif cv:
             for estimator in all_estimator:
-                for scoring in ['accuracy','balanced_accuracy','average_precision','f1','f1_weighted']:
-                    for cv in [ShuffleSplit(n_splits=100, test_size=0.3, random_state=0),LeavePOut(p=1),StratifiedKFold(n_splits=5),KFold(n_splits=5)]:
+                for scoring in all_scoring:
+                    for cv in cv_method:
                         selector = RFECV(estimator, step=1, cv=cv).fit(self.features_fk_train,self.labels_fk_train)
                         temp_str = f"Estimator_{str(estimator)}\nScoring_{str(scoring)}\nCV_{str(cv)}\nfeatures_{np.sum(selector.support_)}"
                         temp_str = '\n'.join([x.split('(')[0] for x in temp_str.split('\n')])
@@ -867,7 +900,11 @@ class class_predictor:
 
                         plt.savefig(temp_path/f"{temp_str}.png")
                         pass
-
+            if save_features:
+                self.reduced_features_idx = selector.support_
+                self.select_train_mod = train_mod
+                self.select_test_mod = test_mod
+                self.select_method = str(str(estimator)+"_"+str(all_scoring)+"_"+str(cv_method))
 
 
 
@@ -931,6 +968,10 @@ class class_predictor:
         elif train_mod == 'all' and test_mod!='all':
             check_train_in_test = False
             check_test_in_train = True
+        else:
+            check_train_in_test = False
+            check_test_in_train = False
+
 
 
         scaler = StandardScaler()
@@ -1023,8 +1064,8 @@ class class_predictor:
                     except:
                         pass
             elif method == 'ss':
-                ss_train = clone(splitter)
-                ss_test = clone(splitter)
+                ss_train = copy.deepcopy(splitter)
+                ss_test = copy.deepcopy(splitter)
                 for train_indeces, test_indeces in zip(ss_train.split(features_train), ss_test.split(features_test)):
                     clf_work = clone(clf)
                     train_index = train_indeces[0]
@@ -1128,7 +1169,7 @@ if __name__ == "__main__":
     test.load_cells_features('FINAL')
     test.load_cells_df()
     # test.calculate_published_metrics()
-    test.select_features_RFE('all','clem',cv=True)
+    test.select_features_RFE('all','clem',cv=False,save_features=True)
 
 
 
