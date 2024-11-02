@@ -193,11 +193,13 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
 
-    all_cells.loc[all_cells['function'].isna(), 'function'] = 'nan'
+    all_cells.loc[all_cells['function'].isna(), 'function'] = 'to_predict'
     all_cells['function'] = all_cells['function'].apply(lambda x: x.replace(" ","_"))
     if summarize_off_response:
         all_cells.loc[(~all_cells['function'].isin(['integrator','dynamic_threshold','motor_command']))&
-                      (all_cells['function']!='nan'), 'function'] = 'neg_control'
+                      (all_cells['function']!='to_predict'), 'function'] = 'neg_control'
+
+
     return all_cells
 
 if __name__ == '__main__':
