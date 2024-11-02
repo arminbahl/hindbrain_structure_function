@@ -1,37 +1,22 @@
-import sys
-
-import numpy as np
-from colorama import Fore
 from sklearn.base import clone
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.feature_selection import RFE
+from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import SelectFromModel
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_classif, mutual_info_classif
 from sklearn.inspection import permutation_importance
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Perceptron, PassiveAggressiveClassifier
-from sklearn.svm import LinearSVC
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import BaggingClassifier
-from sklearn.feature_selection import RFE
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import LeavePOut
 from sklearn.model_selection import ShuffleSplit
-from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
-from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
-from sklearn.linear_model import LogisticRegression, RidgeClassifier, Perceptron, PassiveAggressiveClassifier
-from sklearn.svm import LinearSVC
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import BaggingClassifier
-from sklearn.feature_selection import RFE
-from sklearn.feature_selection import RFECV
 from sklearn.model_selection import StratifiedKFold, KFold
+from sklearn.svm import LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
 
 np.set_printoptions(suppress=True)
-
-
 
 
 class class_predictor:
@@ -40,13 +25,11 @@ class class_predictor:
         self.path_to_save_confusion_matrices = path / 'make_figures_FK_output' / 'all_confusion_matrices'
         os.makedirs(self.path_to_save_confusion_matrices, exist_ok=True)
 
-    def prepare_data_4_metric_calc(self, df):
-        if self.train_or_predict == 'train':
-            df.loc[df['function'].isin(
-                ['off-response', 'no response', 'noisy, little modulation']), 'function'] = 'neg_control'
-            df.function = df.function.apply(lambda x: x.replace(' ', "_"))
-            df = df.loc[(df.function != 'nan'), :]
-            df = df.loc[(~df.function.isna()), :]
+    def prepare_data_4_metric_calc(self, df,neg_control=True):
+        if not neg_control:
+            df = df.loc[df['function']!='neg_control']
+
+
         df = df.drop_duplicates(keep='first', inplace=False, subset='cell_name')
         df = df.reset_index(drop=True)
         if self.train_or_predict == 'train':
@@ -65,7 +48,6 @@ class class_predictor:
                             with open(temp_path_clem, 'r') as f:
                                 t = f.read()
                                 df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
-
 
                 df['function'] = df['kmeans_function']
             if self.new_neurotransmitter:
@@ -181,15 +163,25 @@ class class_predictor:
 
         return [features, labels_imaging_modality], column_labels, all_cells
 
-    def load_cells_features(self, file, train_or_predict='train',with_neg_control=False):
+    def load_cells_features(self, file, train_or_predict='train', with_neg_control=False):
         if train_or_predict == 'train':
             self.all_train, self.column_labels_train, self.all_cells_train = self.load_metrics_train(file, with_neg_control)
             self.features_fk_train, self.labels_fk_train, self.labels_imaging_modality_train = self.all_train
+            # only select cells
+            if hasattr(self, 'all_cells_train'):
+                self.cells = self.cells.set_index('cell_name').loc[self.all_cells_train['cell_name']].reset_index()
+            else:
+                raise ValueError("Metrics have not been loaded.")
+
+            self.labels_train = self.cells['class'].to_numpy()
+            self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
+            self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
+
         elif train_or_predict == 'predict':
             self.all_predict, self.column_labels_predict, self.all_cells_predict = self.load_metrics_predict(file, with_neg_control)
             self.features_fk_predict, self.labels_fk_predict, self.labels_imaging_modality_predict = self.all_predict
 
-    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], train_or_predict='train'):
+    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], train_or_predict='train',neg_control=True):
         self.kmeans_classes = kmeans_classes
         self.new_neurotransmitter = new_neurotransmitter
         self.modalities = modalities
@@ -199,29 +191,23 @@ class class_predictor:
                                                    modalities=modalities,
                                                    load_repaired=True)
 
-        self.cells = self.prepare_data_4_metric_calc(self.cells)
-        # only select cells
-        if hasattr(self, 'all_cells_train'):
-            self.cells = self.cells.set_index('cell_name').loc[self.all_cells_train['cell_name']].reset_index()
-        else:
-            raise ValueError("Metrics have not been loaded.")
+        self.cells = self.prepare_data_4_metric_calc(self.cells,neg_control=neg_control)
+
         # resample neurons 1 micron
         self.cells['swc'] = self.cells['swc'].apply(lambda x: x.resample("1 micron"))
         self.cells['class'] = self.cells.loc[:, ['function', 'morphology']].apply(
             lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
-        self.labels_train = self.cells['class'].to_numpy()
-        self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
-        self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
+
 
     def calculate_published_metrics(self):
         self.features_pv = np.stack([navis.persistence_vectors(x, samples=300)[0] for x in self.cells.swc])[:, 0,
-                      :]  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
+                           :]  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
         self.features_ps = np.stack([navis.persistence_vectors(x, samples=300)[1] for x in
-                                self.cells.swc])  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
+                                     self.cells.swc])  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
         self.features_ff = navis.form_factor(navis.NeuronList(self.cells.swc), n_cores=15, parallel=True,
-                                        num=300)  # https://link.springer.com/article/10.1007/s12021-017-9341-1
+                                             num=300)  # https://link.springer.com/article/10.1007/s12021-017-9341-1
 
-    def select_features(self,  train_mod: str,test_mod: str, plot=False,use_assessment_per_class=False,which_selection='SKB', use_std_scale=False):
+    def select_features(self, train_mod: str, test_mod: str, plot=False, use_assessment_per_class=False, which_selection='SKB', use_std_scale=False):
 
         def calc_penalty(temp_list):
             p = 2  # You can adjust this power as needed
@@ -230,8 +216,6 @@ class class_predictor:
 
         def find_optimum_SKB(features_train, labels_train, features_test, labels_test, train_test_identical,
                              train_contains_test, train_mod, use_std_scale=False):
-
-
 
             pred_correct_dict_over_n = {}
             pred_correct_dict_over_n_per_class = {}
@@ -736,7 +720,7 @@ class class_predictor:
 
                 return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
 
-        mod2idx = {'all':np.full(len(self.pa_idx),True),'pa':self.pa_idx,'clem':self.clem_idx}
+        mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
 
         features_train = self.features_fk_train[mod2idx[train_mod]]
         labels_train = self.labels_fk_train[mod2idx[train_mod]]
@@ -792,24 +776,23 @@ class class_predictor:
         if 'XGBClassifier' in self.select_method:
             self.select_method = 'XGBClassifier'
 
-        return bool_features_2_use, max_accuracy_key,  train_mod, test_mod
+        return bool_features_2_use, max_accuracy_key, train_mod, test_mod
 
-    def select_features_RFE(self,train_mod,test_mod,cv=False,estimator=None,scoring=None,cv_method=None,save_features=False):
+    def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
-
 
         if estimator is None:
             all_estimator = [LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
-                          LogisticRegression(random_state=0),
-                          LinearSVC(random_state=0),
-                          RidgeClassifier(random_state=0),
-                          Perceptron(random_state=0),
-                          PassiveAggressiveClassifier(random_state=0),
-                          RandomForestClassifier(random_state=0),
-                          GradientBoostingClassifier(random_state=0),
-                          ExtraTreesClassifier(random_state=0),
-                          AdaBoostClassifier(random_state=0),
-                          DecisionTreeClassifier(random_state=0)]
+                             LogisticRegression(random_state=0),
+                             LinearSVC(random_state=0),
+                             RidgeClassifier(random_state=0),
+                             Perceptron(random_state=0),
+                             PassiveAggressiveClassifier(random_state=0),
+                             RandomForestClassifier(random_state=0),
+                             GradientBoostingClassifier(random_state=0),
+                             ExtraTreesClassifier(random_state=0),
+                             AdaBoostClassifier(random_state=0),
+                             DecisionTreeClassifier(random_state=0)]
         else:
             if type(scoring) != list:
                 all_estimator = [estimator]
@@ -830,20 +813,13 @@ class class_predictor:
             if type(cv_method) != list:
                 cv_method = [cv_method]
 
-
-
-
-
-
-
-
         if not cv:
             for estimator in all_estimator:
                 acc_list = []
                 for i in np.arange(1, test.features_fk_train.shape[1] + 1):
-                    selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk_train,self.labels_fk_train)
-                    acc = self.do_cv(method='lpo',clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),feature_type='fk',
-                                train_mod = train_mod,test_mod = test_mod,figure_label = str(estimator)+"_n"+str(i),fraction_across_classes=True,idx=selector.support_,plot=False)
+                    selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk_train, self.labels_fk_train)
+                    acc = self.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
+                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True, idx=selector.support_, plot=False)
                     acc_list.append(acc)
                 plt.figure()
                 plt.plot(acc_list)
@@ -860,8 +836,6 @@ class class_predictor:
                 temp_path = self.path / 'prediction' / 'RFE'
                 os.makedirs(temp_path, exist_ok=True)
 
-
-
                 le = [Patch(facecolor='white', edgecolor='white', label=x) for x in np.array(self.column_labels_train)[selector.support_]]
                 plt.legend(handles=le, frameon=False, fontsize=6, loc=[1, 0.0], bbox_to_anchor=(1, 0))
                 plt.subplots_adjust(left=0.1, right=0.65, top=0.80, bottom=0.1)
@@ -872,46 +846,38 @@ class class_predictor:
 
                 plt.show()
             if save_features:
-                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list)+1, step=1).fit(self.features_fk_train, self.labels_fk_train)
+                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk_train, self.labels_fk_train)
 
                 self.reduced_features_idx = selector.support_
                 self.select_train_mod = train_mod
                 self.select_test_mod = test_mod
                 self.select_method = str(str(estimator))
 
-
-
-
-
         elif cv:
             for estimator in all_estimator:
                 for scoring in all_scoring:
                     for cv in cv_method:
-                        selector = RFECV(estimator, step=1, cv=cv).fit(self.features_fk_train,self.labels_fk_train)
+                        selector = RFECV(estimator, step=1, cv=cv).fit(self.features_fk_train, self.labels_fk_train)
                         temp_str = f"Estimator_{str(estimator)}\nScoring_{str(scoring)}\nCV_{str(cv)}\nfeatures_{np.sum(selector.support_)}"
                         temp_str = '\n'.join([x.split('(')[0] for x in temp_str.split('\n')])
-                        print(temp_str,'\n')
+                        print(temp_str, '\n')
                         accuracy = self.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
-                                         train_mod=train_mod, test_mod=test_mod, figure_label=temp_str,
+                                              train_mod=train_mod, test_mod=test_mod, figure_label=temp_str,
                                               fraction_across_classes=False, idx=selector.support_, plot=True)
-                        temp_path = self.path / 'prediction'/'RFECV'
-                        os.makedirs(temp_path,exist_ok=True)
-                        temp_str = str(int(np.round(accuracy))) + "_" + temp_str.replace('\n',"_")
+                        temp_path = self.path / 'prediction' / 'RFECV'
+                        os.makedirs(temp_path, exist_ok=True)
+                        temp_str = str(int(np.round(accuracy))) + "_" + temp_str.replace('\n', "_")
 
-                        plt.savefig(temp_path/f"{temp_str}.png")
+                        plt.savefig(temp_path / f"{temp_str}.png")
                         pass
             if save_features:
                 self.reduced_features_idx = selector.support_
                 self.select_train_mod = train_mod
                 self.select_test_mod = test_mod
-                self.select_method = str(str(estimator)+"_"+str(all_scoring)+"_"+str(cv_method))
+                self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
-
-
-
-
-
-    def do_cv(self,method: str, clf,feature_type, train_mod,test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,fraction_across_classes=True,idx=None,plot=True):
+    def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
+              fraction_across_classes=True, idx=None, plot=True):
 
         def check_duplicates(train, test):
             # Convert both arrays to sets of rows
@@ -927,7 +893,6 @@ class class_predictor:
             else:
                 pass
                 return False
-
 
         acronym_dict = {'dynamic_threshold': "DT", 'integrator_contralateral': "CI", 'integrator_ipsilateral': "II", 'motor_command': "MC",
                         'dynamic threshold': "DT", 'integrator contralateral': "CI", 'integrator ipsilateral': "II", 'motor command': "MC"}
@@ -947,7 +912,6 @@ class class_predictor:
             labels_train = self.labels_fk_train[mod2idx[train_mod]]
             labels_test = self.labels_fk_train[mod2idx[test_mod]]
 
-
         if idx is None:
             idx = self.reduced_features_idx
         features_train = extract_features(feature_type, mod2idx, train_mod, idx)
@@ -955,24 +919,19 @@ class class_predictor:
         labels_train = self.labels_fk_train[mod2idx[train_mod]]
         labels_test = self.labels_fk_train[mod2idx[test_mod]]
 
-
-
-
         if test_mod == train_mod:
             check_test_equals_train = True
         else:
             check_test_equals_train = False
-        if test_mod == 'all' and train_mod!='all':
+        if test_mod == 'all' and train_mod != 'all':
             check_train_in_test = True
             check_test_in_train = False
-        elif train_mod == 'all' and test_mod!='all':
+        elif train_mod == 'all' and test_mod != 'all':
             check_train_in_test = False
             check_test_in_train = True
         else:
             check_train_in_test = False
             check_test_in_train = False
-
-
 
         scaler = StandardScaler()
         features_train = scaler.fit_transform(features_train)
@@ -981,16 +940,12 @@ class class_predictor:
         true_labels = []
         pred_labels = []
 
-
-
         if method == 'lpo':
-            splitter =  LeavePOut(p=p)
+            splitter = LeavePOut(p=p)
         elif method == 'ss':
             splitter = ShuffleSplit(n_splits=n_repeats, test_size=test_size, random_state=0)
 
-
         if check_test_equals_train:
-
 
             for train_index, test_index in splitter.split(features_train):
                 clf_work = clone(clf)
@@ -1009,19 +964,19 @@ class class_predictor:
             true_labels = []
             pred_labels = []
             for train_index, test_index in splitter.split(features_train):
-                bool_train = np.full_like(mod2idx[test_mod],False)
-                bool_test = np.full_like(mod2idx[test_mod],False)
+                bool_train = np.full_like(mod2idx[test_mod], False)
+                bool_test = np.full_like(mod2idx[test_mod], False)
                 bool_train[train_index] = True
                 bool_test[test_index] = True
 
                 clf_work = clone(clf)
-                X_train, X_test, y_train, y_test = (features_train[bool_train*mod2idx[train_mod]],
-                                                    features_train[bool_test*mod2idx[test_mod]],
-                                                    labels_train[bool_train*mod2idx[train_mod]],
-                                                    labels_train[bool_test*mod2idx[test_mod]])
+                X_train, X_test, y_train, y_test = (features_train[bool_train * mod2idx[train_mod]],
+                                                    features_train[bool_test * mod2idx[test_mod]],
+                                                    labels_train[bool_train * mod2idx[train_mod]],
+                                                    labels_train[bool_test * mod2idx[test_mod]])
+                clf_work.fit(X_train, y_train)
                 if y_test.size != 0:
 
-                    clf_work.fit(X_train, y_train)
                     try:
                         pred_labels.extend(clf_work.predict(X_test))
                         true_labels.extend(list(y_test))
@@ -1031,19 +986,19 @@ class class_predictor:
             true_labels = []
             pred_labels = []
             for train_index, test_index in splitter.split(features_test):
-                bool_train = np.full_like(mod2idx[test_mod],False)
-                bool_test = np.full_like(mod2idx[test_mod],False)
+                bool_train = np.full_like(mod2idx[test_mod], False)
+                bool_test = np.full_like(mod2idx[test_mod], False)
                 bool_train[train_index] = True
                 bool_test[test_index] = True
 
                 clf_work = clone(clf)
-                X_train, X_test, y_train, y_test = (features_test[bool_train*mod2idx[train_mod]],
-                                                    features_test[bool_test*mod2idx[test_mod]],
-                                                    labels_test[bool_train*mod2idx[train_mod]],
-                                                    labels_test[bool_test*mod2idx[test_mod]])
+                X_train, X_test, y_train, y_test = (features_test[bool_train * mod2idx[train_mod]],
+                                                    features_test[bool_test * mod2idx[test_mod]],
+                                                    labels_test[bool_train * mod2idx[train_mod]],
+                                                    labels_test[bool_test * mod2idx[test_mod]])
+                clf_work.fit(X_train, y_train)
                 if y_test.size != 0:
 
-                    clf_work.fit(X_train, y_train)
                     try:
                         pred_labels.extend(clf_work.predict(X_test))
                         true_labels.extend(list(y_test))
@@ -1087,7 +1042,7 @@ class class_predictor:
             cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
 
         if plot:
-            split = f"{(1-test_size)*100}:{test_size*100}"
+            split = f"{(1 - test_size) * 100}:{test_size * 100}"
             if ax is None:
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
@@ -1125,64 +1080,66 @@ class class_predictor:
                     ax.spines['left'].set_linewidth(2)
                     ax.spines['right'].set_linewidth(2)
 
-
         return round(accuracy_score(true_labels, pred_labels) * 100, 2)
 
-    def confusion_matrices(self,clf,method: str, n_repeats=100,
+    def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
-                           fraction_across_classes=False,feature_type='fk'):
+                           fraction_across_classes=False, feature_type='fk'):
 
-        suptitle = feature_type.upper()+"_features_"
+        suptitle = feature_type.upper() + "_features_"
         if method == 'lpo':
             suptitle += f'lpo{p}'
         elif method == 'ss':
-            suptitle += f'ss_{int((1-test_size)*100)}_{int((test_size)*100)}'
+            suptitle += f'ss_{int((1 - test_size) * 100)}_{int((test_size) * 100)}'
 
         if feature_type == 'fk':
             suptitle += f'{self.select_train_mod}_{self.select_test_mod}_{self.select_method}'
-
-
-
-
 
         target_train_test = ['ALLCLEM', 'CLEMCLEM', 'PAPA']
         fig, ax = plt.subplots(3, 3, figsize=(20, 20))
         for train_mod, loc_x in zip(['ALL', "CLEM", "PA"], range(3)):
             for test_mod, loc_y in zip(['ALL', "CLEM", "PA"], range(3)):
                 spines_red = train_mod + test_mod in target_train_test
-                self.do_cv(method, clf,feature_type, train_mod.lower(),test_mod.lower(), figure_label=f'{train_mod}_{test_mod}',
-                      ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes,n_repeats=n_repeats, test_size=test_size, p=p)
+                self.do_cv(method, clf, feature_type, train_mod.lower(), test_mod.lower(), figure_label=f'{train_mod}_{test_mod}',
+                           ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes, n_repeats=n_repeats, test_size=test_size, p=p)
         fig.suptitle(suptitle, fontsize='xx-large')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
 
+
 if __name__ == "__main__":
-    # test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
-    # test.load_cells_features('FINAL_before_last_upload')
-    # test.load_cells_df()
-    # # test.calculate_published_metrics()
-    # reduced_features_index, evaluation_method, trm, tem = test.select_features('all','clem',which_selection=DecisionTreeClassifier())
-    # rfidx = reduced_features_index
-
+    #load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
-    test.load_cells_features('FINAL')
     test.load_cells_df()
+    test.load_cells_features('FINAL')
+
     # test.calculate_published_metrics()
-    test.select_features_RFE('all','clem',cv=False,save_features=True)
 
+    #remove truncated/growth cone neurons
+    # bool_truncated = np.array(['truncated' not in str(x) for x in test.cells["comment"]])
+    # bool_growth_cone = np.array(['growth cone' not in str(x) for x in test.cells["comment"]])
+    # bool_complete = bool_truncated * bool_growth_cone
+    # test.features_fk_train = test.features_fk_train[bool_complete,:]
+    # test.labels_fk_train = test.labels_fk_train[bool_complete]
+    # test.cells = test.cells.loc[bool_complete, :]
+    # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
+    # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
+    # test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
 
+    #select features
+    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+    # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
+    print('features:', np.array(test.column_labels_train)[test.reduced_features_idx])
 
-    reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
-
-
+    #select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
     clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
 
-    test.confusion_matrices(clf_fk,method='ss')
-    print(len(np.array(test.column_labels_train)[test.reduced_features_idx]))
-    print(np.array(test.column_labels_train)[test.reduced_features_idx])
-    pass
+    #make confusion matrices
+    test.confusion_matrices(clf_fk, method='lpo')
+
+
