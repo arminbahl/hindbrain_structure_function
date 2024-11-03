@@ -65,8 +65,12 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
 
 
-    elif cell['imaging_modality'] == 'photoactivation':
+    elif cell['imaging_modality'] == 'photoactivation' and not load_repaired:
         pa_path = path / 'paGFP' / str(cell.cell_name)
+    elif cell['imaging_modality'] == 'photoactivation' and load_repaired:
+        pa_path = path / 'paGFP' /'all_cells_repaired'
+
+
 
     if load_both:
         swc = True
@@ -81,6 +85,8 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
     if swc:
         file_suffix = '_smoothed.swc' if use_smooth_pa else '.swc'
+        file_suffix = "_repaired" + file_suffix if load_repaired else file_suffix
+
         if cell['imaging_modality'] == 'photoactivation':
             file_path = pa_path / f'{cell.cell_name}{file_suffix}'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
@@ -181,6 +187,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
             cell['soma_mesh'] = load_file(file_path / f'{cell_name_em_obj}_soma_mapped.obj', 'soma')
         elif cell['imaging_modality'] == 'photoactivation':
             file_suffix = '_smoothed.obj' if use_smooth_pa else '.obj'
+            file_suffix = "_repaired" + file_suffix if load_repaired else file_suffix
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
             cell['soma_mesh'] = load_file(pa_path / f'{cell.cell_name}_soma.obj', 'soma')
             cell['all_mesh'] = load_file(pa_path / f'{cell.cell_name}_combined.obj', 'Combined file')
