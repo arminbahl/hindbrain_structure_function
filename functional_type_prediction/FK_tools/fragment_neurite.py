@@ -253,7 +253,7 @@ def fragmented_to_plot(df,fragments):
     return all_fragments
 def direct_angle_and_crossing_extraction(nodes_df,angle2zaxis=False,projection="3d"):
     width_brain = 495.56
-    fragments = fragment_neuron_into_segments(nodes_df)
+    fragments = fragment_neuron_into_segments(nodes_df.sort_values('node_id'))
     fragments_list = fragmented_to_plot(nodes_df, fragments)
     #nodes_df = repair_neuron(nodes_df)
     # if not (nodes_df.loc[:, "x"] > (width_brain / 2)+10).any():
