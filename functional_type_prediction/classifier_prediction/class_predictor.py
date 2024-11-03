@@ -32,41 +32,48 @@ class class_predictor:
 
         df = df.drop_duplicates(keep='first', inplace=False, subset='cell_name')
         df = df.reset_index(drop=True)
-        if self.train_or_predict == 'train':
-            if self.kmeans_classes:
-                for i, cell in df.iterrows():
-                    if cell.imaging_modality == "photoactivation":
-                        temp_path_pa = self.path / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
-                        with open(temp_path_pa, 'r') as f:
+
+        if self.kmeans_classes:
+            for i, cell in df.iterrows():
+                if cell.imaging_modality == "photoactivation":
+                    temp_path_pa = self.path / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
+                    with open(temp_path_pa, 'r') as f:
+                        t = f.read()
+                        df.loc[i, 'kmeans_function'] = t.split('\n')[11].split(' ')[2].strip('"')
+
+                elif cell.imaging_modality == "clem":
+                    if cell.function == "neg_control":
+                        df.loc[i, 'kmeans_function'] = 'neg_control'
+                    else:
+                        temp_path_clem = (str(cell.metadata_path)[:-4] + "_with_regressor.txt")
+                        with open(temp_path_clem, 'r') as f:
                             t = f.read()
-                            df.loc[i, 'kmeans_function'] = t.split('\n')[11].split(' ')[2].strip('"')
-                    elif cell.imaging_modality == "clem":
-                        if cell.function == "neg_control":
-                            df.loc[i, 'kmeans_function'] = 'neg_control'
-                        else:
-                            temp_path_clem = (str(cell.metadata_path)[:-4] + "_with_regressor.txt")
-                            with open(temp_path_clem, 'r') as f:
-                                t = f.read()
-                                df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
+                            df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
 
-                df['function'] = df['kmeans_function']
-            if self.new_neurotransmitter:
-                new_neurotransmitter = pd.read_excel(
-                    self.path / 'em_zfish1' / 'Figures' / 'Fig 4' / 'cells2show.xlsx',
-                    sheet_name='paGFP stack quality', dtype=str)
+                elif cell.imaging_modality == "EM":
+                    df.loc[i, 'kmeans_function'] = df.loc[i, 'function']
+            df['function'] = df['kmeans_function']
 
-                neurotransmitter_dict = {'Vglut2a': 'excitatory', 'Gad1b': 'inhibitory'}
-                for i, cell in df.iterrows():
-                    if cell.imaging_modality == 'photoactivation':
-                        if new_neurotransmitter.loc[new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0] is np.nan:
-                            df.loc[i, 'neurotransmitter'] = 'nan'
-                        else:
-                            df.loc[i, 'neurotransmitter'] = neurotransmitter_dict[new_neurotransmitter.loc[
-                                new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0]]
+        if self.new_neurotransmitter:
+            new_neurotransmitter = pd.read_excel(
+                self.path / 'em_zfish1' / 'Figures' / 'Fig 4' / 'cells2show.xlsx',
+                sheet_name='paGFP stack quality', dtype=str)
+
+            neurotransmitter_dict = {'Vglut2a': 'excitatory', 'Gad1b': 'inhibitory'}
+            for i, cell in df.iterrows():
+                if cell.imaging_modality == 'photoactivation':
+                    if new_neurotransmitter.loc[new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0] is np.nan:
+                        df.loc[i, 'neurotransmitter'] = 'nan'
+                    else:
+                        df.loc[i, 'neurotransmitter'] = neurotransmitter_dict[new_neurotransmitter.loc[
+                            new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0]]
 
         return df
+    def calculate_metrics(self,file_name,force_new=False):
+        calculate_metric2df_semiold(self.cells, file_name, test.path, force_new=force_new, train_or_predict='train')
 
-    def load_metrics_train(self, file_name, with_neg_control=False):
+
+    def load_metrics(self, file_name, with_neg_control=False):
         file_path = self.path / 'prediction' / f'{file_name}_train_features.hdf5'
 
         all_cells = pd.read_hdf(file_path, 'complete_df')
@@ -123,73 +130,30 @@ class class_predictor:
 
         return [features, labels, labels_imaging_modality], column_labels, all_cells
 
-    def load_metrics_predict(self, file_name, with_neg_control=False):
-        file_path = self.path / 'prediction' / f'{file_name}_predict_features.hdf5'
 
-        all_cells = pd.read_hdf(file_path, 'complete_df')
+    def load_cells_features(self, file, with_neg_control=False):
 
-        # throw out weird jon cells
-        # all_cells = all_cells.loc[~all_cells.cell_name.isin(["cell_576460752734566521", "cell_576460752723528109", "cell_576460752684182585"]), :]
-
-        # Data Preprocessing
-        all_cells = all_cells.sort_values(by=['morphology', 'neurotransmitter'])
-        all_cells = all_cells.reset_index(drop=True)
-
-        # Impute NaNs
-        columns_possible_nans = ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']
-        all_cells.loc[:, columns_possible_nans] = all_cells[columns_possible_nans].fillna(0)
-
-        # Replace strings with indices
-
-        columns_replace_string = ['neurotransmitter', 'morphology']
-        neurotransmitter2int_dict = {'excitatory': 0, 'inhibitory': 1, 'na': 2, 'nan': 2}
-        morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
-
-        for work_column in columns_replace_string:
-            all_cells.loc[:, work_column + "_clone"] = all_cells[work_column]
-            for key in eval(f'{work_column}2int_dict').keys():
-                all_cells.loc[all_cells[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
-
-        # Extract labels
-        labels_imaging_modality = all_cells['imaging_modality'].to_numpy()
-        column_labels = list(all_cells.columns[2:-len(columns_replace_string)])
-
-        # Extract features
-        features = all_cells.iloc[:, 2:-len(columns_replace_string)].to_numpy()
-
-        # Standardize features
-        scaler = StandardScaler()
-        features = scaler.fit_transform(features)
-
-        return [features, labels_imaging_modality], column_labels, all_cells
-
-    def load_cells_features(self, file, train_or_predict='train', with_neg_control=False):
-        if train_or_predict == 'train':
-            self.all_train, self.column_labels_train, self.all_cells_train = self.load_metrics_train(file, with_neg_control)
-            self.features_fk_train, self.labels_fk_train, self.labels_imaging_modality_train = self.all_train
+            all_metric, self.column_labels, self.all_cells = self.load_metrics(file, with_neg_control)
+            self.features_fk, self.labels_fk, self.labels_imaging_modality = all_metric
             # only select cells
-            if hasattr(self, 'all_cells_train'):
-                self.cells = self.cells.set_index('cell_name').loc[self.all_cells_train['cell_name']].reset_index()
+            if hasattr(self, 'all_cells'):
+                self.cells = self.cells.set_index('cell_name').loc[self.all_cells['cell_name']].reset_index()
             else:
                 raise ValueError("Metrics have not been loaded.")
 
-            self.labels_train = self.cells['class'].to_numpy()
             self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
             self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
 
-        elif train_or_predict == 'predict':
-            self.all_predict, self.column_labels_predict, self.all_cells_predict = self.load_metrics_predict(file, with_neg_control)
-            self.features_fk_predict, self.labels_fk_predict, self.labels_imaging_modality_predict = self.all_predict
-
-    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], train_or_predict='train',neg_control=True):
+    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'],neg_control=True):
         self.kmeans_classes = kmeans_classes
         self.new_neurotransmitter = new_neurotransmitter
         self.modalities = modalities
-        self.train_or_predict = train_or_predict
 
         self.cells = load_cells_predictor_pipeline(path_to_data=Path(self.path),
                                                    modalities=modalities,
                                                    load_repaired=True)
+        self.cells.swc = self.cells.swc.apply(lambda x: x.sort_values("node_id"),axis=1)
+
 
         self.cells = self.prepare_data_4_metric_calc(self.cells,neg_control=neg_control)
 
@@ -197,6 +161,7 @@ class class_predictor:
         self.cells['swc'] = self.cells['swc'].apply(lambda x: x.resample("1 micron"))
         self.cells['class'] = self.cells.loc[:, ['function', 'morphology']].apply(
             lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
+
 
 
     def calculate_published_metrics(self):
@@ -722,10 +687,10 @@ class class_predictor:
 
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
 
-        features_train = self.features_fk_train[mod2idx[train_mod]]
-        labels_train = self.labels_fk_train[mod2idx[train_mod]]
-        features_test = self.features_fk_train[mod2idx[test_mod]]
-        labels_test = self.labels_fk_train[mod2idx[test_mod]]
+        features_train = self.features_fk[mod2idx[train_mod]]
+        labels_train = self.labels_fk[mod2idx[train_mod]]
+        features_test = self.features_fk[mod2idx[test_mod]]
+        labels_test = self.labels_fk[mod2idx[test_mod]]
         if features_train.shape == features_test.shape:
             train_test_identical = (features_train == features_test).all()
         else:
@@ -816,8 +781,8 @@ class class_predictor:
         if not cv:
             for estimator in all_estimator:
                 acc_list = []
-                for i in np.arange(1, test.features_fk_train.shape[1] + 1):
-                    selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk_train, self.labels_fk_train)
+                for i in np.arange(1, test.features_fk.shape[1] + 1):
+                    selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk, self.labels_fk)
                     acc = self.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
                                      train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True, idx=selector.support_, plot=False)
                     acc_list.append(acc)
@@ -825,9 +790,9 @@ class class_predictor:
                 plt.plot(acc_list)
                 plt.axvline(np.nanargmax(acc_list), c='red', alpha=0.3)
                 plt.text(np.nanargmax(acc_list) + 1, np.mean(plt.ylim()), f'n = {np.nanargmax(acc_list) + 1}', fontsize=12, color='red', ha='left', va='bottom')
-                plt.gca().set_xticks(np.arange(0, self.features_fk_train.shape[1], 3), np.arange(1, self.features_fk_train.shape[1] + 2, 3))
+                plt.gca().set_xticks(np.arange(0, self.features_fk.shape[1], 3), np.arange(1, self.features_fk.shape[1] + 2, 3))
                 plt.title(f"{str(estimator)}\nAccuracy {acc_list[np.nanargmax(acc_list)]}%", fontsize='small')
-                selector = RFE(estimator, n_features_to_select=np.nanargmax(acc_list) + 1, step=1).fit(self.features_fk_train, self.labels_fk_train)
+                selector = RFE(estimator, n_features_to_select=np.nanargmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
 
                 temp_str = f"Estimator_{str(estimator)}\nfeatures_{np.sum(selector.support_)}"
                 temp_str = '\n'.join([x.split('(')[0] for x in temp_str.split('\n')])
@@ -836,7 +801,7 @@ class class_predictor:
                 temp_path = self.path / 'prediction' / 'RFE'
                 os.makedirs(temp_path, exist_ok=True)
 
-                le = [Patch(facecolor='white', edgecolor='white', label=x) for x in np.array(self.column_labels_train)[selector.support_]]
+                le = [Patch(facecolor='white', edgecolor='white', label=x) for x in np.array(self.column_labels)[selector.support_]]
                 plt.legend(handles=le, frameon=False, fontsize=6, loc=[1, 0.0], bbox_to_anchor=(1, 0))
                 plt.subplots_adjust(left=0.1, right=0.65, top=0.80, bottom=0.1)
 
@@ -846,7 +811,7 @@ class class_predictor:
 
                 plt.show()
             if save_features:
-                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk_train, self.labels_fk_train)
+                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
 
                 self.reduced_features_idx = selector.support_
                 self.select_train_mod = train_mod
@@ -857,7 +822,7 @@ class class_predictor:
             for estimator in all_estimator:
                 for scoring in all_scoring:
                     for cv in cv_method:
-                        selector = RFECV(estimator, step=1, cv=cv).fit(self.features_fk_train, self.labels_fk_train)
+                        selector = RFECV(estimator, step=1, cv=cv).fit(self.features_fk, self.labels_fk)
                         temp_str = f"Estimator_{str(estimator)}\nScoring_{str(scoring)}\nCV_{str(cv)}\nfeatures_{np.sum(selector.support_)}"
                         temp_str = '\n'.join([x.split('(')[0] for x in temp_str.split('\n')])
                         print(temp_str, '\n')
@@ -901,7 +866,7 @@ class class_predictor:
 
         def extract_features(feature_type, model_to_index, mode, idx):
             if feature_type == 'fk':
-                return self.features_fk_train[model_to_index[mode]][:, idx]
+                return self.features_fk[model_to_index[mode]][:, idx]
             elif feature_type == 'pv':
                 return self.features_pv[model_to_index[mode]]
             elif feature_type == 'ps':
@@ -909,15 +874,15 @@ class class_predictor:
             elif feature_type == 'ff':
                 return self.features_ff[model_to_index[mode]]
 
-            labels_train = self.labels_fk_train[mod2idx[train_mod]]
-            labels_test = self.labels_fk_train[mod2idx[test_mod]]
+            labels_train = self.labels_fk[mod2idx[train_mod]]
+            labels_test = self.labels_fk[mod2idx[test_mod]]
 
         if idx is None:
             idx = self.reduced_features_idx
         features_train = extract_features(feature_type, mod2idx, train_mod, idx)
         features_test = extract_features(feature_type, mod2idx, test_mod, idx)
-        labels_train = self.labels_fk_train[mod2idx[train_mod]]
-        labels_test = self.labels_fk_train[mod2idx[test_mod]]
+        labels_train = self.labels_fk[mod2idx[train_mod]]
+        labels_test = self.labels_fk[mod2idx[test_mod]]
 
         if test_mod == train_mod:
             check_test_equals_train = True
@@ -1111,7 +1076,9 @@ class class_predictor:
 if __name__ == "__main__":
     #load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
-    test.load_cells_df()
+    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em'],neg_control=True)
+    test.calculate_metrics('FINAL_CLEM_EM_PA')
+
     test.load_cells_features('FINAL')
 
     # test.calculate_published_metrics()
@@ -1120,8 +1087,8 @@ if __name__ == "__main__":
     # bool_truncated = np.array(['truncated' not in str(x) for x in test.cells["comment"]])
     # bool_growth_cone = np.array(['growth cone' not in str(x) for x in test.cells["comment"]])
     # bool_complete = bool_truncated * bool_growth_cone
-    # test.features_fk_train = test.features_fk_train[bool_complete,:]
-    # test.labels_fk_train = test.labels_fk_train[bool_complete]
+    # test.features_fk = test.features_fk[bool_complete,:]
+    # test.labels_fk = test.labels_fk[bool_complete]
     # test.cells = test.cells.loc[bool_complete, :]
     # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
     # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
@@ -1130,7 +1097,7 @@ if __name__ == "__main__":
     #select features
     test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
-    print('features:', np.array(test.column_labels_train)[test.reduced_features_idx])
+    print('features:', np.array(test.column_labels)[test.reduced_features_idx])
 
     #select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
