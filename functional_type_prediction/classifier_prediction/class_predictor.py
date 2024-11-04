@@ -1,3 +1,5 @@
+import copy
+
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
 from sklearn.feature_selection import RFE
@@ -44,6 +46,8 @@ class class_predictor:
                 elif cell.imaging_modality == "clem":
                     if cell.function == "neg_control":
                         df.loc[i, 'kmeans_function'] = 'neg_control'
+                    elif cell.function == "to_predict":
+                        df.loc[i, 'kmeans_function'] = 'to_predict'
                     else:
                         temp_path_clem = (str(cell.metadata_path)[:-4] + "_with_regressor.txt")
                         with open(temp_path_clem, 'r') as f:
@@ -70,7 +74,7 @@ class class_predictor:
 
         return df
     def calculate_metrics(self,file_name,force_new=False):
-        calculate_metric2df_semiold(self.cells, file_name, test.path, force_new=force_new, train_or_predict='train')
+        calculate_metric2df_semiold(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
 
 
     def load_metrics(self, file_name, with_neg_control=False):
@@ -96,12 +100,12 @@ class class_predictor:
         all_cells.loc[:, columns_possible_nans] = all_cells[columns_possible_nans].fillna(0)
 
         # Function string replacement
-        all_cells.loc[:, 'function'] = all_cells['function'].str.replace('_', ' ')
+        all_cells.loc[:, 'function'] = all_cells['function'].str.replace(' ', '_')
 
         # Update 'integrator' function
         def update_integrator(df):
             integrator_mask = df['function'] == 'integrator'
-            df.loc[integrator_mask, 'function'] += " " + df.loc[integrator_mask, 'morphology']
+            df.loc[integrator_mask, 'function'] += "_" + df.loc[integrator_mask, 'morphology']
 
         update_integrator(all_cells)
 
@@ -133,35 +137,48 @@ class class_predictor:
 
     def load_cells_features(self, file, with_neg_control=False):
 
-            all_metric, self.column_labels, self.all_cells = self.load_metrics(file, with_neg_control)
-            self.features_fk, self.labels_fk, self.labels_imaging_modality = all_metric
+            all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
+            self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
+            self.labels_fk = self.labels_fk_with_to_predict[self.labels_fk_with_to_predict!='to_predict']
+            self.features_fk = self.features_fk_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
+            self.labels_imaging_modality = self.labels_imaging_modality_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
+            self.all_cells = self.all_cells_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
+
             # only select cells
-            if hasattr(self, 'all_cells'):
+            if hasattr(self, 'all_cells_with_to_predict'):
+
+
                 self.cells = self.cells.set_index('cell_name').loc[self.all_cells['cell_name']].reset_index()
             else:
                 raise ValueError("Metrics have not been loaded.")
 
             self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
             self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
+            self.em_idx = (self.cells['imaging_modality'] == 'EM').to_numpy()
+
+            self.clem_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'clem').to_numpy()
+            self.pa_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'photoactivation').to_numpy()
+            self.em_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'EM').to_numpy()
 
     def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'],neg_control=True):
         self.kmeans_classes = kmeans_classes
         self.new_neurotransmitter = new_neurotransmitter
         self.modalities = modalities
 
-        self.cells = load_cells_predictor_pipeline(path_to_data=Path(self.path),
+        self.cells_with_to_predict = load_cells_predictor_pipeline(path_to_data=Path(self.path),
                                                    modalities=modalities,
                                                    load_repaired=True)
-        self.cells.swc = self.cells.swc.apply(lambda x: x.sort_values("node_id"),axis=1)
 
 
-        self.cells = self.prepare_data_4_metric_calc(self.cells,neg_control=neg_control)
 
+        self.cells_with_to_predict = self.prepare_data_4_metric_calc(self.cells_with_to_predict,neg_control=neg_control)
+        self.cells_with_to_predict = self.cells_with_to_predict.loc[self.cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True),:]
         # resample neurons 1 micron
-        self.cells['swc'] = self.cells['swc'].apply(lambda x: x.resample("1 micron"))
-        self.cells['class'] = self.cells.loc[:, ['function', 'morphology']].apply(
+        self.cells_with_to_predict['swc'] = self.cells_with_to_predict['swc'].apply(lambda x: x.resample("1 micron"))
+        self.cells_with_to_predict['class'] = self.cells_with_to_predict.loc[:, ['function', 'morphology']].apply(
             lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
 
+        self.cells = self.cells_with_to_predict.loc[(self.cells_with_to_predict['function']!='to_predict')&(self.cells_with_to_predict['function']!='neg_control'),:]
 
 
     def calculate_published_metrics(self):
@@ -875,7 +892,7 @@ class class_predictor:
                 return self.features_ff[model_to_index[mode]]
 
             labels_train = self.labels_fk[mod2idx[train_mod]]
-            labels_test = self.labels_fk[mod2idx[test_mod]]
+            labels_test = self.labels_fk_[mod2idx[test_mod]]
 
         if idx is None:
             idx = self.reduced_features_idx
@@ -1076,10 +1093,10 @@ class class_predictor:
 if __name__ == "__main__":
     #load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
-    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em'],neg_control=True)
-    test.calculate_metrics('FINAL_CLEM_EM_PA')
+    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em','clem_predict'],neg_control=True)
+    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-    test.load_cells_features('FINAL')
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA')
 
     # test.calculate_published_metrics()
 
@@ -1087,8 +1104,8 @@ if __name__ == "__main__":
     # bool_truncated = np.array(['truncated' not in str(x) for x in test.cells["comment"]])
     # bool_growth_cone = np.array(['growth cone' not in str(x) for x in test.cells["comment"]])
     # bool_complete = bool_truncated * bool_growth_cone
-    # test.features_fk = test.features_fk[bool_complete,:]
-    # test.labels_fk = test.labels_fk[bool_complete]
+    # test.features_fk_with_to_predict = test.features_fk_with_to_predict[bool_complete,:]
+    # test.labels_fk_with_to_predict = test.labels_fk_with_to_predict[bool_complete]
     # test.cells = test.cells.loc[bool_complete, :]
     # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
     # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
