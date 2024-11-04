@@ -1,3 +1,5 @@
+import numpy as np
+
 from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
 from hindbrain_structure_function.visualization.FK_tools.load_clem_table import *
 from hindbrain_structure_function.visualization.FK_tools.load_em_table import *
@@ -28,12 +30,6 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
         table_list.append(clem_table)
-    if 'all_cells_new' in modalities:
-
-        all_cells_new_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('all_cells_new'))
-
-
-        table_list.append(all_cells_new_table)
 
 
     if 'em' in modalities:
@@ -46,19 +42,10 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table.loc[:, "classifier"] = em_table.loc[:, "classifier"].apply(lambda x: x.replace('?', ""))
         table_list.append(em_table)
 
+
     if 'clem_predict' in modalities:
-        clem_predict_table1 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('to_predict'))
-        clem_predict_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('to_predict'))
-        clem_predict_table = pd.concat([clem_predict_table1, clem_predict_table2])
+        clem_predict_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('non_functionally_imaged'))
         table_list.append(clem_predict_table)
-    if 'prediction_project' in modalities:
-        prediction_project_table1 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('complete'))
-        prediction_project_table2 = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('prediction_project').joinpath('uncomplete'))
-        prediction_project_table = pd.concat([prediction_project_table1, prediction_project_table2])
-        table_list.append(prediction_project_table)
-    if 'neg_controls' in modalities:
-        neg_controls_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('neg_controls'))
-        table_list.append(neg_controls_table)
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
     if len(modalities) > 1:
@@ -191,7 +178,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     # Finalize the all_cells attribute with the loaded and possibly transformed cell data.
     all_cells = all_cells.dropna(how='all')
 
-
+    if not 'function' in all_cells.columns:
+        all_cells.loc[:, 'function'] = np.nan
 
     all_cells.loc[all_cells['function'].isna(), 'function'] = 'to_predict'
     all_cells['function'] = all_cells['function'].apply(lambda x: x.replace(" ","_"))
