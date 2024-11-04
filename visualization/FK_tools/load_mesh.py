@@ -15,20 +15,11 @@ warnings.filterwarnings("ignore")
 def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_repaired=False):
     if cell['imaging_modality'] == 'clem' and not load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
-        clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
-        clem_path_new = path / 'clem_zfish1' / 'all_cells_new' / cell_name_clem / 'mapped'
-        clem_path_to_predict = path / 'clem_zfish1' / 'to_predict' / cell_name_clem / 'mapped'
-        clem_path_neg_controls = path / 'clem_zfish1' / 'neg_controls' / cell_name_clem / 'mapped'
-        clem_path_new = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
-        rec_neurons = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
+        clem_path_functionally_imaged = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
+        clem_path_non_functionally_imaged = path / 'clem_zfish1' / 'non_functionally_imaged' / cell_name_clem / 'mapped'
     elif cell['imaging_modality'] == 'clem' and load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
-        clem_path = path / 'clem_zfish1' / 'all_cells_repaired'
-        clem_path_to_predict = path / 'clem_zfish1' / 'to_predict' / cell_name_clem / 'mapped'
-        regular_clem_path = path / 'clem_zfish1' / 'all_cells' / cell_name_clem / 'mapped'
-        clem_path_neg_controls = path / 'clem_zfish1' / 'neg_controls' / cell_name_clem / 'mapped'
-        clem_path_new = path / 'clem_zfish1' / 'all_cells_new' / cell_name_clem / 'mapped'
-        rec_neurons = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
+        clem_path_repaired = path / 'clem_zfish1' / 'all_cells_repaired'
 
 
 
@@ -91,33 +82,19 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
             file_path = pa_path / f'{cell.cell_name}{file_suffix}'
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
         elif cell['imaging_modality'] == 'clem'  and not load_repaired:
-            if clem_path.exists():
-                file_path = clem_path_new / f'{cell_name_clem}_mapped.swc'
-            elif clem_path_new.exists():
-                file_path = clem_path_new / f'{cell_name_clem}_mapped.swc'
-            elif clem_path_to_predict.exists():
-                file_path = clem_path_to_predict / f'{cell_name_clem}_mapped.swc'
-            elif rec_neurons.exists():
-                file_path = rec_neurons / f'{rec_neurons}_mapped.swc'
+            if clem_path_functionally_imaged.exists():
+                file_path = clem_path_functionally_imaged / f'{cell_name_clem}_mapped.swc'
             else:
-                file_path = clem_path_neg_controls / f'{cell_name_clem}_mapped.swc'
+                file_path = clem_path_non_functionally_imaged / f'{cell_name_clem}_mapped.swc'
 
 
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
 
 
         elif cell['imaging_modality'] == 'clem'  and  load_repaired:
-            if clem_path.exists():
-                file_path = clem_path / f'{cell_name_clem}_repaired.swc'
-            elif clem_path_new.exists():
-                file_path = clem_path_new / f'{cell_name_clem}_mapped.swc'
-            elif rec_neurons.exists():
-                file_path = rec_neurons / f'{rec_neurons}_mapped.swc'
-            elif clem_path_to_predict.exists():
-                file_path = clem_path_to_predict / f'{cell_name_clem}_mapped.swc'
 
-            else:
-                file_path = clem_path_neg_controls / f'{cell_name_clem}_mapped.swc'
+            file_path = clem_path_repaired / f'{cell_name_clem}_repaired.swc'
+
             cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
 
 
@@ -148,15 +125,10 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
     if not swc or load_both:
         if cell['imaging_modality'] == 'clem':
-            if (clem_path / f'{cell_name_clem}').exists():
-                file_path = clem_path / f'{cell_name_clem}'
-            elif (clem_path_to_predict / f'{cell_name_clem}').exists():
-                file_path = clem_path_to_predict / f'{cell_name_clem}'
-            elif clem_path_neg_controls.exists():
-                file_path = clem_path_neg_controls / f'{cell_name_clem}_mapped.swc'
-
+            if clem_path_functionally_imaged.exists():
+                file_path = clem_path_functionally_imaged / f'{cell_name_clem}'
             else:
-                file_path = regular_clem_path /  f'{cell_name_clem}'
+                file_path = clem_path_non_functionally_imaged / f'{cell_name_clem}'
 
 
             for component,element_type in zip(['_axon_mapped','_dendrite_mapped','_soma_mapped'],['axon','dendrite','soma']):
