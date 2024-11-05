@@ -42,6 +42,9 @@ class class_predictor:
                     with open(temp_path_pa, 'r') as f:
                         t = f.read()
                         df.loc[i, 'kmeans_function'] = t.split('\n')[11].split(' ')[2].strip('"')
+                        df.loc[i, 'reliability'] = float(t.split('\n')[12].split(' ')[2].strip('"'))
+                        df.loc[i, 'direction_selectivity'] = float(t.split('\n')[13].split(' ')[2].strip('"'))
+                        df.loc[i, 'time_constant'] = int(t.split('\n')[14].split(' ')[2].strip('"'))
 
                 elif cell.imaging_modality == "clem":
                     if cell.function == "neg_control":
@@ -53,6 +56,9 @@ class class_predictor:
                         with open(temp_path_clem, 'r') as f:
                             t = f.read()
                             df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
+                            df.loc[i, 'reliability'] = float(t.split('\n')[16].split(' ')[2].strip('"'))
+                            df.loc[i, 'direction_selectivity'] = float(t.split('\n')[17].split(' ')[2].strip('"'))
+                            df.loc[i, 'time_constant'] = int(t.split('\n')[18].split(' ')[2].strip('"'))
 
                 elif cell.imaging_modality == "EM":
                     df.loc[i, 'kmeans_function'] = df.loc[i, 'function']
@@ -1112,8 +1118,8 @@ if __name__ == "__main__":
     # test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
 
     #select features
-    test.select_features_RFE('all', 'clem', cv=False)
-    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+    #test.select_features_RFE('all', 'clem', cv=False)
+    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
     print('features:', np.array(test.column_labels)[test.reduced_features_idx])
 
