@@ -1112,7 +1112,8 @@ if __name__ == "__main__":
     # test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
 
     #select features
-    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+    test.select_features_RFE('all', 'clem', cv=False)
+    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
     print('features:', np.array(test.column_labels)[test.reduced_features_idx])
 
