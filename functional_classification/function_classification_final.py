@@ -178,6 +178,19 @@ if __name__ == "__main__":
     for i, lf in enumerate(np.unique(df['kmeans_labels_final'])):
         df.loc[df['kmeans_labels_final'] == lf, 'kmeans_labels_int'] = int(i)
 
+
+
+
+    #load new neurotransmitter
+    new_neurotransmitter = pd.read_excel(
+        data_path / 'em_zfish1' / 'Figures' / 'Fig 4' / 'cells2show.xlsx',
+        sheet_name='paGFP stack quality', dtype=str)
+
+
+
+
+
+
     fig, ax = plt.subplots(4, 1, figsize=(5, 3.5 * 4))
     for i, final_classes in enumerate(np.unique(df['kmeans_labels_final'])):
         temp_bool = df['kmeans_labels_final'] == final_classes
@@ -198,6 +211,15 @@ if __name__ == "__main__":
         df.loc[i, 'functional_id'] = functional_id_target
         df.loc[i, 'imaging_modality'] = imaging_modality
 
+    neurotransmitter_dict = {'Vglut2a': 'excitatory', 'Gad1b': 'inhibitory'}
+    for i, cell in df.iterrows():
+        if cell.imaging_modality == 'photoactivation':
+            if new_neurotransmitter.loc[new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0] is np.nan:
+                df.loc[i, 'neurotransmitter'] = 'nan'
+            else:
+                df.loc[i, 'neurotransmitter'] = neurotransmitter_dict[new_neurotransmitter.loc[
+                    new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0]]
+
     kk = df.loc[:, ['cell_name', 'kmeans_labels_final', 'kmeans_labels_int']]
     kk.columns = ['cell_name', 'kmeans_labels', 'kmeans_labels_int']
     kk['cell_name'] = kk['cell_name'].apply(lambda x: x[12:] if 'cell' in x else x)
@@ -205,9 +227,10 @@ if __name__ == "__main__":
     em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
     em_pa_cells = em_pa_cells.loc[em_pa_cells['function'] != 'neg_control', :]
 
-    for i in range(np.max(int(np.max(kk['kmeans_labels_int']) + 1))):
-        em_pa_cells.loc[em_pa_cells['cell_name'].isin(kk.loc[kk['kmeans_labels_int'] == i, 'cell_name']), 'kmeans_functional_label'] = int(i)
-        em_pa_cells.loc[em_pa_cells['cell_name'].isin(kk.loc[kk['kmeans_labels_int'] == i, 'cell_name']), 'kmeans_functional_label_str'] = int2class[i]
+    for i,cell in em_pa_cells.iterrows():
+        em_pa_cells.loc[i, 'kmeans_functional_label'] = int(kk.loc[kk['cell_name']==cell.cell_name,'kmeans_labels_int'])
+        em_pa_cells.loc[i, 'kmeans_functional_label_str'] = label2class[kk.loc[kk['cell_name']==cell.cell_name,'kmeans_labels'].iloc[0]]
+        em_pa_cells.loc[i, 'kmeans_functional_label_subclass'] = kk.loc[kk['cell_name'] == cell.cell_name, 'kmeans_labels'].iloc[0]
 
     accepted_function = ['integrator', 'motor_command', 'dynamic_threshold', 'integrator', 'dynamic threshold', 'motor command']
 
@@ -228,12 +251,14 @@ if __name__ == "__main__":
             try:
                 reliability_string = f"reliability = {df.loc[df['cell_name']==cell['cell_name'],'reliability'].values[0]}\n"
                 direction_selectivity_string = f"direction_selectivity = {df.loc[df['cell_name'] == cell['cell_name'], 'direction_selectivity'].values[0]}\n"
+                time_constant_string = f"time_constant = {df.loc[df['cell_name'] == cell['cell_name'], 'time_constant'].values[0]}\n"
             except:
                 reliability_string = f"reliability = {df.loc[df['cell_name'] == 'clem_zfish1_' + cell['cell_name'], 'reliability'].values[0]}\n"
                 direction_selectivity_string = f"direction_selectivity = {df.loc[df['cell_name'] == 'clem_zfish1_' + cell['cell_name'], 'direction_selectivity'].values[0]}\n"
+                time_constant_string = f"time_constant = {df.loc[df['cell_name'] == 'clem_zfish1_' + cell['cell_name'], 'time_constant'].values[0]}\n"
 
 
-            new_t = (t + prediction_string + reliability_string + direction_selectivity_string)
+            new_t = (t + prediction_string + reliability_string + direction_selectivity_string+time_constant_string)
 
             if (data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}').exists():
                 temp_path = data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
