@@ -118,6 +118,8 @@ class class_predictor:
         # Replace strings with indices
 
         columns_replace_string = ['neurotransmitter', 'morphology']
+
+        all_cells.loc[:, 'neurotransmitter'] = all_cells['neurotransmitter'].fillna('nan')
         neurotransmitter2int_dict = {'excitatory': 0, 'inhibitory': 1, 'na': 2, 'nan': 2}
         morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
 
@@ -145,10 +147,10 @@ class class_predictor:
 
             all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
             self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
-            self.labels_fk = self.labels_fk_with_to_predict[self.labels_fk_with_to_predict!='to_predict']
-            self.features_fk = self.features_fk_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
-            self.labels_imaging_modality = self.labels_imaging_modality_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
-            self.all_cells = self.all_cells_with_to_predict[self.labels_fk_with_to_predict != 'to_predict']
+            self.labels_fk = self.labels_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
+            self.features_fk = self.features_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
+            self.labels_imaging_modality = self.labels_imaging_modality_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
+            self.all_cells = self.all_cells_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
 
             # only select cells
             if hasattr(self, 'all_cells_with_to_predict'):
@@ -1094,15 +1096,44 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
+    def predict_cells(self,train_modalities=['clem','photoactivation'],use_true_positive_scaling=False,write_to_metadata=True):
+        #modality train selection
+        modality2idx = {'clem':self.clem_idx,
+                        'photoactivation':self.pa_idx}
+        selected_indices = None
+        for idx in train_modalities:
+            if selected_indices is None:
+                selected_indices = modality2idx[idx]
+            else:
+                selected_indices = selected_indices + modality2idx[idx]
+
+        # Select data based on train_modalities
+        self.prediction_train_df = self.all_cells[self.all_cells.imaging_modality.isin(train_modalities)]
+        self.prediction_train_features = self.features_fk[selected_indices][:,self.reduced_features_idx]
+        self.prediction_train_labels = self.labels_fk[selected_indices]
+
+        exclude_axon_bool = self.all_cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True)
+        exclude_train_bool = ~self.all_cells_with_to_predict.cell_name.isin(self.prediction_train_df.cell_name)
+        exclude_not_to_predict = (self.all_cells_with_to_predict.function == 'to_predict')
+        exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict),axis=1)
+        exclude_bool = exclude_train_bool*exclude_axon_bool*exclude_not_to_predict*exclude_nan
+
+
+        temp_ = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:,['cell_name','metadata_path']], on=['cell_name'], how='inner')
+        self.prediction_predict_df = temp_.loc[exclude_bool,:]
+        self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:,self.reduced_features_idx]
+        self.prediction_predict_labels = self.labels_fk_with_to_predict[exclude_bool]
+
+
 
 
 if __name__ == "__main__":
     #load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em','clem_predict'],neg_control=True)
-    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
+    #test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA')
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA',with_neg_control=True)
 
     # test.calculate_published_metrics()
 
@@ -1133,4 +1164,4 @@ if __name__ == "__main__":
     #make confusion matrices
     test.confusion_matrices(clf_fk, method='lpo')
 
-
+    test.predict_cells()
