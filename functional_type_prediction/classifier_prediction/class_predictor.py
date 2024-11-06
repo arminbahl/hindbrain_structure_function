@@ -867,7 +867,7 @@ class class_predictor:
                 self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
-              fraction_across_classes=True, idx=None, plot=True):
+              fraction_across_classes=True, idx=None, plot=True,return_cm=False):
 
         def check_duplicates(train, test):
             # Convert both arrays to sets of rows
@@ -1069,8 +1069,10 @@ class class_predictor:
                     ax.spines['top'].set_linewidth(2)
                     ax.spines['left'].set_linewidth(2)
                     ax.spines['right'].set_linewidth(2)
-
-        return round(accuracy_score(true_labels, pred_labels) * 100, 2)
+        if return_cm:
+            return cm
+        else:
+            return round(accuracy_score(true_labels, pred_labels) * 100, 2)
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
@@ -1096,7 +1098,11 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
-    def predict_cells(self,train_modalities=['clem','photoactivation'],use_true_positive_scaling=False,write_to_metadata=True):
+    def predict_cells(self,train_modalities=['clem','photoactivation'],use_jon_priors=True):
+        suffix = ""
+        if use_jon_priors:
+            suffix ="_jon_prior"
+
         #modality train selection
         modality2idx = {'clem':self.clem_idx,
                         'photoactivation':self.pa_idx}
@@ -1107,22 +1113,97 @@ class class_predictor:
             else:
                 selected_indices = selected_indices + modality2idx[idx]
 
+        #align the two dfs
+        super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:,['cell_name','metadata_path','comment']], on=['cell_name'], how='inner')
+
+
         # Select data based on train_modalities
         self.prediction_train_df = self.all_cells[self.all_cells.imaging_modality.isin(train_modalities)]
         self.prediction_train_features = self.features_fk[selected_indices][:,self.reduced_features_idx]
         self.prediction_train_labels = self.labels_fk[selected_indices]
 
-        exclude_axon_bool = self.all_cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True)
-        exclude_train_bool = ~self.all_cells_with_to_predict.cell_name.isin(self.prediction_train_df.cell_name)
-        exclude_not_to_predict = (self.all_cells_with_to_predict.function == 'to_predict')
+        exclude_axon_bool = (self.all_cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True)).to_numpy()
+        exclude_train_bool = (~self.all_cells_with_to_predict.cell_name.isin(self.prediction_train_df.cell_name)).to_numpy()
+        exclude_not_to_predict = (self.all_cells_with_to_predict.function == 'to_predict').to_numpy()
         exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict),axis=1)
-        exclude_bool = exclude_train_bool*exclude_axon_bool*exclude_not_to_predict*exclude_nan
+        exclude_reticulospinal = np.array([('reticulospinal' not in str(x)) for x in super_df.comment])
+        exclude_myelinated = np.array([('myelinated' not in str(x)) for x in super_df.comment])
+        exclude_bool = exclude_train_bool*exclude_axon_bool*exclude_not_to_predict*exclude_nan*exclude_reticulospinal
 
 
-        temp_ = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:,['cell_name','metadata_path']], on=['cell_name'], how='inner')
-        self.prediction_predict_df = temp_.loc[exclude_bool,:]
+        self.prediction_predict_df = super_df.loc[exclude_bool,:]
         self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:,self.reduced_features_idx]
         self.prediction_predict_labels = self.labels_fk_with_to_predict[exclude_bool]
+        if use_jon_priors:
+            self.real_cell_class_ratio_dict = {'dynamic_threshold':22/539,
+                                          'integrator_contralateral':155.5/539,
+                                          'integrator_ipsilateral':155.5/539,
+                                          'motor_command':206/539}
+            priors = [self.real_cell_class_ratio_dict[x] for x in np.unique(self.prediction_train_labels)] #Hindbrain,Rhombomere 1-3’: {INTs: 311, MCs: 206, DTs: 22}),
+        else:
+            priors = [len(self.prediction_train_labels[self.prediction_train_labels == x]) / len(self.prediction_train_labels) for x in np.unique(self.prediction_train_labels)]
+        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
+        clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
+
+
+        self.prediction_predict_df.loc[:,['DT_proba','CI_proba','II_proba','MC_proba']] = clf.predict_proba(self.prediction_predict_features)
+        predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']].to_numpy(), axis=1)
+        self.prediction_predict_df['prediction'] = [clf.classes_[x] for x in predicted_int_temp]
+
+        cm = self.do_cv(method='lpo',
+                   clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                   feature_type='fk',
+                   train_mod='all',
+                   test_mod='clem',
+                   fraction_across_classes=False,
+                   n_repeats=100,
+                   test_size=0.3,
+                   p=1,
+                   return_cm=True)
+        true_positive_dict = {}
+        for i,k in enumerate(clf.classes_):
+            true_positive_dict[k] = cm[i,i]
+        true_positive_flat = list(true_positive_dict.values())
+
+        self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']] = clf.predict_proba(self.prediction_predict_features) * true_positive_flat
+        predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']].to_numpy(), axis=1)
+        self.prediction_predict_df['prediction_scaled'] = [clf.classes_[x] for x in predicted_int_temp]
+        export_columns = ['cell_name','morphology_clone','neurotransmitter_clone','prediction', 'DT_proba', 'CI_proba', 'II_proba',
+                          'MC_proba','prediction_scaled','DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled',
+                          'MC_proba_scaled']
+        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality']=='clem',export_columns].to_excel(self.path / 'clem_zfish1' / f'clem_cell_prediction{suffix}.xlsx')
+        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(self.path / 'em_zfish1' / f'em_cell_prediction{suffix}.xlsx')
+
+        for i,item in self.prediction_predict_df.iterrows():
+            with open(item["metadata_path"], 'r') as f:
+                t = f.read()
+            t = t.replace('\n[others]\n','')
+            prediction_str = f"Prediction: {item['prediction']}\n"
+            prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
+            proba_str = (f"Proba_prediction_scaled: "
+                                f"DT: {round(item['DT_proba'],2)} "
+                                f"CI: {round(item['CI_proba'],2)} "
+                                f"II: {round(item['II_proba'],2)} "
+                                f"MC: {round(item['MC_proba'],2)}\n")
+            proba_scaled_str = (f"Proba_prediction_scaled: "
+                                f"DT: {round(item['DT_proba_scaled'],2)} "
+                                f"CI: {round(item['CI_proba_scaled'],2)} "
+                                f"II: {round(item['II_proba_scaled'],2)} "
+                                f"MC: {round(item['MC_proba_scaled'],2)}")
+
+
+            if not t[-1:] == '\n':
+                t = t + '\n'
+
+            new_t = (t + prediction_str + proba_str + prediction_scaled_str + proba_scaled_str)
+            output_path = Path(str(item['metadata_path'])[:-4] + f"_with_prediction{suffix}.txt")
+
+            if output_path.exists():
+                os.remove(output_path)
+
+
+            with open(output_path, 'w+') as f:
+                f.write(new_t)
 
 
 
@@ -1132,6 +1213,7 @@ if __name__ == "__main__":
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em','clem_predict'],neg_control=True)
     #test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
+
 
     test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA',with_neg_control=True)
 
@@ -1164,4 +1246,5 @@ if __name__ == "__main__":
     #make confusion matrices
     test.confusion_matrices(clf_fk, method='lpo')
 
-    test.predict_cells()
+    test.predict_cells(use_jon_priors=True)
+    test.predict_cells(use_jon_priors=False
