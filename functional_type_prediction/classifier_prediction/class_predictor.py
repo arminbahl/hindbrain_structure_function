@@ -1247,4 +1247,4 @@ if __name__ == "__main__":
     test.confusion_matrices(clf_fk, method='lpo')
 
     test.predict_cells(use_jon_priors=True)
-    test.predict_cells(use_jon_priors=False
+    test.predict_cells(use_jon_priors=False)
