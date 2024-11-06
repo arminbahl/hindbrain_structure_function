@@ -20,12 +20,63 @@ np.set_printoptions(suppress=True)
 
 
 class class_predictor:
+    """
+
+    :class:`class_predictor`
+    ========================
+
+    Provides methods for preparing data, calculating metrics, and loading cells features.
+
+
+    Methods
+    -------
+
+    __init__(self, path)
+        Initializes the class predictor with a given path.
+
+    prepare_data_4_metric_calc(self, df, neg_control=True)
+        Prepares data for metric calculation, removing duplicates and filtering based on conditions.
+
+    calculate_metrics(self, file_name, force_new=False)
+        Calculates metrics with semi-old method specified by `calculate_metric2df_semiold` function.
+
+    load_metrics(self, file_name, with_neg_control=False)
+        Loads metrics from a given file path, preprocesses the data, and converts strings to numerical indices.
+
+    load_cells_features(self, file, with_neg_control=False)
+        Loads cell features, labels, and imaging modality for further analysis.
+
+
+
+    """
     def __init__(self, path):
+        """
+        :param path: The path where the confusion matrices will be saved.
+        """
         self.path = path
         self.path_to_save_confusion_matrices = path / 'make_figures_FK_output' / 'all_confusion_matrices'
         os.makedirs(self.path_to_save_confusion_matrices, exist_ok=True)
 
     def prepare_data_4_metric_calc(self, df, neg_control=True):
+        """
+        This function prepares the data for metric calculation by cleaning up the data and adding relevant information.
+
+        Parameters:
+        df (pandas.DataFrame): Input dataframe that requires data cleaning and formatting.
+
+        neg_control (bool): If True, the 'neg_control' data records are kept. If False, those records are dropped from the dataframe.
+
+        Returns:
+        df (pandas.DataFrame): Returns the modified dataframe with cleaned data and additional information for further processing.
+
+        The function does the following:
+        - If 'neg_control' is set to False, it removes 'neg_control' records from the dataframe.
+        - It drops duplicate 'cell_name' records, keeping the first occurrence.
+        - If kmeans classes exist, it reads cell metadata and adds additional attributes such as 'kmeans_function', 'reliability',
+          'direction_selectivity' and 'time_constant' to the dataframe. This is done separately for different imaging modalities.
+        - If a new neurotransmitter information is specified, then that information is also added to the dataframe.
+
+        """
         if not neg_control:
             df = df.loc[df['function'] != 'neg_control']
 
@@ -78,9 +129,56 @@ class class_predictor:
         return df
 
     def calculate_metrics(self, file_name, force_new=False):
+        """
+        This method calculates metrics for the provided data set and saves the result to a specified file.
+
+        Args:
+            file_name(str): The name of the file where the metrics result should be saved.
+            The file name should include the full path if not in the same directory.
+
+            force_new(bool, optional): If set to True, it forces the calculation of new metrics
+            even if previous metric calculations exist. By default, it is set to False which means
+            it will not calculate the metrics again if they are already calculated.
+
+        Calls:
+            calculate_metric2df_seamiold: This is an inner function called for the metric calculation.
+
+            Here, 'cells_with_to_predict' is the data for which metrics are calculated.
+            The 'test.path' is used in the inner function to retrieve the test data.
+
+
+        Note that the 'train_or_predict' argument in the calculation function is set to 'train',
+        meaning that this function is used for training data.
+
+        Returns:
+            None. The result is saved to the specified file.
+        """
         calculate_metric2df_semiold(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
 
     def load_metrics(self, file_name, with_neg_control=False):
+        """
+            This method loads metrics from a specific file and carries out several preprocessing steps on the loaded data.
+
+            Args:
+                file_name (str): The file name from which the metrics should be loaded.
+                with_neg_control (bool, optional): If True, 'neg_control' records are kept. If False, 'neg_control' records are discarded; default is False.
+
+            Returns:
+                list: A list containing the features, labels, and labels_imaging_modality arrays.
+                list: A list of the column labels.
+                DataFrame: The preprocessed DataFrame 'all_cells'.
+
+            Notes:
+                The preprocessing steps include:
+                  * Removing records where 'function' is NaN
+                  * Sorting the DataFrame.
+                  * Replacing certain labels in the 'function' column.
+                  * Replacing NaNs with 0 in 'angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross'.
+                  * Modifying 'integrator' function labels to add morphology information.
+                  * Replacing certain string labels with integer indices.
+                  * Extracting labels and features, and standardizing the features.
+
+            """
         file_path = self.path / 'prediction' / f'{file_name}_train_features.hdf5'
 
         all_cells = pd.read_hdf(file_path, 'complete_df')
@@ -140,7 +238,27 @@ class class_predictor:
         return [features, labels, labels_imaging_modality], column_labels, all_cells
 
     def load_cells_features(self, file, with_neg_control=False):
+        """
+        This method loads cell features from a given file and filters data into categories based on their
+        characteristics (such as whether they need to be predicted or whether they are negative controls)
+        and imaging modality.
 
+        Args:
+            file (str): The file name from which the cell features will be loaded.
+            with_neg_control (bool, optional): If True, 'neg_control' records are considered. If False, 'neg_control' records are disregarded; default is False.
+
+        Raises:
+            ValueError: If the metrics have not been loaded.
+
+        Attributes:
+            features_fk_with_to_predict, labels_fk_with_to_predict, labels_imaging_modality_with_to_predict: Loaded metrics from the file.
+            labels_fk, features_fk, labels_imaging_modality, all_cells: Metric data filtered out 'to_predict' and 'neg_control' categories.
+            cells: All cells with 'to_predict' attribute, present in the loaded file.
+            clem_idx, pa_idx, em_idx, clem_idx_with_to_predict, pa_idx_with_to_predict, em_idx_with_to_predict: Indicator arrays for different imaging modalities.
+
+        Notes:
+            'fk' in the attribute names refers to the prefix 'florian kämpf' indicating these are the main features.
+        """
         all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
         self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
         self.labels_fk = self.labels_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
@@ -164,6 +282,28 @@ class class_predictor:
         self.em_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'EM').to_numpy()
 
     def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], neg_control=True):
+        """
+        This method loads the cells dataframe and applies the preprocessing pipeline to the data.
+
+        Args:
+            kmeans_classes (bool, optional): If True, k-means classes will be considered in the data loading pipeline. Default is True.
+            new_neurotransmitter (bool, optional): If True, the data loading pipeline will consider new neurotransmitter values. Default is True.
+            modalities (list, optional): A list of modalities to be considered. Default is ['pa', 'clem'].
+            neg_control (bool, optional): If True, will consider 'neg_control' records. If False, 'neg_control' records are disregarded; default is True.
+
+        Attributes:
+            kmeans_classes, new_neurotransmitter, modalities: Input arguments stored as class variables.
+            cells_with_to_predict: Full cells dataframe after the preprocessing pipeline.
+            cells: Cells dataframe with 'to_predict' and 'neg_control' records removed.
+
+        Notes:
+            The preprocessing pipeline includes the following steps:
+            * Loading cells using the predictor pipeline.
+            * Preparing the data for metric calculation.
+            * Removing records containing 'axon' in cell names.
+            * Resampling neurons to 1 micron.
+            * Replacing the class label formatting in the 'class' column.
+        """
         self.kmeans_classes = kmeans_classes
         self.new_neurotransmitter = new_neurotransmitter
         self.modalities = modalities
@@ -182,6 +322,17 @@ class class_predictor:
         self.cells = self.cells_with_to_predict.loc[(self.cells_with_to_predict['function'] != 'to_predict') & (self.cells_with_to_predict['function'] != 'neg_control'), :]
 
     def calculate_published_metrics(self):
+        """
+        This method calculates some published metrics over the cell data.
+
+        Attributes:
+            features_pv: Persistence vectors using the 'navis' library. The calculation uses 300 samples. A referenced article for this computation can be found at: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
+            features_ps: Similar to 'features_pv', but this includes all the computed persistence vectors.
+            features_ff: Form factor of the neurons computed using the 'navis' library.
+
+        Notes:
+            The 'navis.form_factor' function is parallelized to 15 cores and uses 300 samples for its computation. The method used is described in the article: https://link.springer.com/article/10.1007/s12021-017-9341-1
+        """
         self.features_pv = np.stack([navis.persistence_vectors(x, samples=300)[0] for x in self.cells.swc])[:, 0,
                            :]  # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0182184
         self.features_ps = np.stack([navis.persistence_vectors(x, samples=300)[1] for x in
@@ -190,7 +341,9 @@ class class_predictor:
                                              num=300)  # https://link.springer.com/article/10.1007/s12021-017-9341-1
 
     def select_features(self, train_mod: str, test_mod: str, plot=False, use_assessment_per_class=False, which_selection='SKB', use_std_scale=False):
+        """
 
+        """
         def calc_penalty(temp_list):
             p = 2  # You can adjust this power as needed
             penalty = np.mean(temp_list) / np.exp(np.std(temp_list) ** p)
