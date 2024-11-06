@@ -1,5 +1,3 @@
-import copy
-
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
 from sklearn.feature_selection import RFE
@@ -27,10 +25,9 @@ class class_predictor:
         self.path_to_save_confusion_matrices = path / 'make_figures_FK_output' / 'all_confusion_matrices'
         os.makedirs(self.path_to_save_confusion_matrices, exist_ok=True)
 
-    def prepare_data_4_metric_calc(self, df,neg_control=True):
+    def prepare_data_4_metric_calc(self, df, neg_control=True):
         if not neg_control:
-            df = df.loc[df['function']!='neg_control']
-
+            df = df.loc[df['function'] != 'neg_control']
 
         df = df.drop_duplicates(keep='first', inplace=False, subset='cell_name')
         df = df.reset_index(drop=True)
@@ -79,9 +76,9 @@ class class_predictor:
                             new_neurotransmitter['Name'] == cell.cell_name, 'Neurotransmitter'].iloc[0]]
 
         return df
-    def calculate_metrics(self,file_name,force_new=False):
-        calculate_metric2df_semiold(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
 
+    def calculate_metrics(self, file_name, force_new=False):
+        calculate_metric2df_semiold(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
 
     def load_metrics(self, file_name, with_neg_control=False):
         file_path = self.path / 'prediction' / f'{file_name}_train_features.hdf5'
@@ -142,52 +139,47 @@ class class_predictor:
 
         return [features, labels, labels_imaging_modality], column_labels, all_cells
 
-
     def load_cells_features(self, file, with_neg_control=False):
 
-            all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
-            self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
-            self.labels_fk = self.labels_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
-            self.features_fk = self.features_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
-            self.labels_imaging_modality = self.labels_imaging_modality_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
-            self.all_cells = self.all_cells_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict')&(self.labels_fk_with_to_predict != 'neg_control')]
+        all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
+        self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
+        self.labels_fk = self.labels_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
+        self.features_fk = self.features_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
+        self.labels_imaging_modality = self.labels_imaging_modality_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
+        self.all_cells = self.all_cells_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
 
-            # only select cells
-            if hasattr(self, 'all_cells_with_to_predict'):
+        # only select cells
+        if hasattr(self, 'all_cells_with_to_predict'):
 
+            self.cells = self.cells.set_index('cell_name').loc[self.all_cells['cell_name']].reset_index()
+        else:
+            raise ValueError("Metrics have not been loaded.")
 
-                self.cells = self.cells.set_index('cell_name').loc[self.all_cells['cell_name']].reset_index()
-            else:
-                raise ValueError("Metrics have not been loaded.")
+        self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
+        self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
+        self.em_idx = (self.cells['imaging_modality'] == 'EM').to_numpy()
 
-            self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
-            self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
-            self.em_idx = (self.cells['imaging_modality'] == 'EM').to_numpy()
+        self.clem_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'clem').to_numpy()
+        self.pa_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'photoactivation').to_numpy()
+        self.em_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'EM').to_numpy()
 
-            self.clem_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'clem').to_numpy()
-            self.pa_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'photoactivation').to_numpy()
-            self.em_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'EM').to_numpy()
-
-    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'],neg_control=True):
+    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], neg_control=True):
         self.kmeans_classes = kmeans_classes
         self.new_neurotransmitter = new_neurotransmitter
         self.modalities = modalities
 
         self.cells_with_to_predict = load_cells_predictor_pipeline(path_to_data=Path(self.path),
-                                                   modalities=modalities,
-                                                   load_repaired=True)
+                                                                   modalities=modalities,
+                                                                   load_repaired=True)
 
-
-
-        self.cells_with_to_predict = self.prepare_data_4_metric_calc(self.cells_with_to_predict,neg_control=neg_control)
-        self.cells_with_to_predict = self.cells_with_to_predict.loc[self.cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True),:]
+        self.cells_with_to_predict = self.prepare_data_4_metric_calc(self.cells_with_to_predict, neg_control=neg_control)
+        self.cells_with_to_predict = self.cells_with_to_predict.loc[self.cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True), :]
         # resample neurons 1 micron
         self.cells_with_to_predict['swc'] = self.cells_with_to_predict['swc'].apply(lambda x: x.resample("1 micron"))
         self.cells_with_to_predict['class'] = self.cells_with_to_predict.loc[:, ['function', 'morphology']].apply(
             lambda x: x['function'].replace(" ", "_") + "_" + x['morphology'] if x['function'] == 'integrator' else x['function'].replace(" ", "_"), axis=1)
 
-        self.cells = self.cells_with_to_predict.loc[(self.cells_with_to_predict['function']!='to_predict')&(self.cells_with_to_predict['function']!='neg_control'),:]
-
+        self.cells = self.cells_with_to_predict.loc[(self.cells_with_to_predict['function'] != 'to_predict') & (self.cells_with_to_predict['function'] != 'neg_control'), :]
 
     def calculate_published_metrics(self):
         self.features_pv = np.stack([navis.persistence_vectors(x, samples=300)[0] for x in self.cells.swc])[:, 0,
@@ -867,7 +859,7 @@ class class_predictor:
                 self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
-              fraction_across_classes=True, idx=None, plot=True,return_cm=False):
+              fraction_across_classes=True, idx=None, plot=True, return_cm=False):
 
         def check_duplicates(train, test):
             # Convert both arrays to sets of rows
@@ -1098,14 +1090,15 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
-    def predict_cells(self,train_modalities=['clem','photoactivation'],use_jon_priors=True):
+
+    def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True):
         suffix = ""
         if use_jon_priors:
-            suffix ="_jon_prior"
+            suffix = "_jon_prior"
 
-        #modality train selection
-        modality2idx = {'clem':self.clem_idx,
-                        'photoactivation':self.pa_idx}
+        # modality train selection
+        modality2idx = {'clem': self.clem_idx,
+                        'photoactivation': self.pa_idx}
         selected_indices = None
         for idx in train_modalities:
             if selected_indices is None:
@@ -1113,84 +1106,80 @@ class class_predictor:
             else:
                 selected_indices = selected_indices + modality2idx[idx]
 
-        #align the two dfs
-        super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:,['cell_name','metadata_path','comment']], on=['cell_name'], how='inner')
-
+        # align the two dfs
+        super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:, ['cell_name', 'metadata_path', 'comment']], on=['cell_name'], how='inner')
 
         # Select data based on train_modalities
         self.prediction_train_df = self.all_cells[self.all_cells.imaging_modality.isin(train_modalities)]
-        self.prediction_train_features = self.features_fk[selected_indices][:,self.reduced_features_idx]
+        self.prediction_train_features = self.features_fk[selected_indices][:, self.reduced_features_idx]
         self.prediction_train_labels = self.labels_fk[selected_indices]
 
         exclude_axon_bool = (self.all_cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True)).to_numpy()
         exclude_train_bool = (~self.all_cells_with_to_predict.cell_name.isin(self.prediction_train_df.cell_name)).to_numpy()
         exclude_not_to_predict = (self.all_cells_with_to_predict.function == 'to_predict').to_numpy()
-        exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict),axis=1)
+        exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict), axis=1)
         exclude_reticulospinal = np.array([('reticulospinal' not in str(x)) for x in super_df.comment])
         exclude_myelinated = np.array([('myelinated' not in str(x)) for x in super_df.comment])
-        exclude_bool = exclude_train_bool*exclude_axon_bool*exclude_not_to_predict*exclude_nan*exclude_reticulospinal
+        exclude_bool = exclude_train_bool * exclude_axon_bool * exclude_not_to_predict * exclude_nan * exclude_reticulospinal
 
-
-        self.prediction_predict_df = super_df.loc[exclude_bool,:]
-        self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:,self.reduced_features_idx]
+        self.prediction_predict_df = super_df.loc[exclude_bool, :]
+        self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:, self.reduced_features_idx]
         self.prediction_predict_labels = self.labels_fk_with_to_predict[exclude_bool]
         if use_jon_priors:
-            self.real_cell_class_ratio_dict = {'dynamic_threshold':22/539,
-                                          'integrator_contralateral':155.5/539,
-                                          'integrator_ipsilateral':155.5/539,
-                                          'motor_command':206/539}
-            priors = [self.real_cell_class_ratio_dict[x] for x in np.unique(self.prediction_train_labels)] #Hindbrain,Rhombomere 1-3’: {INTs: 311, MCs: 206, DTs: 22}),
+            self.real_cell_class_ratio_dict = {'dynamic_threshold': 22 / 539,
+                                               'integrator_contralateral': 155.5 / 539,
+                                               'integrator_ipsilateral': 155.5 / 539,
+                                               'motor_command': 206 / 539}
+            priors = [self.real_cell_class_ratio_dict[x] for x in np.unique(self.prediction_train_labels)]  # Hindbrain,Rhombomere 1-3’: {INTs: 311, MCs: 206, DTs: 22}),
         else:
             priors = [len(self.prediction_train_labels[self.prediction_train_labels == x]) / len(self.prediction_train_labels) for x in np.unique(self.prediction_train_labels)]
         clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
         clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
 
-
-        self.prediction_predict_df.loc[:,['DT_proba','CI_proba','II_proba','MC_proba']] = clf.predict_proba(self.prediction_predict_features)
+        self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(self.prediction_predict_features)
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction'] = [clf.classes_[x] for x in predicted_int_temp]
 
         cm = self.do_cv(method='lpo',
-                   clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
-                   feature_type='fk',
-                   train_mod='all',
-                   test_mod='clem',
-                   fraction_across_classes=False,
-                   n_repeats=100,
-                   test_size=0.3,
-                   p=1,
-                   return_cm=True)
+                        clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                        feature_type='fk',
+                        train_mod='all',
+                        test_mod='clem',
+                        fraction_across_classes=False,
+                        n_repeats=100,
+                        test_size=0.3,
+                        p=1,
+                        return_cm=True)
         true_positive_dict = {}
-        for i,k in enumerate(clf.classes_):
-            true_positive_dict[k] = cm[i,i]
+        for i, k in enumerate(clf.classes_):
+            true_positive_dict[k] = cm[i, i]
         true_positive_flat = list(true_positive_dict.values())
 
         self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']] = clf.predict_proba(self.prediction_predict_features) * true_positive_flat
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction_scaled'] = [clf.classes_[x] for x in predicted_int_temp]
-        export_columns = ['cell_name','morphology_clone','neurotransmitter_clone','prediction', 'DT_proba', 'CI_proba', 'II_proba',
-                          'MC_proba','prediction_scaled','DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled',
+        export_columns = ['cell_name', 'morphology_clone', 'neurotransmitter_clone', 'prediction', 'DT_proba', 'CI_proba', 'II_proba',
+                          'MC_proba', 'prediction_scaled', 'DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled',
                           'MC_proba_scaled']
-        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality']=='clem',export_columns].to_excel(self.path / 'clem_zfish1' / f'clem_cell_prediction{suffix}.xlsx')
+        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(self.path / 'clem_zfish1' / f'clem_cell_prediction{suffix}.xlsx')
         self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(self.path / 'em_zfish1' / f'em_cell_prediction{suffix}.xlsx')
 
-        for i,item in self.prediction_predict_df.iterrows():
+        for i, item in self.prediction_predict_df.iterrows():
             with open(item["metadata_path"], 'r') as f:
                 t = f.read()
-            t = t.replace('\n[others]\n','')
+            t = t.replace('\n[others]\n', '')
             prediction_str = f"Prediction: {item['prediction']}\n"
             prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
             proba_str = (f"Proba_prediction_scaled: "
-                                f"DT: {round(item['DT_proba'],2)} "
-                                f"CI: {round(item['CI_proba'],2)} "
-                                f"II: {round(item['II_proba'],2)} "
-                                f"MC: {round(item['MC_proba'],2)}\n")
+                         f"DT: {round(item['DT_proba'], 2)} "
+                         f"CI: {round(item['CI_proba'], 2)} "
+                         f"II: {round(item['II_proba'], 2)} "
+                         f"MC: {round(item['MC_proba'], 2)}\n")
             proba_scaled_str = (f"Proba_prediction_scaled: "
-                                f"DT: {round(item['DT_proba_scaled'],2)} "
-                                f"CI: {round(item['CI_proba_scaled'],2)} "
-                                f"II: {round(item['II_proba_scaled'],2)} "
-                                f"MC: {round(item['MC_proba_scaled'],2)}")
-
+                                f"DT: {round(item['DT_proba_scaled'], 2)} "
+                                f"CI: {round(item['CI_proba_scaled'], 2)} "
+                                f"II: {round(item['II_proba_scaled'], 2)} "
+                                f"MC: {round(item['MC_proba_scaled'], 2)}")
 
             if not t[-1:] == '\n':
                 t = t + '\n'
@@ -1201,25 +1190,21 @@ class class_predictor:
             if output_path.exists():
                 os.remove(output_path)
 
-
             with open(output_path, 'w+') as f:
                 f.write(new_t)
 
 
-
-
 if __name__ == "__main__":
-    #load metrics and cells
+    # load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
-    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem','em','clem_predict'],neg_control=True)
-    #test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
+    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
+    # test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA',with_neg_control=True)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True)
 
     # test.calculate_published_metrics()
 
-    #remove truncated/growth cone neurons
+    # remove truncated/growth cone neurons
     # bool_truncated = np.array(['truncated' not in str(x) for x in test.cells["comment"]])
     # bool_growth_cone = np.array(['growth cone' not in str(x) for x in test.cells["comment"]])
     # bool_complete = bool_truncated * bool_growth_cone
@@ -1230,20 +1215,20 @@ if __name__ == "__main__":
     # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
     # test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
 
-    #select features
-    #test.select_features_RFE('all', 'clem', cv=False)
+    # select features
+    # test.select_features_RFE('all', 'clem', cv=False)
     test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
     print('features:', np.array(test.column_labels)[test.reduced_features_idx])
 
-    #select classifiers for the confusion matrices
+    # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
     clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
 
-    #make confusion matrices
+    # make confusion matrices
     test.confusion_matrices(clf_fk, method='lpo')
 
     test.predict_cells(use_jon_priors=True)
