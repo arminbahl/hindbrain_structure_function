@@ -201,7 +201,7 @@ class class_predictor:
                   * Extracting labels and features, and standardizing the features.
 
             """
-        file_path = self.path / 'prediction' / f'{file_name}_train_features.hdf5'
+        file_path = self.path / 'prediction' /'features'/ f'{file_name}_train_features.hdf5'
 
         all_cells = pd.read_hdf(file_path, 'complete_df')
 
@@ -1373,9 +1373,9 @@ if __name__ == "__main__":
     # load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_prune5') #
+    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_prune5', with_neg_control=True)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True)
 
     # test.calculate_published_metrics()
 
