@@ -1490,7 +1490,7 @@ if __name__ == "__main__":
     #load cells, prepare and calculate metrics
     cells = load_cells_predictor_pipeline(path_to_data=Path(r'C:\Users\ag-bahl\Desktop\hindbrain_structure_function\nextcloud_folder\CLEM_paper_data'), modalities=['pa','clem'], load_repaired=True)
     cells = prepare_data_4_metric_calc(cells,use_new_neurotransmitter,use_k_means_classes,path_to_data=path_to_data)
-    calculate_metric2df_semiold(cells, 'FINAL', path_to_data, force_new=False, train_or_predict='train')
+    calculate_metric2df(cells, 'FINAL', path_to_data, force_new=False, train_or_predict='train')
 
     #load preexisting metrics
     all,column_labels,all_cells = load_metrics_train('FINAL',path_to_data=path_to_data) #clem_clem_predict_pa_prediction_project_neg_controls

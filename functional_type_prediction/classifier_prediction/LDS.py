@@ -22,6 +22,7 @@ import trimesh as tm
 
 repeats = 10000
 path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')
+path_to_data = Path(r'D:\hindbrain_structure_function\nextcloud')
 # LDS
 fmn = pd.read_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5','function_morphology_neurotransmitter')
 pp = pd.read_hdf(path_to_data / 'make_figures_FK_output' / 'CLEM_and_PA_features.hdf5','predictor_pipeline_features')

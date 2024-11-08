@@ -9,7 +9,7 @@ from hindbrain_structure_function.functional_type_prediction.FK_tools.fragment_n
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.LDS_single_cell_prediction import *
 
 
-def calculate_metric2df_semiold(cell_df, file_name, path_to_data, force_new=False, train_or_predict='train', ):
+def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train_or_predict='train', ):
     print('\nSTARTED calculate_metric\n')
     width_brain = 495.56
     skip = False

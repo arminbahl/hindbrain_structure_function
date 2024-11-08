@@ -175,7 +175,7 @@ class class_predictor:
         Returns:
             None. The result is saved to the specified file.
         """
-        calculate_metric2df_semiold(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
+        calculate_metric2df(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
 
     def load_metrics(self, file_name, with_neg_control=False):
         """
