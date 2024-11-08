@@ -10,15 +10,20 @@ from hindbrain_structure_function.functional_type_prediction.classifier_predicti
 
 
 def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train_or_predict='train', ):
-    print('\nSTARTED calculate_metric\n')
+    def check_skip_condition(path_to_data, file_name, train_or_predict, key, cell_df, force_new):
+        file_path = path_to_data / 'prediction' / 'features' / f'{file_name}_{train_or_predict}_features.hdf5'
+        if file_path.exists():
+            with h5py.File(file_path, 'r') as h5file:
+                if key in h5file.keys() and h5file['angle_cross/axis1'].shape[0] == cell_df.shape[0] and not force_new:
+                    return True
+        return False
+
     width_brain = 495.56
-    skip = False
-    if Path(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5').exists():
-        if 'predictor_pipeline_features' in h5py.File(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5').keys():
-            if h5py.File(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5')['angle_cross/axis1'].shape[0] == cell_df.shape[0] and not force_new:
-                skip = True
-                print('skip')
-    if not skip:
+
+
+
+
+    if not check_skip_condition(path_to_data, file_name, train_or_predict, 'predictor_pipeline_features', cell_df, force_new):
         # prune
         #cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in cell_df['swc']]
         # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in cell_df['swc']]
@@ -205,13 +210,9 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
         temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'function_morphology_neurotransmitter')
         print('\nFINISHED calculate_metric PART 1\n')
         print('\nSTART calculate_metric PART 2\n')
-    skip = False
-    if Path(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5').exists():
-        if 'angle_cross' in h5py.File(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5').keys():
-            if h5py.File(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5')['angle_cross/axis1'].shape[0] == cell_df.shape[0] and not force_new:
-                skip = True
-                print('skip')
-    if not skip:
+
+
+    if not check_skip_condition(path_to_data, file_name, train_or_predict, 'angle_cross', cell_df, force_new):
         # extract branching angle and coords of crossing for contralateral neurons
         for i, cell in tqdm(cell_df.iterrows(), total=cell_df.shape[0], leave=False):
             if cell.morphology == 'contralateral':
@@ -248,7 +249,7 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
         complete_df = pd.concat([temp2, temp1, temp3], axis=1)
         complete_df.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'complete_df')
 
-    print('\nFINISHED calculate_metric PART 2\n')
+
 
 
 def load_train_data_df(path, file="CLEM_and_PA"):
