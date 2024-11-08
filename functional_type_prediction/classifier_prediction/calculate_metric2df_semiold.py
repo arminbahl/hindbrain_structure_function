@@ -20,7 +20,7 @@ def calculate_metric2df_semiold(cell_df, file_name, path_to_data, force_new=Fals
                 print('skip')
     if not skip:
         # prune
-        # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in cell_df['swc']]
+        #cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in cell_df['swc']]
         # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in cell_df['swc']]
         # resample
         cell_df.loc[:, 'not_resampled_swc'] = cell_df['swc']

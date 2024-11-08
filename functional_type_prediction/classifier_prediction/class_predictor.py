@@ -13,11 +13,33 @@ from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
+import navis
+import os
+from pathlib import Path
+
+import plotly
 
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
 
 np.set_printoptions(suppress=True)
 
+
+def load_brs(base_path, which_brs='raphe', as_volume=True):
+    if as_volume:
+        load_type = 'volume'
+    else:
+        load_type = 'neuron'
+
+    meshes = []
+
+    for file in os.listdir(base_path.joinpath("zbrain_regions").joinpath(which_brs)):
+        try:
+            meshes.append(navis.read_mesh(base_path.joinpath("zbrain_regions").joinpath(which_brs).joinpath(file),
+                                          units='um', output=load_type))
+        except:
+            pass
+
+    return meshes
 
 class class_predictor:
     """
@@ -1260,7 +1282,7 @@ class class_predictor:
                 selected_indices = selected_indices + modality2idx[idx]
 
         # align the two dfs
-        super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:, ['cell_name', 'metadata_path', 'comment']], on=['cell_name'], how='inner')
+        super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:, ['cell_name', 'metadata_path', 'comment','swc']], on=['cell_name'], how='inner')
 
         # Select data based on train_modalities
         self.prediction_train_df = self.all_cells[self.all_cells.imaging_modality.isin(train_modalities)]
@@ -1351,9 +1373,9 @@ if __name__ == "__main__":
     # load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    # test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
+    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_prune5') #
 
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_prune5', with_neg_control=True)
 
     # test.calculate_published_metrics()
 
@@ -1386,3 +1408,42 @@ if __name__ == "__main__":
 
     test.predict_cells(use_jon_priors=True)
     test.predict_cells(use_jon_priors=False)
+
+
+
+
+
+    modality = 'EM'
+
+    color_dict = {
+        "integrator_ipsilateral": '#feb326b3',
+        "integrator_contralateral": '#e84d8ab3',
+        "dynamic_threshold": '#64c5ebb3',
+        "motor_command": '#7f58afb3',
+    }
+    brs = load_brs(test.path)
+
+    sub_df = test.prediction_predict_df.loc[test.prediction_predict_df['imaging_modality']==modality,:]
+    colors = [color_dict[x] for x in sub_df['prediction']]
+    for i, cell in sub_df.iterrows():
+        sub_df.loc[i, 'swc'].nodes.loc[:, "radius"] = 0.5
+        sub_df.loc[i, 'swc'].nodes.loc[cell.swc.nodes.node_id==np.min(cell.swc.nodes.node_id), "radius"] = 2
+        sub_df.loc[i, 'swc'].soma = 0
+    fig = navis.plot3d(brs, backend='plotly',
+                       width=1920, height=1080, hover_name=True)
+    fig = navis.plot3d(navis.NeuronList(sub_df.swc), backend='plotly', fig=fig,
+                           width=1920, height=1080, hover_name=True, colors=colors)
+
+
+    fig.update_layout(
+        scene={
+            'xaxis': {'autorange': 'reversed'},  # reverse !!!
+            'yaxis': {'autorange': True},
+
+            'zaxis': {'autorange': True},
+            'aspectmode': "data",
+            'aspectratio': {"x": 1, "y": 1, "z": 1}
+        }
+    )
+
+    plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
