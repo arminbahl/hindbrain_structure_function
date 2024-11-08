@@ -11,7 +11,7 @@ from sklearn.model_selection import LeavePOut
 from sklearn.model_selection import ShuffleSplit
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 np.set_printoptions(suppress=True)
 
 def load_metrics_train(file_name, path_to_data, with_neg_control=False):

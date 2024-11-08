@@ -19,7 +19,7 @@ from pathlib import Path
 
 import plotly
 
-from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_semiold import *
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 
 np.set_printoptions(suppress=True)
 
