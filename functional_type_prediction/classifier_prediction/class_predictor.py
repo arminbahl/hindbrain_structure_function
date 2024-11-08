@@ -175,7 +175,7 @@ class class_predictor:
         Returns:
             None. The result is saved to the specified file.
         """
-        calculate_metric2df(self.cells_with_to_predict, file_name, test.path, force_new=force_new, train_or_predict='train')
+        calculate_metric2df(self.cells_with_to_predict, file_name, test.path, force_new=force_new)
 
     def load_metrics(self, file_name, with_neg_control=False):
         """
@@ -201,7 +201,7 @@ class class_predictor:
                   * Extracting labels and features, and standardizing the features.
 
             """
-        file_path = self.path / 'prediction' /'features'/ f'{file_name}_train_features.hdf5'
+        file_path = self.path / 'prediction' /'features'/ f'{file_name}_features.hdf5'
 
         all_cells = pd.read_hdf(file_path, 'complete_df')
 

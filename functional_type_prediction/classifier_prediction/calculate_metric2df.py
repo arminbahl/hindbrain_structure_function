@@ -9,24 +9,27 @@ from hindbrain_structure_function.functional_type_prediction.FK_tools.fragment_n
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.LDS_single_cell_prediction import *
 
 
-def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train_or_predict='train', ):
-    def check_skip_condition(path_to_data, file_name, train_or_predict, key, cell_df, force_new):
-        file_path = path_to_data / 'prediction' / 'features' / f'{file_name}_{train_or_predict}_features.hdf5'
+def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
+    def check_skip_condition(path_to_data, file_name, key, cell_df, force_new):
+        file_path = path_to_data / 'prediction' / 'features' / f'{file_name}_features.hdf5'
         if file_path.exists():
             with h5py.File(file_path, 'r') as h5file:
                 if key in h5file.keys() and h5file['angle_cross/axis1'].shape[0] == cell_df.shape[0] and not force_new:
                     return True
         return False
+    def ic_index(x_coords):
+        width_brain = 495.56
+
+        distances = []
+        for x in x_coords:
+            distances.append(((width_brain / 2) - x) / (width_brain / 2))
+        ipsi_contra_index = np.sum(distances) / len(distances)
+        return ipsi_contra_index
 
     width_brain = 495.56
 
 
-
-
-    if not check_skip_condition(path_to_data, file_name, train_or_predict, 'predictor_pipeline_features', cell_df, force_new):
-        # prune
-        #cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 5, recursive=True) for x in cell_df['swc']]
-        # cell_df.loc[:,'swc'] = [navis.prune_twigs(x, 10, recursive=True) for x in cell_df['swc']]
+    if not check_skip_condition(path_to_data, file_name,  'predictor_pipeline_features', cell_df, force_new):
         # resample
         cell_df.loc[:, 'not_resampled_swc'] = cell_df['swc']
         cell_df.loc[:, 'swc'] = cell_df.swc.apply(lambda x: x.resample("0.5 micron"))
@@ -80,18 +83,12 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
         # add max strahler index
         cell_df.loc[:, "max_strahler_index"] = cell_df.loc[:, "swc"].apply(lambda x: x.nodes.strahler_index.max())
 
-        # add sholl distance most bracnhes
-        cell_df.loc[:, "sholl_distance_max_branches"] = cell_df.loc[:, "swc"].apply(lambda x: navis.sholl_analysis(x, radii=np.arange(10, 200, 5), center='root').branch_points.idxmax())
-
-        # add sholl distance most bracnhes
-        cell_df.loc[:, "sholl_distance_max_branches"] = cell_df.loc[:, "swc"].apply(lambda x: navis.sholl_analysis(x, radii=np.arange(10, 200, 10), center='root').branch_points.idxmax())
-        cell_df.loc[:, "sholl_distance_max_branches_cable_length"] = cell_df.loc[:, ['sholl_distance_max_branches', "swc"]].apply(
-            lambda x: navis.sholl_analysis(x['swc'], radii=np.arange(10, 200, 10), center='root', geodesic=False).cable_length[x['sholl_distance_max_branches']], axis=1)
-        # add sholl distance most bracnhes
-        cell_df.loc[:, "sholl_distance_max_branches_geosidic"] = cell_df.loc[:, "swc"].apply(
-            lambda x: navis.sholl_analysis(x, radii=np.arange(10, 200, 10), center='root', geodesic=True).branch_points.idxmax())
-        cell_df.loc[:, "sholl_distance_max_branches_geosidic_cable_length"] = cell_df.loc[:, ['sholl_distance_max_branches_geosidic', "swc"]].apply(
-            lambda x: navis.sholl_analysis(x['swc'], radii=np.arange(10, 200, 10), center='root', geodesic=False).cable_length[x['sholl_distance_max_branches_geosidic']], axis=1)
+        # add sholl distance most branches
+        sholl_analysis_results = cell_df.loc[:, "swc"].apply(lambda x: navis.sholl_analysis(x, radii=np.arange(10, 200, 10), center='root'))
+        cell_df.loc[:, "sholl_distance_max_branches"] = sholl_analysis_results.apply(lambda x: x.branch_points.idxmax())
+        cell_df.loc[:, "sholl_distance_max_branches_cable_length"] = sholl_analysis_results.apply(lambda x: x.cable_length[x.branch_points.idxmax()])
+        cell_df.loc[:, "sholl_distance_max_branches_geosidic"] = sholl_analysis_results.apply(lambda x: x.branch_points.idxmax())
+        cell_df.loc[:, "sholl_distance_max_branches_geosidic_cable_length"] = sholl_analysis_results.apply(lambda x: x.cable_length[x.branch_points.idxmax()])
         branches_df = None
         for i, cell in tqdm(cell_df.iterrows(), leave=False, total=len(cell_df)):
             temp = find_branches(cell['swc'].nodes, cell.cell_name)
@@ -151,14 +148,7 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
             cell_df.loc[i, 'n_nodes_ipsi_hemisphere_fraction'] = ((cell.swc.nodes.x < (width_brain / 2)).sum()) / len(cell.swc.nodes.x)
             cell_df.loc[i, 'n_nodes_contra_hemisphere_fraction'] = ((cell.swc.nodes.x > (width_brain / 2)).sum()) / len(cell.swc.nodes.x)
 
-            def ic_index(x_coords):
-                width_brain = 495.56
 
-                distances = []
-                for x in x_coords:
-                    distances.append(((width_brain / 2) - x) / (width_brain / 2))
-                ipsi_contra_index = np.sum(distances) / len(distances)
-                return ipsi_contra_index
 
             cell_df.loc[i, 'x_location_index'] = ic_index(cell.swc.nodes.x)
 
@@ -201,18 +191,17 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
         temp1_index = list(cell_df.columns).index('contralateral_branches')
         temp1 = cell_df.loc[:, cell_df.columns[temp1_index:]]
 
-        temp1.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'predictor_pipeline_features')
+        temp1.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'predictor_pipeline_features')
 
         if train_or_predict == 'predict':
             temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'morphology', 'neurotransmitter']]
         elif train_or_predict == 'train':
             temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'function', 'morphology', 'neurotransmitter']]
-        temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'function_morphology_neurotransmitter')
-        print('\nFINISHED calculate_metric PART 1\n')
-        print('\nSTART calculate_metric PART 2\n')
+        temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'function_morphology_neurotransmitter')
 
 
-    if not check_skip_condition(path_to_data, file_name, train_or_predict, 'angle_cross', cell_df, force_new):
+
+    if not check_skip_condition(path_to_data, file_name, 'angle_cross', cell_df, force_new):
         # extract branching angle and coords of crossing for contralateral neurons
         for i, cell in tqdm(cell_df.iterrows(), total=cell_df.shape[0], leave=False):
             if cell.morphology == 'contralateral':
@@ -244,10 +233,10 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False, train
                 cell_df.loc[i, 'z_cross'] = np.nan
 
         temp3 = cell_df.loc[:, ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']]
-        temp3.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'angle_cross')
+        temp3.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'angle_cross')
 
         complete_df = pd.concat([temp2, temp1, temp3], axis=1)
-        complete_df.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_{train_or_predict}_features.hdf5', 'complete_df')
+        complete_df.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'complete_df')
 
 
 
