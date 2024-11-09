@@ -13,50 +13,94 @@ from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
-import navis
-import os
-from pathlib import Path
-
 import plotly
-
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
-
 np.set_printoptions(suppress=True)
-
-
-
 
 class class_predictor:
     """
+    A class to handle the loading, processing, and analysis of cell metrics data.
 
-    :class:`class_predictor`
-    ========================
+    This class provides methods to load cell metrics from a file, preprocess the data, calculate various metrics,
+    and select optimal features for machine learning models. It also includes methods for cross-validation,
+    confusion matrix generation, and prediction of cell types.
 
-    Provides methods for preparing data, calculating metrics, and loading cells features.
+    Attributes:
+    -----------
+    features_fk_with_to_predict : numpy.ndarray
+        Loaded features from the file, including 'to_predict' and 'neg_control' categories.
+    labels_fk_with_to_predict : numpy.ndarray
+        Loaded labels from the file, including 'to_predict' and 'neg_control' categories.
+    labels_imaging_modality_with_to_predict : numpy.ndarray
+        Loaded imaging modality labels from the file, including 'to_predict' and 'neg_control' categories.
+    labels_fk : numpy.ndarray
+        Filtered labels excluding 'to_predict' and 'neg_control' categories.
+    features_fk : numpy.ndarray
+        Filtered features excluding 'to_predict' and 'neg_control' categories.
+    labels_imaging_modality : numpy.ndarray
+        Filtered imaging modality labels excluding 'to_predict' and 'neg_control' categories.
+    all_cells : pandas.DataFrame
+        DataFrame containing all cells excluding 'to_predict' and 'neg_control' categories.
+    cells : pandas.DataFrame
+        DataFrame containing all cells with 'to_predict' attribute, present in the loaded file.
+    clem_idx : numpy.ndarray
+        Indicator array for cells with 'clem' imaging modality.
+    pa_idx : numpy.ndarray
+        Indicator array for cells with 'photoactivation' imaging modality.
+    em_idx : numpy.ndarray
+        Indicator array for cells with 'EM' imaging modality.
+    clem_idx_with_to_predict : numpy.ndarray
+        Indicator array for cells with 'clem' imaging modality, including 'to_predict' category.
+    pa_idx_with_to_predict : numpy.ndarray
+        Indicator array for cells with 'photoactivation' imaging modality, including 'to_predict' category.
+    em_idx_with_to_predict : numpy.ndarray
+        Indicator array for cells with 'EM' imaging modality, including 'to_predict' category.
 
+    Methods:
+    --------
+    load_metrics(file, with_neg_control):
+        Loads the metrics from the specified file.
+    load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], neg_control=True):
+        Loads the cells DataFrame and applies the preprocessing pipeline to the data.
+    calculate_published_metrics():
+        Calculates published metrics over the cell data.
+    select_features(train_mod, test_mod, plot=False, use_assessment_per_class=False, which_selection='SKB', use_std_scale=False):
+        Selects the optimal features for a given training and testing modality.
+    select_features_RFE(train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False):
+        Selects features using Recursive Feature Elimination (RFE) with cross-validation.
+    do_cv(method, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False, fraction_across_classes=True, idx=None, plot=True, return_cm=False):
+        Performs cross-validation and returns the accuracy or confusion matrix.
+    confusion_matrices(clf, method, n_repeats=100, test_size=0.3, p=1, fraction_across_classes=False, feature_type='fk'):
+        Generates and saves confusion matrices for different training and testing modalities.
+    predict_cells(train_modalities=['clem', 'photoactivation'], use_jon_priors=True):
+        Predicts cell types based on the trained model and saves the predictions.
+    plot_neurons(modality, output_filename="test.html"):
+        Plots interactive 3D representations of neurons using the `navis` library and `plotly`.
 
-    Methods
-    -------
-
-    __init__(self, path)
-        Initializes the class predictor with a given path.
-
-    prepare_data_4_metric_calc(self, df, neg_control=True)
-        Prepares data for metric calculation, removing duplicates and filtering based on conditions.
-
-    calculate_metrics(self, file_name, force_new=False)
-        Calculates metrics with semi-old method specified by `calculate_metric2df_semiold` function.
-
-    load_metrics(self, file_name, with_neg_control=False)
-        Loads metrics from a given file path, preprocesses the data, and converts strings to numerical indices.
-
-    load_cells_features(self, file, with_neg_control=False)
-        Loads cell features, labels, and imaging modality for further analysis.
-
-
-
+    Notes:
+    ------
+    'fk' in the attribute names refers to the prefix 'florian kämpf' indicating these are the main features.
     """
     def __init__(self, path):
+        """
+        Initialize the class predictor with a given path.
+
+        Parameters:
+        -----------
+        path : pathlib.Path
+            The path where the confusion matrices will be saved.
+
+        Attributes:
+        -----------
+        path : pathlib.Path
+            The path where the confusion matrices will be saved.
+        color_dict : dict
+            A dictionary mapping cell types to their respective colors.
+        path_to_save_confusion_matrices : pathlib.Path
+            The path where confusion matrices will be saved.
+        CELL_CLASS_RATIOS : dict
+            A dictionary containing the ratios of different cell classes.
+        """
         """
         :param path: The path where the confusion matrices will be saved.
         """
@@ -78,6 +122,22 @@ class class_predictor:
         os.makedirs(self.path_to_save_confusion_matrices, exist_ok=True)
 
     def load_brs(self,base_path, which_brs='raphe', as_volume=True):
+        """
+        Loads brain regions from the specified base path and brain region set.
+
+        Parameters:
+        -----------
+        base_path : pathlib.Path
+            The base path where the brain regions are stored.
+        which_brs : str, optional
+            The specific brain region set to load (default is 'raphe').
+        as_volume : bool, optional
+            If True, loads the brain regions as volumes; otherwise, loads as neurons (default is True).
+
+        Returns:
+        --------
+        None
+        """
         if as_volume:
             load_type = 'volume'
         else:
@@ -91,7 +151,6 @@ class class_predictor:
                                               units='um', output=load_type))
             except:
                 pass
-
 
     def prepare_data_4_metric_calc(self, df, neg_control=True):
         """
@@ -378,7 +437,33 @@ class class_predictor:
 
     def select_features(self, train_mod: str, test_mod: str, plot=False, use_assessment_per_class=False, which_selection='SKB', use_std_scale=False):
         """
+        Selects the optimal features for a given training and testing modality.
 
+        Parameters:
+        -----------
+        train_mod : str
+            The training modality.
+        test_mod : str
+            The testing modality.
+        plot : bool, optional
+            If True, plots the feature selection results. Default is False.
+        use_assessment_per_class : bool, optional
+            If True, uses assessment per class for feature selection. Default is False.
+        which_selection : str, optional
+            The feature selection method to use ('SKB', 'PI', or custom scorer). Default is 'SKB'.
+        use_std_scale : bool, optional
+            If True, uses standard scaling for penalty calculation. Default is False.
+
+        Returns:
+        --------
+        bool_features_2_use : numpy.ndarray
+            Boolean array indicating the selected features.
+        max_accuracy_key : str
+            The key corresponding to the maximum accuracy.
+        train_mod : str
+            The training modality.
+        test_mod : str
+            The testing modality.
         """
         def calc_penalty(temp_list):
             p = 2  # You can adjust this power as needed
@@ -387,6 +472,38 @@ class class_predictor:
 
         def find_optimum_SKB(features_train, labels_train, features_test, labels_test, train_test_identical,
                              train_contains_test, train_mod, use_std_scale=False):
+            """
+            Finds the optimal number of features using SelectKBest for feature selection.
+
+            Parameters:
+            -----------
+            features_train : numpy.ndarray
+                Training feature set.
+            labels_train : numpy.ndarray
+                Training labels.
+            features_test : numpy.ndarray
+                Test feature set.
+            labels_test : numpy.ndarray
+                Test labels.
+            train_test_identical : bool
+                Indicates if the training and test sets are identical.
+            train_contains_test : bool
+                Indicates if the training set contains the test set.
+            train_mod : str
+                The training modality.
+            use_std_scale : bool, optional
+                If True, uses standard scaling for penalty calculation. Default is False.
+
+            Returns:
+            --------
+            pred_correct_dict_over_n : dict
+                Dictionary containing prediction correctness over different numbers of features.
+            pred_correct_dict_over_n_per_class : dict
+                Dictionary containing prediction correctness per class over different numbers of features.
+            used_features_idx_over_n : dict
+                Dictionary containing the indices of used features over different numbers of features.
+            """
+
 
             pred_correct_dict_over_n = {}
             pred_correct_dict_over_n_per_class = {}
@@ -550,6 +667,37 @@ class class_predictor:
                 return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
 
         def find_optimum_PI(features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test, train_mod, use_std_scale=False):
+            """
+            Finds the optimal number of features using permutation importance for feature selection.
+
+            Parameters:
+            -----------
+            features_train : numpy.ndarray
+                Training feature set.
+            labels_train : numpy.ndarray
+                Training labels.
+            features_test : numpy.ndarray
+                Test feature set.
+            labels_test : numpy.ndarray
+                Test labels.
+            train_test_identical : bool
+                Indicates if the training and test sets are identical.
+            train_contains_test : bool
+                Indicates if the training set contains the test set.
+            train_mod : str
+                The training modality.
+            use_std_scale : bool, optional
+                If True, uses standard scaling for penalty calculation. Default is False.
+
+            Returns:
+            --------
+            pred_correct_dict_over_n : dict
+                Dictionary containing prediction correctness over different numbers of features.
+            pred_correct_dict_over_n_per_class : dict
+                Dictionary containing prediction correctness per class over different numbers of features.
+            used_features_idx_over_n : dict
+                Dictionary containing the indices of used features over different numbers of features.
+            """
             evaluator_name = 'permutation importance'
 
             pred_correct_dict_over_n = {}
@@ -723,6 +871,39 @@ class class_predictor:
                 return pred_correct_dict_over_n, pred_correct_dict_over_n_per_class, used_features_idx_over_n
 
         def find_optimum_custom(custom_scorer, features_train, labels_train, features_test, labels_test, train_test_identical, train_contains_test, train_mod, use_std_scale=False):
+            """
+            Finds the optimal number of features using a custom scorer for feature selection.
+
+            Parameters:
+            -----------
+            custom_scorer : object
+                The custom scoring model used for feature selection.
+            features_train : numpy.ndarray
+                Training feature set.
+            labels_train : numpy.ndarray
+                Training labels.
+            features_test : numpy.ndarray
+                Test feature set.
+            labels_test : numpy.ndarray
+                Test labels.
+            train_test_identical : bool
+                Indicates if the training and test sets are identical.
+            train_contains_test : bool
+                Indicates if the training set contains the test set.
+            train_mod : str
+                The training modality.
+            use_std_scale : bool, optional
+                If True, uses standard scaling for penalty calculation. Default is False.
+
+            Returns:
+            --------
+            pred_correct_dict_over_n : dict
+                Dictionary containing prediction correctness over different numbers of features.
+            pred_correct_dict_over_n_per_class : dict
+                Dictionary containing prediction correctness per class over different numbers of features.
+            used_features_idx_over_n : dict
+                Dictionary containing the indices of used features over different numbers of features.
+            """
             pred_correct_dict_over_n = {}
             pred_correct_dict_over_n_per_class = {}
             used_features_idx_over_n = {}
@@ -951,7 +1132,21 @@ class class_predictor:
 
     def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
+        """
+        Selects features using Recursive Feature Elimination (RFE) or RFECV.
 
+        Args:
+            train_mod (str): The training modality.
+            test_mod (str): The testing modality.
+            cv (bool, optional): If True, uses cross-validation for feature selection. Default is False.
+            estimator (object, optional): The estimator to use for feature selection. Default is None.
+            scoring (str or list, optional): The scoring method(s) to use. Default is None.
+            cv_method (object or list, optional): The cross-validation method(s) to use. Default is None.
+            save_features (bool, optional): If True, saves the selected features. Default is False.
+
+        Returns:
+            None
+        """
         if estimator is None:
             all_estimator = [LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
                              LogisticRegression(random_state=0),
@@ -1049,8 +1244,63 @@ class class_predictor:
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
               fraction_across_classes=True, idx=None, plot=True, return_cm=False):
+        """
+        Perform cross-validation on the given classifier and dataset.
 
+        Parameters:
+        -----------
+        method : str
+            The cross-validation method to use ('lpo' for LeavePOut or 'ss' for ShuffleSplit).
+        clf : object
+            The classifier to use for training and prediction.
+        feature_type : str
+            The type of features to use ('fk', 'pv', 'ps', or 'ff').
+        train_mod : str
+            The training modality.
+        test_mod : str
+            The testing modality.
+        n_repeats : int, optional
+            The number of repeats for ShuffleSplit. Default is 100.
+        test_size : float, optional
+            The test size for ShuffleSplit. Default is 0.3.
+        p : int, optional
+            The number of samples to leave out for LeavePOut. Default is 1.
+        ax : matplotlib.axes.Axes, optional
+            The axes on which to plot the confusion matrix. Default is None.
+        figure_label : str, optional
+            The label for the figure. Default is 'error:no figure label'.
+        spines_red : bool, optional
+            If True, set the spines of the plot to red. Default is False.
+        fraction_across_classes : bool, optional
+            If True, normalize the confusion matrix by true labels. Default is True.
+        idx : array-like, optional
+            The indices of the features to use. Default is None.
+        plot : bool, optional
+            If True, plot the confusion matrix. Default is True.
+        return_cm : bool, optional
+            If True, return the confusion matrix. Default is False.
+
+        Returns:
+        --------
+        float or numpy.ndarray
+            The accuracy score if return_cm is False, otherwise the confusion matrix.
+        """
         def check_duplicates(train, test):
+            """
+            Check for duplicate rows between the training and test datasets.
+
+            Args:
+                train (numpy.ndarray): The training dataset.
+                test (numpy.ndarray): The test dataset.
+
+            Returns:
+                bool: True if duplicate rows are found, False otherwise.
+
+            Notes:
+                This function converts both datasets to sets of rows and finds common rows between them.
+                If duplicates are found, it prints the number of duplicate rows and returns True.
+                Otherwise, it returns False.
+            """
             # Convert both arrays to sets of rows
             train_set = set(map(tuple, train))
             test_set = set(map(tuple, test))
@@ -1258,6 +1508,30 @@ class class_predictor:
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
                            fraction_across_classes=False, feature_type='fk'):
+        """
+        Generate and save confusion matrices for different training and testing modalities.
+
+        Parameters:
+        -----------
+        clf : object
+            The classifier to use for training and prediction.
+        method : str
+            The cross-validation method to use ('lpo' for LeavePOut or 'ss' for ShuffleSplit).
+        n_repeats : int, optional
+            The number of repeats for ShuffleSplit. Default is 100.
+        test_size : float, optional
+            The test size for ShuffleSplit. Default is 0.3.
+        p : int, optional
+            The number of samples to leave out for LeavePOut. Default is 1.
+        fraction_across_classes : bool, optional
+            If True, normalize the confusion matrix by true labels. Default is False.
+        feature_type : str, optional
+            The type of features to use ('fk', 'pv', 'ps', or 'ff'). Default is 'fk'.
+
+        Returns:
+        --------
+        None
+        """
 
         suptitle = feature_type.upper() + "_features_"
         if method == 'lpo':
@@ -1281,6 +1555,30 @@ class class_predictor:
         plt.show()
 
     def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True):
+        """
+        Predicts cell types based on selected training modalities and optionally using Jon's priors.
+
+        This function performs the following steps:
+        1. Selects training modalities and aligns dataframes.
+        2. Selects training data based on the specified modalities.
+        3. Excludes certain cells based on various criteria.
+        4. Trains a Linear Discriminant Analysis (LDA) classifier.
+        5. Predicts cell types and probabilities for the test data.
+        6. Scales the predicted probabilities.
+        7. Exports the predictions to Excel files.
+        8. Updates metadata files with predictions.
+
+        Parameters:
+        -----------
+        train_modalities : list of str, optional
+            List of training modalities to use for prediction. Default is ['clem', 'photoactivation'].
+        use_jon_priors : bool, optional
+            If True, uses Jon's priors for prediction. Default is True.
+
+        Returns:
+        --------
+        None
+        """
         suffix = ""
         if use_jon_priors:
             suffix = "_jon_prior"
@@ -1447,17 +1745,6 @@ if __name__ == "__main__":
 
     # test.calculate_published_metrics()
 
-    # remove truncated/growth cone neurons
-    # bool_truncated = np.array(['truncated' not in str(x) for x in test.cells["comment"]])
-    # bool_growth_cone = np.array(['growth cone' not in str(x) for x in test.cells["comment"]])
-    # bool_complete = bool_truncated * bool_growth_cone
-    # test.features_fk_with_to_predict = test.features_fk_with_to_predict[bool_complete,:]
-    # test.labels_fk_with_to_predict = test.labels_fk_with_to_predict[bool_complete]
-    # test.cells = test.cells.loc[bool_complete, :]
-    # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
-    # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
-    # test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'))
-
     # select features
     # test.select_features_RFE('all', 'clem', cv=False)
     test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
@@ -1478,4 +1765,3 @@ if __name__ == "__main__":
     test.predict_cells(use_jon_priors=False)
 
     test.plot_neurons('EM')
-
