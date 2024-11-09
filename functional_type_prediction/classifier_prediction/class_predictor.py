@@ -24,22 +24,7 @@ from hindbrain_structure_function.functional_type_prediction.classifier_predicti
 np.set_printoptions(suppress=True)
 
 
-def load_brs(base_path, which_brs='raphe', as_volume=True):
-    if as_volume:
-        load_type = 'volume'
-    else:
-        load_type = 'neuron'
 
-    meshes = []
-
-    for file in os.listdir(base_path.joinpath("zbrain_regions").joinpath(which_brs)):
-        try:
-            meshes.append(navis.read_mesh(base_path.joinpath("zbrain_regions").joinpath(which_brs).joinpath(file),
-                                          units='um', output=load_type))
-        except:
-            pass
-
-    return meshes
 
 class class_predictor:
     """
@@ -76,8 +61,37 @@ class class_predictor:
         :param path: The path where the confusion matrices will be saved.
         """
         self.path = path
+        self.color_dict = {
+            "integrator_ipsilateral": '#feb326b3',
+            "integrator_contralateral": '#e84d8ab3',
+            "dynamic_threshold": '#64c5ebb3',
+            "motor_command": '#7f58afb3',
+        }
         self.path_to_save_confusion_matrices = path / 'make_figures_FK_output' / 'all_confusion_matrices'
+        self.CELL_CLASS_RATIOS = {
+            'dynamic_threshold': 22 / 539,
+            'integrator_contralateral': 155.5 / 539,
+            'integrator_ipsilateral': 155.5 / 539,
+            'motor_command': 206 / 539
+        }
+
         os.makedirs(self.path_to_save_confusion_matrices, exist_ok=True)
+
+    def load_brs(self,base_path, which_brs='raphe', as_volume=True):
+        if as_volume:
+            load_type = 'volume'
+        else:
+            load_type = 'neuron'
+
+        self.meshes = []
+
+        for file in os.listdir(base_path.joinpath("zbrain_regions").joinpath(which_brs)):
+            try:
+                self.meshes.append(navis.read_mesh(base_path.joinpath("zbrain_regions").joinpath(which_brs).joinpath(file),
+                                              units='um', output=load_type))
+            except:
+                pass
+
 
     def prepare_data_4_metric_calc(self, df, neg_control=True):
         """
@@ -1301,10 +1315,6 @@ class class_predictor:
         self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:, self.reduced_features_idx]
         self.prediction_predict_labels = self.labels_fk_with_to_predict[exclude_bool]
         if use_jon_priors:
-            self.real_cell_class_ratio_dict = {'dynamic_threshold': 22 / 539,
-                                               'integrator_contralateral': 155.5 / 539,
-                                               'integrator_ipsilateral': 155.5 / 539,
-                                               'motor_command': 206 / 539}
             priors = [self.real_cell_class_ratio_dict[x] for x in np.unique(self.prediction_train_labels)]  # Hindbrain,Rhombomere 1-3’: {INTs: 311, MCs: 206, DTs: 22}),
         else:
             priors = [len(self.prediction_train_labels[self.prediction_train_labels == x]) / len(self.prediction_train_labels) for x in np.unique(self.prediction_train_labels)]
@@ -1368,6 +1378,64 @@ class class_predictor:
             with open(output_path, 'w+') as f:
                 f.write(new_t)
 
+    def plot_neurons(self, modality: str, output_filename: str = "test.html") -> None:
+        """
+        Plots interactive 3D representations of neurons using the `navis` library and `plotly`.
+
+        Parameters:
+        - modality (str): The imaging modality to filter the neurons by (e.g., 'clem', 'photoactivation').
+        - output_filename (str): The filename for the output HTML file containing the plot. Default is "test.html".
+
+        This function:
+        1. Loads brain structures using the `load_brs` function.
+        2. Filters the neurons based on the specified imaging modality.
+        3. Sets the color for each neuron based on its predicted function.
+        4. Adjusts the radius of the neuron nodes for better visualization.
+        5. Plots the neurons in 3D using `navis` and `plotly`.
+        6. Saves the plot to an HTML file.
+
+        Returns:
+        None
+        """
+        try:
+            self.load_brs(self.path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load brain structures: {str(e)}")
+
+        valid_modalities = self.prediction_predict_df['imaging_modality'].unique()
+        if modality not in valid_modalities:
+            raise ValueError(f"Invalid modality '{modality}'. Must be one of: {valid_modalities}")
+
+        # Filter neurons by modality
+        sub_df = self.prediction_predict_df[self.prediction_predict_df['imaging_modality'] == modality].copy()
+        colors = [self.color_dict[pred] for pred in sub_df['prediction']]
+
+        # Prepare neurons for visualization
+        def prepare_neuron(row):
+            row['swc'].nodes['radius'] = 0.5
+            row['swc'].nodes.loc[row.swc.nodes.node_id == row.swc.nodes.node_id.min(), 'radius'] = 2
+            row['swc'].soma = 0
+            return row
+
+        sub_df = sub_df.apply(prepare_neuron, axis=1)
+
+        # Create 3D plot
+        plot_params = {'backend': 'plotly', 'width': 1920, 'height': 1080, 'hover_name': True}
+        fig = navis.plot3d(self.meshes, **plot_params)
+        fig = navis.plot3d(navis.NeuronList(sub_df.swc), fig=fig, colors=colors, **plot_params)
+
+        # Configure plot layout
+        fig.update_layout(
+            scene={
+                'xaxis': {'autorange': 'reversed'},
+                'yaxis': {'autorange': True},
+                'zaxis': {'autorange': True},
+                'aspectmode': 'data',
+                'aspectratio': {'x': 1, 'y': 1, 'z': 1}
+            }
+        )
+
+        plotly.offline.plot(fig, filename=output_filename, auto_open=True, auto_play=False)
 
 if __name__ == "__main__":
     # load metrics and cells
@@ -1409,41 +1477,5 @@ if __name__ == "__main__":
     test.predict_cells(use_jon_priors=True)
     test.predict_cells(use_jon_priors=False)
 
+    test.plot_neurons('EM')
 
-
-
-
-    modality = 'EM'
-
-    color_dict = {
-        "integrator_ipsilateral": '#feb326b3',
-        "integrator_contralateral": '#e84d8ab3',
-        "dynamic_threshold": '#64c5ebb3',
-        "motor_command": '#7f58afb3',
-    }
-    brs = load_brs(test.path)
-
-    sub_df = test.prediction_predict_df.loc[test.prediction_predict_df['imaging_modality']==modality,:]
-    colors = [color_dict[x] for x in sub_df['prediction']]
-    for i, cell in sub_df.iterrows():
-        sub_df.loc[i, 'swc'].nodes.loc[:, "radius"] = 0.5
-        sub_df.loc[i, 'swc'].nodes.loc[cell.swc.nodes.node_id==np.min(cell.swc.nodes.node_id), "radius"] = 2
-        sub_df.loc[i, 'swc'].soma = 0
-    fig = navis.plot3d(brs, backend='plotly',
-                       width=1920, height=1080, hover_name=True)
-    fig = navis.plot3d(navis.NeuronList(sub_df.swc), backend='plotly', fig=fig,
-                           width=1920, height=1080, hover_name=True, colors=colors)
-
-
-    fig.update_layout(
-        scene={
-            'xaxis': {'autorange': 'reversed'},  # reverse !!!
-            'yaxis': {'autorange': True},
-
-            'zaxis': {'autorange': True},
-            'aspectmode': "data",
-            'aspectratio': {"x": 1, "y": 1, "z": 1}
-        }
-    )
-
-    plotly.offline.plot(fig, filename="test.html", auto_open=True, auto_play=False)
