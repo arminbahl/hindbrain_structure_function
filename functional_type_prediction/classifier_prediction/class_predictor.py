@@ -14,9 +14,15 @@ from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 import plotly
+from sklearn.ensemble import IsolationForest
+
+from sklearn.neighbors import LocalOutlierFactor
+
+from sklearn.svm import OneClassSVM
+from colorama import Fore, Style
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 np.set_printoptions(suppress=True)
-
+from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matrix_navis import *
 class class_predictor:
     """
     A class to handle the loading, processing, and analysis of cell metrics data.
@@ -112,7 +118,7 @@ class class_predictor:
             "motor_command": '#7f58afb3',
         }
         self.path_to_save_confusion_matrices = path / 'make_figures_FK_output' / 'all_confusion_matrices'
-        self.CELL_CLASS_RATIOS = {
+        self.real_cell_class_ratio_dict = {
             'dynamic_threshold': 22 / 539,
             'integrator_contralateral': 155.5 / 539,
             'integrator_ipsilateral': 155.5 / 539,
@@ -1554,6 +1560,58 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
 
+
+    def calculate_verification_metrics(self):
+
+
+
+        #check if ipsi got asigned as contra and vice versa
+        print(self.prediction_predict_df.groupby(['morphology_clone', 'prediction']).size())
+
+        train_cells = test.prediction_train_df
+        to_predict_cells = test.prediction_predict_df[test.prediction_predict_df.function == 'to_predict']
+        neg_control_cells = test.prediction_predict_df[test.prediction_predict_df.function == 'neg_control']
+
+        names_dt = train_cells.loc[(train_cells['function'] == 'dynamic_threshold'), 'cell_name']
+        names_ii = train_cells.loc[(train_cells['function'] == 'integrator_ipsilateral'), 'cell_name']
+        names_ci = train_cells.loc[(train_cells['function'] == 'integrator_contralateral'), 'cell_name']
+        names_mc = train_cells.loc[(train_cells['function'] == 'motor_command'), 'cell_name']
+        names_nc = neg_control_cells['cell_name']
+
+        self.smat_fish = load_zebrafish_nblast_matrix(path_to_data=path_to_data, return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
+        nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+        nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+        nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+
+        nb_matches_cells_train = navis.nbl.extract_matches(nb_train, 2)
+        nb_matches_cells_nc = navis.nbl.extract_matches(nb_train_nc.T, 2)
+        nb_matches_cells_predict = navis.nbl.extract_matches(nb_train_predict.T, 2)
+
+        nblast_values_dt = navis.nbl.extract_matches(nb_train.loc[names_dt, names_dt], 2)
+        nblast_values_ii = navis.nbl.extract_matches(nb_train.loc[names_ii, names_ii], 2)
+        nblast_values_ci = navis.nbl.extract_matches(nb_train.loc[names_ci, names_ci], 2)
+        nblast_values_mc = navis.nbl.extract_matches(nb_train.loc[names_mc, names_mc], 2)
+
+        z_score_dt = lambda x: abs((x - np.mean(list(nblast_values_dt.score_2))) / np.std(list(nblast_values_dt.score_2)))
+        z_score_ii = lambda x: abs((x - np.mean(list(nblast_values_ii.score_2))) / np.std(list(nblast_values_ii.score_2)))
+        z_score_ci = lambda x: abs((x - np.mean(list(nblast_values_ci.score_2))) / np.std(list(nblast_values_ci.score_2)))
+        z_score_mc = lambda x: abs((x - np.mean(list(nblast_values_mc.score_2))) / np.std(list(nblast_values_mc.score_2)))
+
+        cutoff = nb_matches_cells_train.loc[:, 'score_2'].quantile(.1)
+        print(f'{(nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
+
+        subset_predict_cells = list(nb_matches_cells_predict.loc[nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
+
+        OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(test.prediction_train_features)
+        IF = IsolationForest(contamination=0.1, random_state=42).fit(test.prediction_train_features)
+        LOF = LocalOutlierFactor(n_neighbors=5, novelty=True).fit(test.prediction_train_features)
+
+
+        self.prediction_predict_df.loc[:, 'OCSVM'] = OCSVM.predict(test.prediction_predict_features) == 1
+        self.prediction_predict_df.loc[:, 'IF'] = IF.predict(test.prediction_predict_features) == 1
+        self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(test.prediction_predict_features) == 1
+
+
     def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True):
         """
         Predicts cell types based on selected training modalities and optionally using Jon's priors.
@@ -1603,11 +1661,11 @@ class class_predictor:
 
         exclude_axon_bool = (self.all_cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True)).to_numpy()
         exclude_train_bool = (~self.all_cells_with_to_predict.cell_name.isin(self.prediction_train_df.cell_name)).to_numpy()
-        exclude_not_to_predict = (self.all_cells_with_to_predict.function == 'to_predict').to_numpy()
+        exclude_not_to_predict = ((self.all_cells_with_to_predict.function == 'to_predict')|(self.all_cells_with_to_predict.function == 'neg_control')).to_numpy()
         exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict), axis=1)
         exclude_reticulospinal = np.array([('reticulospinal' not in str(x)) for x in super_df.comment])
         exclude_myelinated = np.array([('myelinated' not in str(x)) for x in super_df.comment])
-        exclude_bool = exclude_train_bool * exclude_axon_bool * exclude_not_to_predict * exclude_nan * exclude_reticulospinal
+        exclude_bool = exclude_train_bool * exclude_axon_bool * exclude_not_to_predict * exclude_nan * exclude_reticulospinal * exclude_myelinated
 
         self.prediction_predict_df = super_df.loc[exclude_bool, :]
         self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:, self.reduced_features_idx]
