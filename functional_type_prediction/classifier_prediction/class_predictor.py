@@ -1830,7 +1830,7 @@ if __name__ == "__main__":
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
     test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=False)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=True)
 
     #throw out truncated, exits and growth cone
     # bool_growth_cone = ['growth cone' not in str(x) for x in test.cells.comment]
