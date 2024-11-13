@@ -15,7 +15,7 @@ from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 import plotly
 from sklearn.ensemble import IsolationForest
-
+import pickle
 from sklearn.neighbors import LocalOutlierFactor
 
 from sklearn.svm import OneClassSVM
@@ -1561,7 +1561,7 @@ class class_predictor:
         plt.show()
 
 
-    def calculate_verification_metrics(self):
+    def calculate_verification_metrics(self,calculate_smat=True,with_kunst=True):
 
 
 
@@ -1577,8 +1577,17 @@ class class_predictor:
         names_ci = train_cells.loc[(train_cells['function'] == 'integrator_contralateral'), 'cell_name']
         names_mc = train_cells.loc[(train_cells['function'] == 'motor_command'), 'cell_name']
         names_nc = neg_control_cells['cell_name']
-
-        self.smat_fish = load_zebrafish_nblast_matrix(path_to_data=path_to_data, return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
+        if with_kunst:
+            path = test.path / 'prediction' / f'smat_fish_with_kunst.pkl'
+        else:
+            path = test.path / 'prediction' / f'smat_fish.pkl'
+        if calculate_smat:
+            self.smat_fish = calculate_zebrafish_nblast_matrix(self.cells_with_to_predict,path_to_data=self.path,with_kunst=with_kunst, return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
+            with open(path,'wb') as f:
+                pickle.dump(self.smat_fish, f)
+        else:
+            with open(path,'rb') as f:
+                pickle.load(self.smat_fish, f)
         nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
         nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish, shift_neurons=False)
         nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells, custom_matrix=self.smat_fish, shift_neurons=False)
@@ -1655,7 +1664,8 @@ class class_predictor:
         super_df = pd.merge(self.all_cells_with_to_predict, self.cells_with_to_predict.loc[:, ['cell_name', 'metadata_path', 'comment','swc']], on=['cell_name'], how='inner')
 
         # Select data based on train_modalities
-        self.prediction_train_df = self.all_cells[self.all_cells.imaging_modality.isin(train_modalities)]
+        self.prediction_train_df = pd.merge(self.all_cells, self.cells.loc[:, ['cell_name', 'metadata_path', 'comment','swc']], on=['cell_name'], how='inner')
+        self.prediction_train_df = self.prediction_train_df[self.prediction_train_df.imaging_modality.isin(train_modalities)]
         self.prediction_train_features = self.features_fk[selected_indices][:, self.reduced_features_idx]
         self.prediction_train_labels = self.labels_fk[selected_indices]
 
@@ -1677,6 +1687,7 @@ class class_predictor:
         clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
         clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
 
+        (self.prediction_train_df.function == self.prediction_train_labels).all()
         self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(self.prediction_predict_features)
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction'] = [clf.classes_[x] for x in predicted_int_temp]
@@ -1711,7 +1722,7 @@ class class_predictor:
             t = t.replace('\n[others]\n', '')
             prediction_str = f"Prediction: {item['prediction']}\n"
             prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
-            proba_str = (f"Proba_prediction_scaled: "
+            proba_str = (f"Proba_prediction: "
                          f"DT: {round(item['DT_proba'], 2)} "
                          f"CI: {round(item['CI_proba'], 2)} "
                          f"II: {round(item['II_proba'], 2)} "
@@ -1734,7 +1745,7 @@ class class_predictor:
             with open(output_path, 'w+') as f:
                 f.write(new_t)
 
-    def plot_neurons(self, modality: str, output_filename: str = "test.html") -> None:
+    def plot_neurons(self, modality: str,scaled:bool=True, output_filename: str = "test.html") -> None:
         """
         Plots interactive 3D representations of neurons using the `navis` library and `plotly`.
 
@@ -1753,6 +1764,11 @@ class class_predictor:
         Returns:
         None
         """
+        if scaled:
+            scaled_suffix = "_scaled"
+        else:
+            scaled_suffix = ""
+
         try:
             self.load_brs(self.path)
         except Exception as e:
@@ -1763,8 +1779,8 @@ class class_predictor:
             raise ValueError(f"Invalid modality '{modality}'. Must be one of: {valid_modalities}")
 
         # Filter neurons by modality
-        sub_df = self.prediction_predict_df[self.prediction_predict_df['imaging_modality'] == modality].copy()
-        colors = [self.color_dict[pred] for pred in sub_df['prediction']]
+        sub_df = self.prediction_predict_df[self.prediction_predict_df['imaging_modality'] == modality].copy().sort_values(f'prediction{scaled_suffix}')
+        colors = [self.color_dict[pred] for pred in sub_df[f'prediction{scaled_suffix}']]
 
         # Prepare neurons for visualization
         def prepare_neuron(row):
@@ -1806,6 +1822,8 @@ if __name__ == "__main__":
     # select features
     # test.select_features_RFE('all', 'clem', cv=False)
     test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+
+    #test.reduced_features_idx = ~(np.array(test.column_labels) =='neurotransmitter') * test.reduced_features_idx
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
     print('features:', np.array(test.column_labels)[test.reduced_features_idx])
 
@@ -1820,6 +1838,8 @@ if __name__ == "__main__":
     test.confusion_matrices(clf_fk, method='lpo')
 
     test.predict_cells(use_jon_priors=True)
-    test.predict_cells(use_jon_priors=False)
+    # test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors.html')
+    # test.predict_cells(use_jon_priors=False)
+    # test.plot_neurons('EM', output_filename='EM_predicted.html')
 
-    test.plot_neurons('EM')
+    test.calculate_verification_metrics()
