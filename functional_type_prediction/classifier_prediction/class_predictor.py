@@ -256,7 +256,7 @@ class class_predictor:
         """
         calculate_metric2df(self.cells_with_to_predict, file_name, test.path, force_new=force_new)
 
-    def load_metrics(self, file_name, with_neg_control=False):
+    def load_metrics(self, file_name, with_neg_control=False,drop_neurotransmitter=False):
         """
             This method loads metrics from a specific file and carries out several preprocessing steps on the loaded data.
 
@@ -316,6 +316,9 @@ class class_predictor:
         columns_replace_string = ['neurotransmitter', 'morphology']
 
         all_cells.loc[:, 'neurotransmitter'] = all_cells['neurotransmitter'].fillna('nan')
+
+
+
         neurotransmitter2int_dict = {'excitatory': 0, 'inhibitory': 1, 'na': 2, 'nan': 2}
         morphology2int_dict = {'contralateral': 0, 'ipsilateral': 1}
 
@@ -323,6 +326,9 @@ class class_predictor:
             all_cells.loc[:, work_column + "_clone"] = all_cells[work_column]
             for key in eval(f'{work_column}2int_dict').keys():
                 all_cells.loc[all_cells[work_column] == key, work_column] = eval(f'{work_column}2int_dict')[key]
+
+        if drop_neurotransmitter:
+            all_cells = all_cells.drop(columns='neurotransmitter')
 
         # Extract labels
         labels = all_cells['function'].to_numpy()
@@ -338,7 +344,7 @@ class class_predictor:
 
         return [features, labels, labels_imaging_modality], column_labels, all_cells
 
-    def load_cells_features(self, file, with_neg_control=False):
+    def load_cells_features(self, file, with_neg_control=False,drop_neurotransmitter=False):
         """
         This method loads cell features from a given file and filters data into categories based on their
         characteristics (such as whether they need to be predicted or whether they are negative controls)
@@ -360,7 +366,7 @@ class class_predictor:
         Notes:
             'fk' in the attribute names refers to the prefix 'florian kämpf' indicating these are the main features.
         """
-        all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control)
+        all_metric, self.column_labels, self.all_cells_with_to_predict = self.load_metrics(file, with_neg_control,drop_neurotransmitter=drop_neurotransmitter)
         self.features_fk_with_to_predict, self.labels_fk_with_to_predict, self.labels_imaging_modality_with_to_predict = all_metric
         self.labels_fk = self.labels_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
         self.features_fk = self.features_fk_with_to_predict[(self.labels_fk_with_to_predict != 'to_predict') & (self.labels_fk_with_to_predict != 'neg_control')]
@@ -1136,7 +1142,7 @@ class class_predictor:
 
         return bool_features_2_use, max_accuracy_key, train_mod, test_mod
 
-    def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False):
+    def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False,cv_method_RFE='lpo'):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
         """
         Selects features using Recursive Feature Elimination (RFE) or RFECV.
@@ -1190,7 +1196,7 @@ class class_predictor:
                 acc_list = []
                 for i in np.arange(1, test.features_fk.shape[1] + 1):
                     selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk, self.labels_fk)
-                    acc = self.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
+                    acc = self.do_cv(method=cv_method_RFE, clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
                                      train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True, idx=selector.support_, plot=False)
                     acc_list.append(acc)
                 plt.figure()
@@ -1217,6 +1223,11 @@ class class_predictor:
                 plt.savefig(temp_path / f"{temp_str}.png")
 
                 plt.show()
+                selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
+                self.select_train_mod = train_mod
+                self.select_test_mod =  test_mod
+                self.select_method=str(estimator)
+                self.confusion_matrices(LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), method='lpo',idx=selector.support_)
             if save_features:
                 selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
 
@@ -1224,6 +1235,7 @@ class class_predictor:
                 self.select_train_mod = train_mod
                 self.select_test_mod = test_mod
                 self.select_method = str(str(estimator))
+
 
         elif cv:
             for estimator in all_estimator:
@@ -1513,7 +1525,7 @@ class class_predictor:
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
-                           fraction_across_classes=False, feature_type='fk'):
+                           fraction_across_classes=False, feature_type='fk',idx=None):
         """
         Generate and save confusion matrices for different training and testing modalities.
 
@@ -1554,7 +1566,7 @@ class class_predictor:
             for test_mod, loc_y in zip(['ALL', "CLEM", "PA"], range(3)):
                 spines_red = train_mod + test_mod in target_train_test
                 self.do_cv(method, clf, feature_type, train_mod.lower(), test_mod.lower(), figure_label=f'{train_mod}_{test_mod}',
-                           ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes, n_repeats=n_repeats, test_size=test_size, p=p)
+                           ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes, n_repeats=n_repeats, test_size=test_size, p=p,idx=idx)
         fig.suptitle(suptitle, fontsize='xx-large')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
@@ -1621,7 +1633,7 @@ class class_predictor:
         self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(test.prediction_predict_features) == 1
 
 
-    def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True):
+    def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True,suffix=''):
         """
         Predicts cell types based on selected training modalities and optionally using Jon's priors.
 
@@ -1646,9 +1658,12 @@ class class_predictor:
         --------
         None
         """
-        suffix = ""
+
         if use_jon_priors:
-            suffix = "_jon_prior"
+            suffix = suffix + "_jon_prior"
+        if suffix != '' and suffix[0]!= "_":
+            suffix = "_" + suffix
+
 
         # modality train selection
         modality2idx = {'clem': self.clem_idx,
@@ -1815,13 +1830,27 @@ if __name__ == "__main__":
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
     test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
 
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=False)
+
+    #throw out truncated, exits and growth cone
+    # bool_growth_cone = ['growth cone' not in str(x) for x in test.cells.comment]
+    # bool_exits = ['exit' not in str(x) for x in test.cells.comment]
+    # bool_truncated = ['truncated' not in str(x) for x in test.cells.comment]
+    # bool_all = np.array(bool_truncated)*np.array(bool_growth_cone)*np.array(bool_exits)
+    # test.cells = test.cells[bool_all]
+    # test.all_cells = test.all_cells[bool_all]
+    # test.features_fk = test.features_fk[bool_all]
+    # test.labels_fk = test.labels_fk[bool_all]
+    # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
+    # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
+
 
     # test.calculate_published_metrics()
 
     # select features
     # test.select_features_RFE('all', 'clem', cv=False)
-    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+    test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='ss')
+    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
 
     #test.reduced_features_idx = ~(np.array(test.column_labels) =='neurotransmitter') * test.reduced_features_idx
     # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
@@ -1839,7 +1868,7 @@ if __name__ == "__main__":
 
     test.predict_cells(use_jon_priors=True)
     # test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors.html')
-    # test.predict_cells(use_jon_priors=False)
+    test.predict_cells(use_jon_priors=False)
     # test.plot_neurons('EM', output_filename='EM_predicted.html')
 
     test.calculate_verification_metrics()
