@@ -1829,7 +1829,7 @@ if __name__ == "__main__":
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
     test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
-
+    # test.calculate_published_metrics()
     test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=True)
 
     #throw out truncated, exits and growth cone
@@ -1844,8 +1844,27 @@ if __name__ == "__main__":
     # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
     # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
 
+    #apply gregors manual morphology annotations
+    dt_annotation = pd.read_excel(test.path / 'prediction' / 'auxiliary_files' / 'dt_morphology_annotation_gregor.xlsx')
+    morphology_in_features_dict = {'ipsilateral':np.unique(test.features_fk[test.all_cells['morphology_clone']=='ipsilateral',0])[0],
+                                   'contralateral':np.unique(test.features_fk[test.all_cells['morphology_clone']=='contralateral',0])[0]}
 
-    # test.calculate_published_metrics()
+
+    for i,cell in dt_annotation.iterrows():
+        test.cells.loc[test.cells['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
+        test.cells_with_to_predict.loc[test.cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
+        test.all_cells.loc[test.all_cells['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
+        test.all_cells_with_to_predict.loc[test.all_cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
+
+    for morphology in morphology_in_features_dict.keys():
+        test.features_fk[(test.all_cells['morphology_clone'] == morphology)&
+                         (test.all_cells['function'] == 'dynamic_threshold')&
+                         (test.all_cells['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
+        test.features_fk_with_to_predict[(test.all_cells_with_to_predict['morphology_clone'] == morphology) &
+                                         (test.all_cells_with_to_predict['function'] == 'dynamic_threshold')&
+                                         (test.all_cells_with_to_predict['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
+
+
 
     # select features
     # test.select_features_RFE('all', 'clem', cv=False)
