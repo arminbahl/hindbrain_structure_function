@@ -23,6 +23,30 @@ from colorama import Fore, Style
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 np.set_printoptions(suppress=True)
 from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matrix_navis import *
+from slack_sdk import WebClient
+
+import getpass
+
+def send_slack_message(RECEIVER="Florian Kämpf",MESSAGE="Script finished!"):
+    slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
+    client = WebClient(token=slack_token)
+    ul = client.users_list()
+    ul['real_name']
+    member_list = []
+
+
+
+    for users in ul.data["members"]:
+        member_list.append(users["profile"]['real_name'])
+        if RECEIVER in users["profile"]['real_name']:
+            chat_id = users["id"]
+
+    client.conversations_open(users=chat_id)
+    response = client.chat_postMessage(
+        channel=chat_id,
+        text=MESSAGE
+    )
+
 class class_predictor:
     """
     A class to handle the loading, processing, and analysis of cell metrics data.
@@ -1868,7 +1892,8 @@ if __name__ == "__main__":
 
     # select features
     # test.select_features_RFE('all', 'clem', cv=False)
-    test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='ss')
+    #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo')
+    test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=Perceptron(random_state=0),cv_method_RFE='lpo')
     #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
 
     #test.reduced_features_idx = ~(np.array(test.column_labels) =='neurotransmitter') * test.reduced_features_idx
@@ -1891,3 +1916,4 @@ if __name__ == "__main__":
     # test.plot_neurons('EM', output_filename='EM_predicted.html')
 
     test.calculate_verification_metrics()
+    send_slack_message(MESSAGE='class_predictor.py finished!')
