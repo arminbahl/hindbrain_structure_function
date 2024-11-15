@@ -1,3 +1,5 @@
+import os
+
 from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
 from sklearn.feature_selection import RFE
@@ -1221,7 +1223,7 @@ class class_predictor:
                 for i in np.arange(1, test.features_fk.shape[1] + 1):
                     selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk, self.labels_fk)
                     acc = self.do_cv(method=cv_method_RFE, clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
-                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True, idx=selector.support_, plot=False)
+                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True,n_repeats=5000, idx=selector.support_, plot=False)
                     acc_list.append(acc)
                 plt.figure()
                 plt.plot(acc_list)
@@ -1803,6 +1805,8 @@ class class_predictor:
         Returns:
         None
         """
+        os.makedirs(self.path / 'prediction' / 'interactive_predictions' / modality,exist_ok=True)
+        output_filename = self.path / 'prediction' / 'interactive_predictions' / modality / output_filename
         if scaled:
             scaled_suffix = "_scaled"
         else:
@@ -1848,6 +1852,47 @@ class class_predictor:
 
         plotly.offline.plot(fig, filename=output_filename, auto_open=True, auto_play=False)
 
+    def add_new_morphology_annotation(self):
+        dt_annotation = pd.read_excel(self.path / 'prediction' / 'auxiliary_files' / 'dt_morphology_annotation_gregor.xlsx')
+        morphology_in_features_dict = {'ipsilateral':np.unique(self.features_fk[self.all_cells['morphology_clone']=='ipsilateral',0])[0],
+                                       'contralateral':np.unique(self.features_fk[self.all_cells['morphology_clone']=='contralateral',0])[0]}
+
+
+        for i,cell in dt_annotation.iterrows():
+            self.cells.loc[self.cells['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
+            self.cells_with_to_predict.loc[self.cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
+            self.all_cells.loc[self.all_cells['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
+            self.all_cells_with_to_predict.loc[self.all_cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
+
+        for morphology in morphology_in_features_dict.keys():
+            self.features_fk[(self.all_cells['morphology_clone'] == morphology)&
+                             (self.all_cells['function'] == 'dynamic_threshold')&
+                             (self.all_cells['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
+            self.features_fk_with_to_predict[(self.all_cells_with_to_predict['morphology_clone'] == morphology) &
+                                             (self.all_cells_with_to_predict['function'] == 'dynamic_threshold')&
+                                             (self.all_cells_with_to_predict['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
+
+    def remove_incomplete(self,growth_cone=False,exits_volume=False,truncated=False):
+        if growth_cone:
+            bool_growth_cone = ['growth cone' not in str(x) for x in self.cells.comment]
+        else:
+            bool_growth_cone = [True for x in self.cells.comment]
+        if exits_volume:
+            bool_exits = ['exit' not in str(x) for x in self.cells.comment]
+        else:
+            bool_exits = [True for x in self.cells.comment]
+        if truncated:
+            bool_truncated = ['truncated' not in str(x) for x in self.cells.comment]
+        else:
+            bool_truncated = [True for x in self.cells.comment]
+        bool_all = np.array(bool_truncated)*np.array(bool_growth_cone)*np.array(bool_exits)
+        self.cells = self.cells[bool_all]
+        self.all_cells = self.all_cells[bool_all]
+        self.features_fk = self.features_fk[bool_all]
+        self.labels_fk = self.labels_fk[bool_all]
+        self.pa_idx = (self.cells['imaging_modality'] == 'photoactivation').to_numpy()
+        self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
+
 if __name__ == "__main__":
     # load metrics and cells
     test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
@@ -1857,48 +1902,20 @@ if __name__ == "__main__":
     test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=True)
 
     #throw out truncated, exits and growth cone
-    # bool_growth_cone = ['growth cone' not in str(x) for x in test.cells.comment]
-    # bool_exits = ['exit' not in str(x) for x in test.cells.comment]
-    # bool_truncated = ['truncated' not in str(x) for x in test.cells.comment]
-    # bool_all = np.array(bool_truncated)*np.array(bool_growth_cone)*np.array(bool_exits)
-    # test.cells = test.cells[bool_all]
-    # test.all_cells = test.all_cells[bool_all]
-    # test.features_fk = test.features_fk[bool_all]
-    # test.labels_fk = test.labels_fk[bool_all]
-    # test.pa_idx = (test.cells['imaging_modality'] == 'photoactivation').to_numpy()
-    # test.clem_idx = (test.cells['imaging_modality'] == 'clem').to_numpy()
+    test.remove_incomplete()
 
     #apply gregors manual morphology annotations
-    dt_annotation = pd.read_excel(test.path / 'prediction' / 'auxiliary_files' / 'dt_morphology_annotation_gregor.xlsx')
-    morphology_in_features_dict = {'ipsilateral':np.unique(test.features_fk[test.all_cells['morphology_clone']=='ipsilateral',0])[0],
-                                   'contralateral':np.unique(test.features_fk[test.all_cells['morphology_clone']=='contralateral',0])[0]}
 
-
-    for i,cell in dt_annotation.iterrows():
-        test.cells.loc[test.cells['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
-        test.cells_with_to_predict.loc[test.cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology"] = cell['morphology']
-        test.all_cells.loc[test.all_cells['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
-        test.all_cells_with_to_predict.loc[test.all_cells_with_to_predict['cell_name'] == cell['cell_name'], "morphology_clone"] = cell['morphology']
-
-    for morphology in morphology_in_features_dict.keys():
-        test.features_fk[(test.all_cells['morphology_clone'] == morphology)&
-                         (test.all_cells['function'] == 'dynamic_threshold')&
-                         (test.all_cells['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
-        test.features_fk_with_to_predict[(test.all_cells_with_to_predict['morphology_clone'] == morphology) &
-                                         (test.all_cells_with_to_predict['function'] == 'dynamic_threshold')&
-                                         (test.all_cells_with_to_predict['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
+    test.add_new_morphology_annotation()
 
 
 
     # select features
-    # test.select_features_RFE('all', 'clem', cv=False)
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo')
     test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=Perceptron(random_state=0),cv_method_RFE='lpo')
-    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0))
+    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0),cv_method_RFE='lpo')
 
-    #test.reduced_features_idx = ~(np.array(test.column_labels) =='neurotransmitter') * test.reduced_features_idx
-    # reduced_features_index, evaluation_method, trm, tem = test.select_features('all', 'clem', which_selection=XGBClassifier(), plot=True, use_std_scale=False, use_assessment_per_class=False)
-    print('features:', np.array(test.column_labels)[test.reduced_features_idx])
+
 
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
@@ -1910,10 +1927,11 @@ if __name__ == "__main__":
     # make confusion matrices
     test.confusion_matrices(clf_fk, method='lpo')
 
+    #predict cells
     test.predict_cells(use_jon_priors=True)
     # test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors.html')
     test.predict_cells(use_jon_priors=False)
-    # test.plot_neurons('EM', output_filename='EM_predicted.html')
+    test.plot_neurons('EM', output_filename='EM_predicted.html')
 
-    test.calculate_verification_metrics()
-    send_slack_message(MESSAGE='class_predictor.py finished!')
+    # test.calculate_verification_metrics()
+    #send_slack_message(MESSAGE='class_predictor.py finished!')
