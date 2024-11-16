@@ -4,7 +4,7 @@ from hindbrain_structure_function.mapping_helpers.ANTs_registration_helpers impo
 
 os.environ['ANTs_use_threads'] = "11"
 os.environ['ANTs_bin_path'] = "/opt/ANTs/bin"
-
+sdt
 ants_reg = ANTsRegistrationHelpers()
 
 root_path = Path("/Users/arminbahl/Nextcloud/CLEM_paper_data/em_zfish1")
