@@ -4,16 +4,16 @@ from hindbrain_structure_function.mapping_helpers.ANTs_registration_helpers impo
 
 os.environ['ANTs_use_threads'] = "11"
 os.environ['ANTs_bin_path'] = "/opt/ANTs/bin"
-sdt
+
 ants_reg = ANTsRegistrationHelpers()
 
-root_path = Path("/Users/arminbahl/Nextcloud/CLEM_paper_data/em_zfish1")
+transformation_prefix_path = Path("/Users/arminbahl/Nextcloud/CLEM_paper_data/em_zfish1/transforms/em_zfish1_to_zbrain_021824/ANTs_dfield")
+root_path = Path("/Users/arminbahl/Desktop/EM10_test")
+cell_names = ["em_fish1_126984"]
 
-clem_fish1_cells = ["em_fish1_125979", "em_fish1_184054"]
+for cell_name in cell_names:
 
-for cell_name in clem_fish1_cells:
-
-    ants_reg.convert_synapse_file(root_path=root_path / "test_cells_Atlas",
+    ants_reg.convert_synapse_file(root_path=root_path,
                                   cell_name=cell_name,
                                   shift_x=4.04816196e-01 * 1000,  # Make sure the unit remains nm
                                   shift_y=5.20478002e+02 * 1000,
@@ -23,9 +23,9 @@ for cell_name in clem_fish1_cells:
                                   scale_z=6.24857731e-02 * 480,
                                   radius_set=250)  # 250 nm radius
 
-    ants_reg.map_and_skeletonize_cell(root_path=root_path / "test_cells_Atlas" ,
+    ants_reg.map_and_skeletonize_cell(root_path=root_path,
                                       cell_name=cell_name,
-                                      transformation_prefix_path=root_path / "transforms" / "em_zfish1_to_zbrain_021824" / "ANTs_dfield",
+                                      transformation_prefix_path=transformation_prefix_path,
                                       input_scale_x=0.001,  # The lowres stack was reduced by factor 1000, so make it ym
                                       input_scale_y=0.001,
                                       input_scale_z=0.001,
