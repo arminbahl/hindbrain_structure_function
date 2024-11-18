@@ -1220,10 +1220,10 @@ class class_predictor:
         if not cv:
             for estimator in all_estimator:
                 acc_list = []
-                for i in np.arange(1, test.features_fk.shape[1] + 1):
+                for i in np.arange(1, self.features_fk.shape[1] + 1):
                     selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk, self.labels_fk)
                     acc = self.do_cv(method=cv_method_RFE, clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
-                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True,n_repeats=5000, idx=selector.support_, plot=False)
+                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True,n_repeats=100, idx=selector.support_, plot=False)
                     acc_list.append(acc)
                 plt.figure()
                 plt.plot(acc_list)
@@ -1850,7 +1850,7 @@ class class_predictor:
             }
         )
 
-        plotly.offline.plot(fig, filename=output_filename, auto_open=True, auto_play=False)
+        plotly.offline.plot(fig, filename=str(output_filename), auto_open=False, auto_play=False)
 
     def add_new_morphology_annotation(self):
         dt_annotation = pd.read_excel(self.path / 'prediction' / 'auxiliary_files' / 'dt_morphology_annotation_gregor.xlsx')
