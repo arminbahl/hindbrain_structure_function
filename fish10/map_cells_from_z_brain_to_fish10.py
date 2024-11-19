@@ -14,12 +14,20 @@ transformation_prefix_path = "/Users/arminbahl/Nextcloud/CLEM_paper_data/em_zfis
 # cell_names = ["em_fish1_126984"]
 
 # Map some fish 1.5 cells to 1.0
-root_path = Path("/Users/arminbahl/Desktop/CLEM15_test")
-cell_names = ["clem_zfish1_cell_576460752718169177"]
+# root_path = Path("/Users/arminbahl/Desktop/CLEM15_test")
+# cell_names = ["clem_zfish1_cell_576460752718169177"]
+
+# Map pa-gfp cells to 1.0
+root_path = Path("/Users/arminbahl/Nextcloud/CLEM_paper_data/paGFP")
+cell_names = ["20230226.1"]
 
 for cell_name in cell_names:
-    input_filename = root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj"
-    output_filename = root_path / cell_name / "mapped" / f"{cell_name}_mapped_to_EM_original_fish10.obj"
+    # For PA-GFP Cells
+    input_filename = root_path / cell_name / f"{cell_name}_combined.obj"
+    output_filename = root_path / cell_name / f"{cell_name}_combined_mapped_to_EM_original_fish10.obj"
+
+    #input_filename = root_path / cell_name / "mapped" / f"{cell_name}_mapped.obj"
+    #output_filename = root_path / cell_name / "mapped" / f"{cell_name}_mapped_to_EM_original_fish10.obj"
 
     ants_reg.ANTS_applytransform_to_obj(input_filename = input_filename,
                                         output_filename = output_filename,
