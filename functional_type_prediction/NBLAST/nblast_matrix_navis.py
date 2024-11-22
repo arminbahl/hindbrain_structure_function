@@ -32,9 +32,11 @@ import h5py
 from tqdm import tqdm
 import pickle
 
-def calculate_zebrafish_nblast_matrix(df,with_kunst=True,return_smat_obj=False,prune=True,modalities=["pa"],path_to_data = None):
+def calculate_zebrafish_nblast_matrix(df,with_kunst=True,return_smat_obj=False,prune=True,path_to_data = None):
     if path_to_data is  None:
         path_to_data = get_base_path()
+
+    clem_cells = load_cells_predictor_pipeline(path_to_data=path_to_data,modalities=['clem', 'clem_predict'])
     kunst_neurons = []
     if with_kunst:
         with h5py.File(path_to_data / 'zbrain_regions' / 'all_mpin_single_cells.hdf5') as f:
@@ -80,8 +82,10 @@ def calculate_zebrafish_nblast_matrix(df,with_kunst=True,return_smat_obj=False,p
     matches = []
     for i1 in np.arange(len(function_label))[np.array(function_label)!='na']:
         for i2 in np.arange(len(function_label))[np.array(function_label)!='na']:
-            if function_label[i1] == function_label[i2] and i1 != i2:
+            if function_label[i1] == 'contralateral_integrator' and function_label[i2] == 'contralateral_integrator' and i1 != i2:
                 matches.append([i1,i2])
+            elif function_label[i1] == 'dynamic_threshold' and function_label[i2] == 'dynamic_threshold' and i1 != i2:
+                matches.append([i1, i2])
 
     dotprops = [navis.make_dotprops(n, k=5, resample=False) for n in all_neurons]
     builder = LookupDistDotBuilder(dotprops, matches, use_alpha=True, seed=2021).with_bin_counts([10, 10])
