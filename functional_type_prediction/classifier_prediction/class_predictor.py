@@ -1620,34 +1620,41 @@ class class_predictor:
         else:
             path = test.path / 'prediction' / f'smat_fish.pkl'
         if calculate_smat:
-            self.smat_fish = calculate_zebrafish_nblast_matrix(self.cells_with_to_predict,path_to_data=self.path,with_kunst=with_kunst, return_smat_obj=True, prune=False, modalities=['clem', 'pa'])
+            self.smat_fish = calculate_zebrafish_nblast_matrix(self.cells_with_to_predict,path_to_data=self.path,with_kunst=with_kunst, return_smat_obj=True, prune=False)
             with open(path,'wb') as f:
                 pickle.dump(self.smat_fish, f)
         else:
             with open(path,'rb') as f:
-                pickle.load(self.smat_fish, f)
-        nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
-        nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish, shift_neurons=False)
-        nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+                self.smat_fish = pickle.load(f)
+        self.nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+        self.per_class = self.nb_train.groupby([self.nb_train.index]).mean().T.groupby(self.nb_train.index).mean()
+        self.nb_train.index =  [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in self.nb_train.index]
+        self.nb_train.columns = [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in self.nb_train.columns]
 
-        nb_matches_cells_train = navis.nbl.extract_matches(nb_train, 2)
-        nb_matches_cells_nc = navis.nbl.extract_matches(nb_train_nc.T, 2)
-        nb_matches_cells_predict = navis.nbl.extract_matches(nb_train_predict.T, 2)
 
-        nblast_values_dt = navis.nbl.extract_matches(nb_train.loc[names_dt, names_dt], 2)
-        nblast_values_ii = navis.nbl.extract_matches(nb_train.loc[names_ii, names_ii], 2)
-        nblast_values_ci = navis.nbl.extract_matches(nb_train.loc[names_ci, names_ci], 2)
-        nblast_values_mc = navis.nbl.extract_matches(nb_train.loc[names_mc, names_mc], 2)
 
-        z_score_dt = lambda x: abs((x - np.mean(list(nblast_values_dt.score_2))) / np.std(list(nblast_values_dt.score_2)))
-        z_score_ii = lambda x: abs((x - np.mean(list(nblast_values_ii.score_2))) / np.std(list(nblast_values_ii.score_2)))
-        z_score_ci = lambda x: abs((x - np.mean(list(nblast_values_ci.score_2))) / np.std(list(nblast_values_ci.score_2)))
-        z_score_mc = lambda x: abs((x - np.mean(list(nblast_values_mc.score_2))) / np.std(list(nblast_values_mc.score_2)))
 
-        cutoff = nb_matches_cells_train.loc[:, 'score_2'].quantile(.1)
-        print(f'{(nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
+        self.nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+        self.nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells, custom_matrix=self.smat_fish, shift_neurons=False)
 
-        subset_predict_cells = list(nb_matches_cells_predict.loc[nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
+        self.nb_matches_cells_train = navis.nbl.extract_matches(self.nb_train, 2)
+        self.nb_matches_cells_nc = navis.nbl.extract_matches(self.nb_train_nc.T, 2)
+        self.nb_matches_cells_predict = navis.nbl.extract_matches(self.nb_train_predict.T, 2)
+
+        self.nblast_values_dt = navis.nbl.extract_matches(self.nb_train.loc[names_dt, names_dt], 2)
+        self.nblast_values_ii = navis.nbl.extract_matches(self.nb_train.loc[names_ii, names_ii], 2)
+        self.nblast_values_ci = navis.nbl.extract_matches(self.nb_train.loc[names_ci, names_ci], 2)
+        self.nblast_values_mc = navis.nbl.extract_matches(self.nb_train.loc[names_mc, names_mc], 2)
+
+        z_score_dt = lambda x: abs((x - np.mean(list(self.nblast_values_dt.score_2))) / np.std(list(self.nblast_values_dt.score_2)))
+        z_score_ii = lambda x: abs((x - np.mean(list(self.nblast_values_ii.score_2))) / np.std(list(self.nblast_values_ii.score_2)))
+        z_score_ci = lambda x: abs((x - np.mean(list(self.nblast_values_ci.score_2))) / np.std(list(self.nblast_values_ci.score_2)))
+        z_score_mc = lambda x: abs((x - np.mean(list(self.nblast_values_mc.score_2))) / np.std(list(self.nblast_values_mc.score_2)))
+
+        cutoff = self.nb_matches_cells_train.loc[:, 'score_2'].quantile(.1)
+        print(f'{(self.nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
+
+        subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
 
         OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(test.prediction_train_features)
         IF = IsolationForest(contamination=0.1, random_state=42).fit(test.prediction_train_features)
@@ -1899,7 +1906,7 @@ if __name__ == "__main__":
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
     test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
     # test.calculate_published_metrics()
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=True)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=False)
 
     #throw out truncated, exits and growth cone
     test.remove_incomplete()
@@ -1911,9 +1918,9 @@ if __name__ == "__main__":
 
 
     # select features
-    #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo')
-    test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=Perceptron(random_state=0),cv_method_RFE='lpo')
-    #test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0),cv_method_RFE='lpo')
+    #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
+    #test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=Perceptron(random_state=0),cv_method_RFE='lpo')
+    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0),cv_method_RFE='lpo')
 
 
 
@@ -1928,10 +1935,14 @@ if __name__ == "__main__":
     test.confusion_matrices(clf_fk, method='lpo')
 
     #predict cells
-    test.predict_cells(use_jon_priors=True)
-    # test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors.html')
-    test.predict_cells(use_jon_priors=False)
-    test.plot_neurons('EM', output_filename='EM_predicted.html')
+    test.predict_cells(use_jon_priors=True,suffix='_optimize_all_predict') #optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
+    test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
+    test.plot_neurons('clem', output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
 
-    # test.calculate_verification_metrics()
+    test.predict_cells(use_jon_priors=False,suffix='_optimize_all_predict')
+    test.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
+    test.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
+
+    test.calculate_verification_metrics(calculate_smat=True,with_kunst=False)
+
     #send_slack_message(MESSAGE='class_predictor.py finished!')

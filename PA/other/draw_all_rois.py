@@ -5,7 +5,7 @@ import os
 import h5py
 import pandas as pd
 
-df = pd.read_csv(r"C:\Users\ag-bahl\Desktop\photoactivation_cells_table.csv")
+df = pd.read_csv(r"D:\hindbrain_structure_function\nextcloud\paGFP\photoactivation_cells_table.csv")
 
 
 for item in df.function_ID.apply(lambda x: x.replace('"',"")):
