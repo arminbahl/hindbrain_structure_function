@@ -18,7 +18,7 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.svm import LinearSVC
 from sklearn.svm import OneClassSVM
 from sklearn.tree import DecisionTreeClassifier
-
+import plotly
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 
 np.set_printoptions(suppress=True)
@@ -285,7 +285,7 @@ class class_predictor:
         Returns:
             None. The result is saved to the specified file.
         """
-        calculate_metric2df(self.cells_with_to_predict, file_name, test.path, force_new=force_new)
+        calculate_metric2df(self.cells_with_to_predict, file_name, self.path, force_new=force_new)
 
     def load_metrics(self, file_name, with_neg_control=False,drop_neurotransmitter=False):
         """
@@ -1448,8 +1448,15 @@ class class_predictor:
                 if y_test.size != 0:
 
                     try:
-                        pred_labels.extend(clf_work.predict(X_test))
-                        true_labels.extend(list(y_test))
+                        if proba_cutoff is not None:
+                            if (clf_work.predict_proba(X_test) >= proba_cutoff).any():
+                                pred_labels.extend(clf_work.predict(X_test))
+                                true_labels.extend(list(y_test))
+                            else:
+                                pass
+                        else:
+                            pred_labels.extend(clf_work.predict(X_test))
+                            true_labels.extend(list(y_test))
                     except:
                         pass
         elif check_train_in_test:
@@ -1552,7 +1559,10 @@ class class_predictor:
         if return_cm:
             return cm
         else:
-            return round(accuracy_score(true_labels, pred_labels) * 100, 2)
+            if proba_cutoff is not None:
+                return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
+            else:
+                return round(accuracy_score(true_labels, pred_labels) * 100, 2)
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
@@ -1625,9 +1635,9 @@ class class_predictor:
         names_mc = train_cells.loc[(train_cells['function'] == 'motor_command'), 'cell_name']
         names_nc = neg_control_cells['cell_name']
         if with_kunst:
-            path = test.path / 'prediction' / f'smat_fish_with_kunst.pkl'
+            path = self.path / 'prediction' / f'smat_fish_with_kunst.pkl'
         else:
-            path = test.path / 'prediction' / f'smat_fish.pkl'
+            path = self.path / 'prediction' / f'smat_fish.pkl'
         if calculate_smat:
             self.smat_fish = calculate_zebrafish_nblast_matrix(self.cells_with_to_predict,path_to_data=self.path,with_kunst=with_kunst, return_smat_obj=True, prune=False)
             with open(path,'wb') as f:
@@ -1662,7 +1672,7 @@ class class_predictor:
         self.nblast_values_ci = navis.nbl.extract_matches(self.nb_train.loc[names_ci, names_ci], 2)
         self.nblast_values_mc = navis.nbl.extract_matches(self.nb_train.loc[names_mc, names_mc], 2)
 
-        #create functions the calculate zscore in relation to the classes NBLAST distributions
+        # create functions then calculate zscore in relation to the classes NBLAST distributions
         z_score_dt = lambda x: abs((x - np.mean(list(self.nblast_values_dt.score_2))) / np.std(list(self.nblast_values_dt.score_2)))
         z_score_ii = lambda x: abs((x - np.mean(list(self.nblast_values_ii.score_2))) / np.std(list(self.nblast_values_ii.score_2)))
         z_score_ci = lambda x: abs((x - np.mean(list(self.nblast_values_ci.score_2))) / np.std(list(self.nblast_values_ci.score_2)))
@@ -1674,15 +1684,13 @@ class class_predictor:
 
         subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
 
+        OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(self.prediction_train_features)
+        IF = IsolationForest(contamination=0.1, random_state=42).fit(self.prediction_train_features)
+        LOF = LocalOutlierFactor(n_neighbors=5, novelty=True).fit(self.prediction_train_features)
 
-        OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(test.prediction_train_features)
-        IF = IsolationForest(contamination=0.1, random_state=42).fit(test.prediction_train_features)
-        LOF = LocalOutlierFactor(n_neighbors=5, novelty=True).fit(test.prediction_train_features)
-
-
-        self.prediction_predict_df.loc[:, 'OCSVM'] = OCSVM.predict(test.prediction_predict_features) == 1
-        self.prediction_predict_df.loc[:, 'IF'] = IF.predict(test.prediction_predict_features) == 1
-        self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(test.prediction_predict_features) == 1
+        self.prediction_predict_df.loc[:, 'OCSVM'] = OCSVM.predict(self.prediction_predict_features) == 1
+        self.prediction_predict_df.loc[:, 'IF'] = IF.predict(self.prediction_predict_features) == 1
+        self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(self.prediction_predict_features) == 1
 
         for i, cell in self.prediction_predict_df.iterrows():
             if cell['function'] == 'neg_control':
@@ -1823,6 +1831,9 @@ class class_predictor:
         if use_jon_priors:
             self.suffix = suffix + "_jon_prior"
             suffix = suffix + "_jon_prior"
+        else:
+            self.suffix = suffix
+
         if suffix != '' and suffix[0]!= "_":
             self.suffix = "_" + suffix
             suffix = "_" + suffix
@@ -1888,40 +1899,6 @@ class class_predictor:
         self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']] = clf.predict_proba(self.prediction_predict_features) * true_positive_flat
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction_scaled'] = [clf.classes_[x] for x in predicted_int_temp]
-        export_columns = ['cell_name', 'morphology_clone', 'neurotransmitter_clone', 'prediction', 'DT_proba', 'CI_proba', 'II_proba',
-                          'MC_proba', 'prediction_scaled', 'DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled',
-                          'MC_proba_scaled']
-        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(self.path / 'clem_zfish1' / f'clem_cell_prediction{suffix}.xlsx')
-        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(self.path / 'em_zfish1' / f'em_cell_prediction{suffix}.xlsx')
-
-        for i, item in self.prediction_predict_df.iterrows():
-            with open(item["metadata_path"], 'r') as f:
-                t = f.read()
-            t = t.replace('\n[others]\n', '')
-            prediction_str = f"Prediction: {item['prediction']}\n"
-            prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
-            proba_str = (f"Proba_prediction: "
-                         f"DT: {round(item['DT_proba'], 2)} "
-                         f"CI: {round(item['CI_proba'], 2)} "
-                         f"II: {round(item['II_proba'], 2)} "
-                         f"MC: {round(item['MC_proba'], 2)}\n")
-            proba_scaled_str = (f"Proba_prediction_scaled: "
-                                f"DT: {round(item['DT_proba_scaled'], 2)} "
-                                f"CI: {round(item['CI_proba_scaled'], 2)} "
-                                f"II: {round(item['II_proba_scaled'], 2)} "
-                                f"MC: {round(item['MC_proba_scaled'], 2)}")
-
-            if not t[-1:] == '\n':
-                t = t + '\n'
-
-            new_t = (t + prediction_str + proba_str + prediction_scaled_str + proba_scaled_str)
-            output_path = Path(str(item['metadata_path'])[:-4] + f"_with_prediction{suffix}.txt")
-
-            if output_path.exists():
-                os.remove(output_path)
-
-            with open(output_path, 'w+') as f:
-                f.write(new_t)
 
     def plot_neurons(self, modality: str,scaled:bool=True, output_filename: str = "test.html") -> None:
         """
@@ -1986,7 +1963,7 @@ class class_predictor:
                 'aspectratio': {'x': 1, 'y': 1, 'z': 1}
             }
         )
-
+        import plotly
         plotly.offline.plot(fig, filename=str(output_filename), auto_open=False, auto_play=False)
 
     def add_new_morphology_annotation(self):
@@ -2032,47 +2009,73 @@ class class_predictor:
 
 if __name__ == "__main__":
     # load metrics and cells
-    test = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
-    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
-    # test.calculate_published_metrics()
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,drop_neurotransmitter=False)
-
+    with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
+    with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
+                                        modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    # with_neurotransmitter.calculate_published_metrics()
+    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+                                              drop_neurotransmitter=False)
     #throw out truncated, exits and growth cone
-    test.remove_incomplete()
-
+    with_neurotransmitter.remove_incomplete()
     #apply gregors manual morphology annotations
-
-    test.add_new_morphology_annotation()
-
-
-
+    with_neurotransmitter.add_new_morphology_annotation()
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
-    #test.select_features_RFE('all','clem',cv=False,save_features=True,estimator=Perceptron(random_state=0),cv_method_RFE='lpo')
-    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0),cv_method_RFE='lpo')
-
-
-
+    with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
+                                              estimator=LogisticRegression(random_state=0), cv_method_RFE='lpo')
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
     clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
-
     # make confusion matrices
-    test.confusion_matrices(clf_fk, method='lpo')
-
+    with_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
     #predict cells
-    test.predict_cells(use_jon_priors=True,suffix='_optimize_all_predict') #optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
-    test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
-    test.plot_neurons('clem', output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
-    test.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
-    test.predict_cells(use_jon_priors=False,suffix='_optimize_all_predict')
-    test.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
-    test.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
+    with_neurotransmitter.predict_cells(use_jon_priors=False, suffix='_optimize_all_predict')
+    with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
+    with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
+    with_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
 
-    test.calculate_verification_metrics(calculate_smat=True,with_kunst=False)
+    with_neurotransmitter.predict_cells(use_jon_priors=True,
+                                        suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
+    with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
+    with_neurotransmitter.plot_neurons('clem',
+                                       output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
+    with_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
 
-    #send_slack_message(MESSAGE='class_predictor.py finished!')
+    # without neurotrasnmitter
+    without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
+    without_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
+                                           modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
+    without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    # with_neurotransmitter.calculate_published_metrics()
+    without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+                                                 drop_neurotransmitter=True)
+    # throw out truncated, exits and growth cone
+    without_neurotransmitter.remove_incomplete()
+    # apply gregors manual morphology annotations
+    without_neurotransmitter.add_new_morphology_annotation()
+    # select features
+    # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
+    without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
+                                                 estimator=Perceptron(random_state=0), cv_method_RFE='lpo')
+    # make confusion matrices
+    without_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
+    # predict cells
+    without_neurotransmitter.predict_cells(use_jon_priors=True,
+                                           suffix='_optimize_all_predict_without_neurotransmitter')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
+    without_neurotransmitter.plot_neurons('EM',
+                                          output_filename='EM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
+    without_neurotransmitter.plot_neurons('clem',
+                                          output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
+    without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+
+    without_neurotransmitter.predict_cells(use_jon_priors=False,
+                                           suffix='_optimize_all_predict_without_neurotransmitter')
+    without_neurotransmitter.plot_neurons('EM',
+                                          output_filename='EM_predicted_optimize_all_predict_without_neurotransmitter.html')
+    without_neurotransmitter.plot_neurons('clem',
+                                          output_filename='CLEM_predicted_optimize_all_predict_without_neurotransmitter.html')
+    without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
