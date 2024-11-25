@@ -1,7 +1,8 @@
-import os
-
+import chardet
 from sklearn.base import clone
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, AdaBoostClassifier
+from sklearn.ensemble import IsolationForest
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, \
+    AdaBoostClassifier
 from sklearn.feature_selection import RFE
 from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import SelectFromModel
@@ -13,21 +14,19 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.model_selection import LeavePOut
 from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import StratifiedKFold, KFold
-from sklearn.svm import LinearSVC
-from sklearn.tree import DecisionTreeClassifier
-import plotly
-from sklearn.ensemble import IsolationForest
-import pickle
 from sklearn.neighbors import LocalOutlierFactor
-
+from sklearn.svm import LinearSVC
 from sklearn.svm import OneClassSVM
-from colorama import Fore, Style
+from sklearn.tree import DecisionTreeClassifier
+
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
+
 np.set_printoptions(suppress=True)
 from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matrix_navis import *
 from slack_sdk import WebClient
 
-import getpass
+import scipy.stats as stats
+
 
 def send_slack_message(RECEIVER="Florian Kämpf",MESSAGE="Script finished!"):
     slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
@@ -184,6 +183,12 @@ class class_predictor:
             except:
                 pass
 
+    def get_encoding(self, path):
+        with open(path, 'rb') as f:
+            t = f.read()
+            r = chardet.detect(t)
+            return r['encoding']
+
     def prepare_data_4_metric_calc(self, df, neg_control=True):
         """
         This function prepares the data for metric calculation by cleaning up the data and adding relevant information.
@@ -214,7 +219,7 @@ class class_predictor:
             for i, cell in df.iterrows():
                 if cell.imaging_modality == "photoactivation":
                     temp_path_pa = self.path / 'paGFP' / cell.cell_name / f"{cell.cell_name}_metadata_with_regressor.txt"
-                    with open(temp_path_pa, 'r') as f:
+                    with open(temp_path_pa, 'r', encoding=self.get_encoding(temp_path_pa)) as f:
                         t = f.read()
                         df.loc[i, 'kmeans_function'] = t.split('\n')[11].split(' ')[2].strip('"')
                         df.loc[i, 'reliability'] = float(t.split('\n')[12].split(' ')[2].strip('"'))
@@ -1287,7 +1292,7 @@ class class_predictor:
                 self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
-              fraction_across_classes=True, idx=None, plot=True, return_cm=False):
+              fraction_across_classes=True, idx=None, plot=True, return_cm=False, proba_cutoff=None):
         """
         Perform cross-validation on the given classifier and dataset.
 
@@ -1601,14 +1606,18 @@ class class_predictor:
 
     def calculate_verification_metrics(self,calculate_smat=True,with_kunst=True):
 
-
+        acronym_dict = {'dynamic_threshold': "dt",
+                        'integrator_contralateral': "ci",
+                        'integrator_ipsilateral': "ii",
+                        'motor_command': "mc",
+                        'neg_control': "nc"}
 
         #check if ipsi got asigned as contra and vice versa
         print(self.prediction_predict_df.groupby(['morphology_clone', 'prediction']).size())
 
-        train_cells = test.prediction_train_df
-        to_predict_cells = test.prediction_predict_df[test.prediction_predict_df.function == 'to_predict']
-        neg_control_cells = test.prediction_predict_df[test.prediction_predict_df.function == 'neg_control']
+        train_cells = self.prediction_train_df
+        to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
+        neg_control_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'neg_control']
 
         names_dt = train_cells.loc[(train_cells['function'] == 'dynamic_threshold'), 'cell_name']
         names_ii = train_cells.loc[(train_cells['function'] == 'integrator_ipsilateral'), 'cell_name']
@@ -1626,35 +1635,45 @@ class class_predictor:
         else:
             with open(path,'rb') as f:
                 self.smat_fish = pickle.load(f)
+
+        # perform nblast calculation
         self.nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
-        self.per_class = self.nb_train.groupby([self.nb_train.index]).mean().T.groupby(self.nb_train.index).mean()
-        self.nb_train.index =  [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in self.nb_train.index]
-        self.nb_train.columns = [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in self.nb_train.columns]
+        self.nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish,
+                                                           shift_neurons=False)
+        self.nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells,
+                                                                custom_matrix=self.smat_fish, shift_neurons=False)
 
+        # calculate how separable the classes are with nblast
+        nb_train_copy = copy.deepcopy(self.nb_train)
+        nb_train_copy.index = [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in
+                               nb_train_copy.index]
+        nb_train_copy.columns = [train_cells.loc[train_cells.cell_name == x, 'function'].iloc[0] for x in
+                                 nb_train_copy.columns]
+        self.per_class = nb_train_copy.groupby([nb_train_copy.index]).mean().T.groupby(nb_train_copy.index).mean()
 
-
-
-        self.nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish, shift_neurons=False)
-        self.nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells, custom_matrix=self.smat_fish, shift_neurons=False)
-
+        #get matches NBLAST
         self.nb_matches_cells_train = navis.nbl.extract_matches(self.nb_train, 2)
         self.nb_matches_cells_nc = navis.nbl.extract_matches(self.nb_train_nc.T, 2)
         self.nb_matches_cells_predict = navis.nbl.extract_matches(self.nb_train_predict.T, 2)
 
+        #get the distributions of NBLAST values how a class matches with its self
         self.nblast_values_dt = navis.nbl.extract_matches(self.nb_train.loc[names_dt, names_dt], 2)
         self.nblast_values_ii = navis.nbl.extract_matches(self.nb_train.loc[names_ii, names_ii], 2)
         self.nblast_values_ci = navis.nbl.extract_matches(self.nb_train.loc[names_ci, names_ci], 2)
         self.nblast_values_mc = navis.nbl.extract_matches(self.nb_train.loc[names_mc, names_mc], 2)
 
+        #create functions the calculate zscore in relation to the classes NBLAST distributions
         z_score_dt = lambda x: abs((x - np.mean(list(self.nblast_values_dt.score_2))) / np.std(list(self.nblast_values_dt.score_2)))
         z_score_ii = lambda x: abs((x - np.mean(list(self.nblast_values_ii.score_2))) / np.std(list(self.nblast_values_ii.score_2)))
         z_score_ci = lambda x: abs((x - np.mean(list(self.nblast_values_ci.score_2))) / np.std(list(self.nblast_values_ci.score_2)))
         z_score_mc = lambda x: abs((x - np.mean(list(self.nblast_values_mc.score_2))) / np.std(list(self.nblast_values_mc.score_2)))
 
-        cutoff = self.nb_matches_cells_train.loc[:, 'score_2'].quantile(.1)
+        # use the average .25 percentile of DTs and CIs as a cutoff for the general nblast
+        cutoff = np.mean([self.nblast_values_dt.score_2.quantile(0.25), self.nblast_values_ci.score_2.quantile(0.25)])
         print(f'{(self.nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
 
         subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
+
 
         OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(test.prediction_train_features)
         IF = IsolationForest(contamination=0.1, random_state=42).fit(test.prediction_train_features)
@@ -1665,6 +1684,115 @@ class class_predictor:
         self.prediction_predict_df.loc[:, 'IF'] = IF.predict(test.prediction_predict_features) == 1
         self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(test.prediction_predict_features) == 1
 
+        for i, cell in self.prediction_predict_df.iterrows():
+            if cell['function'] == 'neg_control':
+                query = self.nb_train_nc.loc[:, cell["cell_name"]].to_numpy()
+                reference_df = self.nb_matches_cells_nc
+            else:
+                query = self.nb_train_predict.loc[:, cell["cell_name"]].to_numpy()
+                reference_df = self.nb_matches_cells_predict
+
+            query_cell_highest_nblast = reference_df.loc[reference_df['id'] == cell.cell_name, 'score_1'].iloc[0]
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_general_pass'] \
+                = query_cell_highest_nblast > cutoff
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_zscore_pass'] \
+                = eval(f"z_score_{acronym_dict[cell['prediction']]}")(query_cell_highest_nblast) <= 1.96
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_zscore_pass_scaled'] \
+                = eval(f"z_score_{acronym_dict[cell['prediction_scaled']]}")(query_cell_highest_nblast) <= 1.96
+
+            # compare distribution of a single cell vs the classes
+            target = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction']].lower()}"), eval(
+                f"names_{acronym_dict[cell['prediction']].lower()}")].to_numpy().flatten()
+            target = target[target != 1]
+
+            target_scaled = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}"), eval(
+                f"names_{acronym_dict[cell['prediction_scaled']].lower()}")].to_numpy().flatten()
+            target_scaled = target_scaled[target_scaled != 1]
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed'] = stats.anderson_ksamp(
+                [target, query]).pvalue <= 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed_scaled'] = stats.anderson_ksamp(
+                [target_scaled, query]).pvalue <= 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed'] = stats.ks_2samp(
+                target, query).pvalue <= 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed_scaled'] = stats.ks_2samp(
+                target_scaled, query).pvalue <= 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'probability_test_passed'] = (cell[['II_proba',
+                                                                                        'MC_proba',
+                                                                                        'CI_proba',
+                                                                                        'DT_proba']] > 0.7).any()
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'probability_test_passed_scaled'] = (cell[['II_proba_scaled',
+                                                                                               'MC_proba_scaled',
+                                                                                               'CI_proba_scaled',
+                                                                                               'DT_proba_scaled']] > 0.7).any()
+
+        export_columns = ['cell_name', 'function', 'morphology_clone', 'neurotransmitter_clone', 'prediction',
+                          'DT_proba', 'CI_proba',
+                          'II_proba', 'MC_proba', 'prediction_scaled', 'DT_proba_scaled', 'CI_proba_scaled',
+                          'II_proba_scaled',
+                          'MC_proba_scaled', 'NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_zscore_pass_scaled',
+                          'NBLAST_anderson_ksamp_passed', 'NBLAST_anderson_ksamp_passed_scaled',
+                          'NBLAST_ks_2samp_passed',
+                          'NBLAST_ks_2samp_passed_scaled', 'probability_test_passed', 'probability_test_passed_scaled',
+                          'OCSVM', 'IF', 'LOF']
+
+        self.prediction_predict_df.loc[
+            self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(
+            self.path / 'clem_zfish1' / f'clem_cell_prediction{self.suffix}.xlsx')
+        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(
+            self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}.xlsx')
+
+        for i, item in self.prediction_predict_df.iterrows():
+            with open(item["metadata_path"], 'r') as f:
+                t = f.read()
+            t = t.replace('\n[others]\n', '')
+            prediction_str = f"Prediction: {item['prediction']}\n"
+            prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
+            proba_str = (f"Proba_prediction: "
+                         f"DT: {round(item['DT_proba'], 2)} "
+                         f"CI: {round(item['CI_proba'], 2)} "
+                         f"II: {round(item['II_proba'], 2)} "
+                         f"MC: {round(item['MC_proba'], 2)}\n")
+            proba_scaled_str = (f"Proba_prediction_scaled: "
+                                f"DT: {round(item['DT_proba_scaled'], 2)} "
+                                f"CI: {round(item['CI_proba_scaled'], 2)} "
+                                f"II: {round(item['II_proba_scaled'], 2)} "
+                                f"MC: {round(item['MC_proba_scaled'], 2)}")
+
+            if not t[-1:] == '\n':
+                t = t + '\n'
+
+            new_t = (t + prediction_str + proba_str + prediction_scaled_str + proba_scaled_str)
+            output_path = Path(str(item['metadata_path'])[:-4] + f"_with_prediction{self.suffix}.txt")
+
+            if output_path.exists():
+                os.remove(output_path)
+
+            with open(output_path, 'w+') as f:
+                f.write(new_t)
 
     def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True,suffix=''):
         """
@@ -1693,8 +1821,10 @@ class class_predictor:
         """
 
         if use_jon_priors:
+            self.suffix = suffix + "_jon_prior"
             suffix = suffix + "_jon_prior"
         if suffix != '' and suffix[0]!= "_":
+            self.suffix = "_" + suffix
             suffix = "_" + suffix
 
 
@@ -1902,7 +2032,7 @@ class class_predictor:
 
 if __name__ == "__main__":
     # load metrics and cells
-    test = class_predictor(Path(r'D:\hindbrain_structure_function\nextcloud'))
+    test = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
     test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA') #
     # test.calculate_published_metrics()
@@ -1938,7 +2068,7 @@ if __name__ == "__main__":
     test.predict_cells(use_jon_priors=True,suffix='_optimize_all_predict') #optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
     test.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
     test.plot_neurons('clem', output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
-
+    test.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
     test.predict_cells(use_jon_priors=False,suffix='_optimize_all_predict')
     test.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
     test.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
