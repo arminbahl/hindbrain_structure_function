@@ -1,4 +1,5 @@
 import chardet
+import numpy as np
 from sklearn.base import clone
 from sklearn.ensemble import IsolationForest
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, \
@@ -19,6 +20,7 @@ from sklearn.svm import LinearSVC
 from sklearn.svm import OneClassSVM
 from sklearn.tree import DecisionTreeClassifier
 import plotly
+
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import StandardScaler
@@ -1615,8 +1617,7 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
 
-
-    def calculate_verification_metrics(self,calculate_smat=True,with_kunst=True):
+    def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False):
 
         acronym_dict = {'dynamic_threshold': "dt",
                         'integrator_contralateral': "ci",
@@ -1628,7 +1629,12 @@ class class_predictor:
         print(self.prediction_predict_df.groupby(['morphology_clone', 'prediction']).size())
 
         train_cells = self.prediction_train_df
-        to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
+        if not calculate4recorded:
+            to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
+        elif calculate4recorded:
+            to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function.isin(
+                ['to_predict', 'integrator_ipsilateral', 'motor_command', 'integrator_contralateral',
+                 'dynamic_threshold'])]
         neg_control_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'neg_control']
 
         names_dt = train_cells.loc[(train_cells['function'] == 'dynamic_threshold'), 'cell_name']
@@ -1767,7 +1773,17 @@ class class_predictor:
                           'NBLAST_anderson_ksamp_passed', 'NBLAST_anderson_ksamp_passed_scaled',
                           'NBLAST_ks_2samp_passed',
                           'NBLAST_ks_2samp_passed_scaled', 'probability_test_passed', 'probability_test_passed_scaled',
-                          'OCSVM', 'IF', 'LOF']
+                          'OCSVM', 'IF', 'LOF', 'sum_passed', 'sum_passed_scaled']
+
+        sum_columns = ['NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_anderson_ksamp_passed',
+                       'NBLAST_ks_2samp_passed', 'OCSVM', 'IF', 'LOF']
+        sum_columns_scaled = ['NBLAST_general_pass', 'NBLAST_zscore_pass_scaled', 'NBLAST_anderson_ksamp_passed_scaled',
+                              'NBLAST_ks_2samp_passed_scaled', 'OCSVM', 'IF', 'LOF']
+        self.prediction_predict_df['sum_passed'] = self.prediction_predict_df.loc[:, sum_columns].astype(int).sum(
+            axis=1)
+        self.prediction_predict_df['sum_passed_scaled'] = self.prediction_predict_df.loc[:, sum_columns_scaled].astype(
+            int).sum(
+            axis=1)
 
         self.prediction_predict_df.loc[
             self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(
@@ -1804,7 +1820,8 @@ class class_predictor:
             with open(output_path, 'w+') as f:
                 f.write(new_t)
 
-    def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True,suffix=''):
+    def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True, suffix='',
+                      predict_recorded=False):
         """
         Predicts cell types based on selected training modalities and optionally using Jon's priors.
 
@@ -1866,7 +1883,10 @@ class class_predictor:
         exclude_nan = np.any(~np.isnan(self.features_fk_with_to_predict), axis=1)
         exclude_reticulospinal = np.array([('reticulospinal' not in str(x)) for x in super_df.comment])
         exclude_myelinated = np.array([('myelinated' not in str(x)) for x in super_df.comment])
-        exclude_bool = exclude_train_bool * exclude_axon_bool * exclude_not_to_predict * exclude_nan * exclude_reticulospinal * exclude_myelinated
+        if not predict_recorded:
+            exclude_bool = exclude_train_bool * exclude_axon_bool * exclude_not_to_predict * exclude_nan * exclude_reticulospinal * exclude_myelinated
+        else:
+            exclude_bool = exclude_axon_bool * exclude_nan * exclude_reticulospinal * exclude_myelinated
 
         self.prediction_predict_df = super_df.loc[exclude_bool, :]
         self.prediction_predict_features = self.features_fk_with_to_predict[exclude_bool][:, self.reduced_features_idx]
@@ -1875,13 +1895,48 @@ class class_predictor:
             priors = [self.real_cell_class_ratio_dict[x] for x in np.unique(self.prediction_train_labels)]  # Hindbrain,Rhombomere 1-3’: {INTs: 311, MCs: 206, DTs: 22}),
         else:
             priors = [len(self.prediction_train_labels[self.prediction_train_labels == x]) / len(self.prediction_train_labels) for x in np.unique(self.prediction_train_labels)]
-        clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
-        clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
+        if not predict_recorded:
+            clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
+            clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
 
-        (self.prediction_train_df.function == self.prediction_train_labels).all()
-        self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(self.prediction_predict_features)
-        predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']].to_numpy(), axis=1)
-        self.prediction_predict_df['prediction'] = [clf.classes_[x] for x in predicted_int_temp]
+            (self.prediction_train_df.function == self.prediction_train_labels).all()
+            self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(
+                self.prediction_predict_features)
+            predicted_int_temp = np.argmax(
+                self.prediction_predict_df.loc[:, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']].to_numpy(), axis=1)
+            self.prediction_predict_df['prediction'] = [clf.classes_[x] for x in predicted_int_temp]
+        elif predict_recorded:
+            for i, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
+                idx, item = idx_item
+                clf = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto', priors=priors)
+                if item['function'] == 'to_predict' or item['function'] == 'neg_control':
+                    clf.fit(self.prediction_train_features, self.prediction_train_labels.flatten())
+                    self.prediction_predict_df.loc[
+                        idx, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(
+                        self.prediction_predict_features[i].reshape(1, -1))
+                    predicted_int_temp = np.argmax(self.prediction_predict_df.loc[
+                                                       idx, ['DT_proba', 'CI_proba', 'II_proba',
+                                                             'MC_proba']].to_numpy())
+                    self.prediction_predict_df.loc[idx, 'prediction'] = clf.classes_[predicted_int_temp]
+                else:
+                    print(item['imaging_modality'])
+                    bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
+
+                    bool_copy[idx] = False
+                    clf.fit(self.prediction_train_features[bool_copy],
+                            self.prediction_train_labels[bool_copy].flatten())
+                    if item['imaging_modality'] == 'photoactivation':
+                        pass
+                    self.prediction_predict_df.loc[
+                        idx, ['DT_proba', 'CI_proba', 'II_proba', 'MC_proba']] = clf.predict_proba(
+                        self.prediction_train_features[~bool_copy].reshape(1, -1))
+                    predicted_int_temp = np.argmax(self.prediction_predict_df.loc[
+                                                       idx, ['DT_proba', 'CI_proba', 'II_proba',
+                                                             'MC_proba']].to_numpy())
+                    self.prediction_predict_df.loc[idx, 'prediction'] = clf.classes_[predicted_int_temp]
+
+
+
 
         cm = self.do_cv(method='lpo',
                         clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
@@ -2014,7 +2069,9 @@ if __name__ == "__main__":
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                                         modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')
+
+
     # with_neurotransmitter.calculate_published_metrics()
     with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
                                               drop_neurotransmitter=False)
@@ -2059,7 +2116,6 @@ if __name__ == "__main__":
     without_neurotransmitter.remove_incomplete()
     # apply gregors manual morphology annotations
     without_neurotransmitter.add_new_morphology_annotation()
-    # select features
     # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
                                                  estimator=Perceptron(random_state=0), cv_method_RFE='lpo')
@@ -2073,7 +2129,6 @@ if __name__ == "__main__":
     without_neurotransmitter.plot_neurons('clem',
                                           output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
     without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
-
     without_neurotransmitter.predict_cells(use_jon_priors=False,
                                            suffix='_optimize_all_predict_without_neurotransmitter')
     without_neurotransmitter.plot_neurons('EM',
@@ -2081,3 +2136,55 @@ if __name__ == "__main__":
     without_neurotransmitter.plot_neurons('clem',
                                           output_filename='CLEM_predicted_optimize_all_predict_without_neurotransmitter.html')
     without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+
+
+    def plot_on_verification(df, modality='clem', scaled=False, cutoff=8):
+        meshes = []
+        base_path = Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud')
+        for file in os.listdir(base_path.joinpath("zbrain_regions").joinpath('raphe')):
+            try:
+                meshes.append(navis.read_mesh(base_path.joinpath("zbrain_regions").joinpath('raphe').joinpath(file),
+                                              units='um', output='volume'))
+            except:
+                pass
+
+        color_dict = {
+            "integrator_ipsilateral": '#feb326b3',
+            "integrator_contralateral": '#e84d8ab3',
+            "dynamic_threshold": '#64c5ebb3',
+            "motor_command": '#7f58afb3',
+        }
+        scaled_suffix = "prediction"
+        sum_suffix = 'sum_passed'
+        if scaled:
+            scaled_suffix = 'prediction_scaled'
+            sum_suffix = 'sum_passed_scaled'
+
+        sub_df = df[
+            (df['imaging_modality'] == modality) &
+            (df[sum_suffix] >= cutoff)].copy().sort_values(scaled_suffix)
+        colors = [color_dict[pred] for pred in sub_df[scaled_suffix]]
+        plot_params = {'backend': 'plotly', 'width': 1920, 'height': 1080, 'hover_name': True}
+        fig = navis.plot3d(with_neurotransmitter.meshes, **plot_params, title='test')
+        fig = navis.plot3d(navis.NeuronList(sub_df.swc), fig=fig, colors=colors, **plot_params, title='test')
+        # Configure plot layout
+        fig.update_layout(
+            title={
+                'text': f'Modality: {modality}, Scaled: {scaled}, Cutoff: {cutoff}',
+                'y': 0.95,  # Adjust vertical position
+                'x': 0.5,  # Center align
+                'xanchor': 'center',
+                'yanchor': 'top',
+                'font': {'size': 20}  # Adjust font size
+            },
+            scene={
+                'xaxis': {'autorange': 'reversed'},
+                'yaxis': {'autorange': True},
+                'zaxis': {'autorange': True},
+                'aspectmode': 'data',
+                'aspectratio': {'x': 1, 'y': 1, 'z': 1}
+            }
+        )
+        import plotly
+
+        plotly.offline.plot(fig, filename='test.html', auto_open=True, auto_play=False)
