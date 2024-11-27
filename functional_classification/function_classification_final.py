@@ -8,8 +8,17 @@ from scipy import stats
 from sklearn.cluster import KMeans
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
+import chardet
 
-# classifying the functional dynamics using regressors and kmeans 2 wrrite to metadata
+
+# classifying the functional dynamics using regressors and kmeans 2 write to metadata
+def get_encoding(path):
+    with open(path, 'rb') as f:
+        t = f.read()
+        r = chardet.detect(t)
+        return r['encoding']
+
+
 if __name__ == "__main__":
     # set variables
     np.set_printoptions(suppress=True)
@@ -18,6 +27,7 @@ if __name__ == "__main__":
 
     data_path = Path(('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data'))
     data_path = Path(r'D:\hindbrain_structure_function\nextcloud')
+    data_path = Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud')
     savepath = data_path / 'make_figures_FK_output' / 'functional_analysis'
     os.makedirs(savepath, exist_ok=True)
 
@@ -164,14 +174,14 @@ if __name__ == "__main__":
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
 
-    label2class = {'01': 'motor_command', '1n': 'dynamic_threshold', '2n': 'integrator', '00': 'integrator'}
-    int2class = {0: 'integrator', 1: 'motor_command', 2: 'dynamic_threshold', 3: 'integrator'}
+    label2class = {'0n': 'dynamic_threshold', '1n': 'integrator', '20': 'integrator', '21': 'motor_command'}
+    int2class = {0: 'dynamic_threshold', 1: 'integrator', 2: 'integrator', 3: 'motor_command'}
     df['kmeans_labels_int_1st'] = kmeans.labels_
     n_clusters_2nd = 2
     kmeans_2nd = KMeans(n_clusters=n_clusters_2nd, random_state=0)
-    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 0])
+    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 2])
     df['kmeans_labels_int_2nd'] = 'n'
-    df.loc[df['kmeans_labels_int_1st'] == 0, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
+    df.loc[df['kmeans_labels_int_1st'] == 2, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
     df['kmeans_labels_int_1st'] = df['kmeans_labels_int_1st'].astype(str)
     df['kmeans_labels_int_2nd'] = df['kmeans_labels_int_2nd'].astype(str)
     df['kmeans_labels_final'] = df['kmeans_labels_int_1st'] + df['kmeans_labels_int_2nd']
@@ -241,8 +251,7 @@ if __name__ == "__main__":
             if not meta_path.parent.exists() or str(meta_path) == '.' or str(meta_path) == '.txt':
                 meta_path = (data_path / 'paGFP' / cell['cell_name'] / f'{cell["cell_name"]}metadata.txt')
 
-
-            with open(str(meta_path), 'r') as meta:
+            with open(str(meta_path), 'r', encoding=get_encoding(meta_path)) as meta:
                 t = meta.read()
             if not t[-1:] == '\n':
                     t = t + '\n'
@@ -309,9 +318,9 @@ if __name__ == "__main__":
 
 
     # Now you can call the function for each attribute
-    plot_fig(df, color_dict, int2class, 'reliability',savepath=savepath, ylim = (-2, 7))
-    plot_fig(df, color_dict, int2class, 'time_constant',savepath=savepath)
-    plot_fig(df, color_dict, int2class, 'direction_selectivity',savepath=savepath)
+    plot_fig(df.sort_values('kmeans_labels_int'), color_dict, int2class, 'reliability', savepath=savepath, ylim=(-2, 7))
+    plot_fig(df.sort_values('kmeans_labels_int'), color_dict, int2class, 'time_constant', savepath=savepath)
+    plot_fig(df.sort_values('kmeans_labels_int'), color_dict, int2class, 'direction_selectivity', savepath=savepath)
 
     # save class assignment
     em_pa_cells.loc[:, ['cell_name', 'functional_id', 'kmeans_functional_label_str']].to_excel(savepath / 'assignment_.xlsx')
