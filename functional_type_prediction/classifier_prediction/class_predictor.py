@@ -1629,12 +1629,7 @@ class class_predictor:
         print(self.prediction_predict_df.groupby(['morphology_clone', 'prediction']).size())
 
         train_cells = self.prediction_train_df
-        if not calculate4recorded:
-            to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
-        elif calculate4recorded:
-            to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function.isin(
-                ['to_predict', 'integrator_ipsilateral', 'motor_command', 'integrator_contralateral',
-                 'dynamic_threshold'])]
+        to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
         neg_control_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'neg_control']
 
         names_dt = train_cells.loc[(train_cells['function'] == 'dynamic_threshold'), 'cell_name']
@@ -1660,6 +1655,9 @@ class class_predictor:
                                                            shift_neurons=False)
         self.nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells,
                                                                 custom_matrix=self.smat_fish, shift_neurons=False)
+        if calculate4recorded:
+            self.nb_train_predict = pd.concat([self.nb_train, self.nb_train_predict], axis=1)
+
 
         # calculate how separable the classes are with nblast
         nb_train_copy = copy.deepcopy(self.nb_train)
@@ -1673,6 +1671,18 @@ class class_predictor:
         self.nb_matches_cells_train = navis.nbl.extract_matches(self.nb_train, 2)
         self.nb_matches_cells_nc = navis.nbl.extract_matches(self.nb_train_nc.T, 2)
         self.nb_matches_cells_predict = navis.nbl.extract_matches(self.nb_train_predict.T, 2)
+        if calculate4recorded:
+            nb_matches_cells_predict_2_names = self.nb_matches_cells_predict.loc[
+                self.nb_matches_cells_predict['score_1'] >= 1, 'id']
+            nb_matches_cells_predict2 = navis.nbl.extract_matches(self.nb_train_predict.T, 3)
+            nb_matches_cells_predict2 = nb_matches_cells_predict2.loc[
+                nb_matches_cells_predict2['id'].isin(nb_matches_cells_predict_2_names)].drop(['match_1', 'score_1'],
+                                                                                             axis=1)
+            nb_matches_cells_predict2.columns = ['id', 'match_1', 'score_1', 'match_2', 'score_2']
+            self.nb_matches_cells_predict = pd.concat([self.nb_matches_cells_predict.loc[
+                                                       ~self.nb_matches_cells_predict.id.isin(
+                                                           nb_matches_cells_predict_2_names), :],
+                                                       nb_matches_cells_predict2])
 
         #get the distributions of NBLAST values how a class matches with its self
         self.nblast_values_dt = navis.nbl.extract_matches(self.nb_train.loc[names_dt, names_dt], 2)
@@ -1687,7 +1697,8 @@ class class_predictor:
         z_score_mc = lambda x: abs((x - np.mean(list(self.nblast_values_mc.score_2))) / np.std(list(self.nblast_values_mc.score_2)))
 
         # use the average .25 percentile of DTs and CIs as a cutoff for the general nblast
-        cutoff = np.mean([self.nblast_values_dt.score_2.quantile(0.25), self.nblast_values_ci.score_2.quantile(0.25)])
+        cutoff = np.mean([self.nblast_values_dt.score_2.quantile(0.25), self.nblast_values_ci.score_2.quantile(
+            0.25)])  # TODO review this with gregor and jon and armin
         print(f'{(self.nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
 
         subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
