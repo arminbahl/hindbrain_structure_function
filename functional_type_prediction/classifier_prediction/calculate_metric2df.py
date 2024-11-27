@@ -1,13 +1,7 @@
-import numpy as np
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
-# matplotlib.use('TkAgg')
-from tqdm import tqdm
-
 from hindbrain_structure_function.functional_type_prediction.FK_tools.find_branches import *
 from hindbrain_structure_function.functional_type_prediction.FK_tools.fragment_neurite import *
-from hindbrain_structure_function.functional_type_prediction.classifier_prediction.LDS_single_cell_prediction import *
-
+from sklearn.preprocessing import StandardScaler
+from tqdm import tqdm
 
 def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
     def check_skip_condition(path_to_data, file_name, key, cell_df, force_new):
@@ -193,10 +187,7 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
 
         temp1.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'predictor_pipeline_features')
 
-        if train_or_predict == 'predict':
-            temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'morphology', 'neurotransmitter']]
-        elif train_or_predict == 'train':
-            temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'function', 'morphology', 'neurotransmitter']]
+        temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'function', 'morphology', 'neurotransmitter']]
         temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'function_morphology_neurotransmitter')
 
 
