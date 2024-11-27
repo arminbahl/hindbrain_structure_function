@@ -20,11 +20,13 @@ from sklearn.svm import OneClassSVM
 from sklearn.tree import DecisionTreeClassifier
 import plotly
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
-
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.preprocessing import StandardScaler
 np.set_printoptions(suppress=True)
 from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matrix_navis import *
 from slack_sdk import WebClient
-
+from sklearn.metrics import accuracy_score
+from matplotlib.patches import Patch
 import scipy.stats as stats
 
 
