@@ -1711,12 +1711,33 @@ class class_predictor:
         self.prediction_predict_df.loc[:, 'IF'] = IF.predict(self.prediction_predict_features) == 1
         self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(self.prediction_predict_features) == 1
 
-        for i, cell in self.prediction_predict_df.iterrows():
+        # for i, cell in self.prediction_predict_df.iterrows():
+        for idx, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
+            i, cell = idx_item
+
+            if calculate4recorded and cell.cell_name in list(self.nb_matches_cells_train.id):
+                bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
+                bool_copy[idx] = False
+
+                OCSVM_alt = OneClassSVM(gamma='scale', kernel='poly').fit(self.prediction_train_features[bool_copy])
+                IF_alt = IsolationForest(contamination=0.1, random_state=42).fit(
+                    self.prediction_train_features[bool_copy])
+                LOF_alt = LocalOutlierFactor(n_neighbors=5, novelty=True).fit(self.prediction_train_features[bool_copy])
+
+                self.prediction_predict_df.loc[i, ['OCSVM', 'IF', 'LOF']] = [
+                    bool(OCSVM_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1),
+                    bool(IF_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1),
+                    bool(LOF_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1)]
+
+
+
+
             if cell['function'] == 'neg_control':
-                query = self.nb_train_nc.loc[:, cell["cell_name"]].to_numpy()
+                query = self.nb_train_nc.loc[self.nb_train_nc.index != cell['cell_name'], cell["cell_name"]].to_numpy()
                 reference_df = self.nb_matches_cells_nc
             else:
-                query = self.nb_train_predict.loc[:, cell["cell_name"]].to_numpy()
+                query = self.nb_train_predict.loc[
+                    self.nb_train_predict.index != cell['cell_name'], cell["cell_name"]].to_numpy()
                 reference_df = self.nb_matches_cells_predict
 
             query_cell_highest_nblast = reference_df.loc[reference_df['id'] == cell.cell_name, 'score_1'].iloc[0]
@@ -1735,12 +1756,16 @@ class class_predictor:
 
             # compare distribution of a single cell vs the classes
             target = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction']].lower()}"), eval(
-                f"names_{acronym_dict[cell['prediction']].lower()}")].to_numpy().flatten()
-            target = target[target != 1]
+                f"names_{acronym_dict[cell['prediction']].lower()}")]
+            target = target.loc[
+                target.index != cell['cell_name'], target.columns != cell['cell_name'],].to_numpy().flatten()
+            target = target[target < 1]
 
             target_scaled = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}"), eval(
-                f"names_{acronym_dict[cell['prediction_scaled']].lower()}")].to_numpy().flatten()
-            target_scaled = target_scaled[target_scaled != 1]
+                f"names_{acronym_dict[cell['prediction_scaled']].lower()}")]
+            target_scaled = target_scaled.loc[target_scaled.index != cell['cell_name'], target_scaled.columns != cell[
+                'cell_name'],].to_numpy().flatten()
+            target_scaled = target_scaled[target_scaled < 1]
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
@@ -1803,33 +1828,34 @@ class class_predictor:
             self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}.xlsx')
 
         for i, item in self.prediction_predict_df.iterrows():
-            with open(item["metadata_path"], 'r') as f:
-                t = f.read()
-            t = t.replace('\n[others]\n', '')
-            prediction_str = f"Prediction: {item['prediction']}\n"
-            prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
-            proba_str = (f"Proba_prediction: "
-                         f"DT: {round(item['DT_proba'], 2)} "
-                         f"CI: {round(item['CI_proba'], 2)} "
-                         f"II: {round(item['II_proba'], 2)} "
-                         f"MC: {round(item['MC_proba'], 2)}\n")
-            proba_scaled_str = (f"Proba_prediction_scaled: "
-                                f"DT: {round(item['DT_proba_scaled'], 2)} "
-                                f"CI: {round(item['CI_proba_scaled'], 2)} "
-                                f"II: {round(item['II_proba_scaled'], 2)} "
-                                f"MC: {round(item['MC_proba_scaled'], 2)}")
+            if not item.cell_name in list(self.nb_matches_cells_train.id):
+                with open(item["metadata_path"], 'r') as f:
+                    t = f.read()
+                t = t.replace('\n[others]\n', '')
+                prediction_str = f"Prediction: {item['prediction']}\n"
+                prediction_scaled_str = f"Prediction_scaled: {item['prediction_scaled']}\n"
+                proba_str = (f"Proba_prediction: "
+                             f"DT: {round(item['DT_proba'], 2)} "
+                             f"CI: {round(item['CI_proba'], 2)} "
+                             f"II: {round(item['II_proba'], 2)} "
+                             f"MC: {round(item['MC_proba'], 2)}\n")
+                proba_scaled_str = (f"Proba_prediction_scaled: "
+                                    f"DT: {round(item['DT_proba_scaled'], 2)} "
+                                    f"CI: {round(item['CI_proba_scaled'], 2)} "
+                                    f"II: {round(item['II_proba_scaled'], 2)} "
+                                    f"MC: {round(item['MC_proba_scaled'], 2)}")
 
-            if not t[-1:] == '\n':
-                t = t + '\n'
+                if not t[-1:] == '\n':
+                    t = t + '\n'
 
-            new_t = (t + prediction_str + proba_str + prediction_scaled_str + proba_scaled_str)
-            output_path = Path(str(item['metadata_path'])[:-4] + f"_with_prediction{self.suffix}.txt")
+                new_t = (t + prediction_str + proba_str + prediction_scaled_str + proba_scaled_str)
+                output_path = Path(str(item['metadata_path'])[:-4] + f"_with_prediction{self.suffix}.txt")
 
-            if output_path.exists():
-                os.remove(output_path)
+                if output_path.exists():
+                    os.remove(output_path)
 
-            with open(output_path, 'w+') as f:
-                f.write(new_t)
+                with open(output_path, 'w+') as f:
+                    f.write(new_t)
 
     def predict_cells(self, train_modalities=['clem', 'photoactivation'], use_jon_priors=True, suffix='',
                       predict_recorded=False):
@@ -1930,7 +1956,6 @@ class class_predictor:
                                                              'MC_proba']].to_numpy())
                     self.prediction_predict_df.loc[idx, 'prediction'] = clf.classes_[predicted_int_temp]
                 else:
-                    print(item['imaging_modality'])
                     bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
 
                     bool_copy[idx] = False
