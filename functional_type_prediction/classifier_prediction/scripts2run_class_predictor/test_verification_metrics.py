@@ -118,6 +118,29 @@ if __name__ == "__main__":
     plt.show()
 
     plt.figure(dpi=1000)
+    cells_lost = 1 - (verification_n_cells_matrix / np.max(verification_n_cells_matrix))
+    plt.imshow(np.array(cells_lost).astype(float))
+    plt.colorbar()
+    plt.xticks(np.arange(len(cells_lost.columns)),
+               [x.replace('.', "\n") for x in cells_lost.columns], fontsize=1)
+    plt.yticks(np.arange(len(cells_lost.index)),
+               [x.replace('.', "\n") for x in cells_lost.index], fontsize=1)
+
+    max_flat_index = np.argmax(np.array(cells_lost).astype(float), axis=None)
+
+    # Convert flat index to row and column index
+    max_row, max_col = np.unravel_index(max_flat_index, cells_lost.shape)
+    max_row, max_col = max_row - 0.5, max_col - 0.5
+    plt.plot([max_col, max_col], [max_row, max_row + 1], 'r-')
+    plt.plot([max_col, max_col + 1], [max_row + 1, max_row + 1], 'r-')
+    plt.plot([max_col, max_col + 1], [max_row, max_row], 'r-')
+    plt.plot([max_col + 1, max_col + 1], [max_row, max_row + 1], 'r-')
+    plt.title('Heatmap of Cells lost after applying validation', fontsize='small')
+    plt.show()
+
+
+
+    plt.figure(dpi=1000)
     verification_accuracy_matrix_delta = verification_accuracy_matrix - accuracy_score(clem_func_recorded['function'],
                                                                                        clem_func_recorded['prediction'])
     plt.imshow(np.array(verification_accuracy_matrix_delta).astype(float))
@@ -137,5 +160,27 @@ if __name__ == "__main__":
     plt.plot([max_col, max_col + 1], [max_row, max_row], 'r-')
     plt.plot([max_col + 1, max_col + 1], [max_row, max_row + 1], 'r-')
     plt.title('Visualization of Validation Metrics with Maximum Value Highlighted\nDiference from without',
+              fontsize='small')
+    plt.show()
+
+    plt.figure(dpi=1000)
+    scaled_n_acc = verification_accuracy_matrix * verification_n_cells_matrix
+    plt.imshow(np.array(scaled_n_acc).astype(float))
+    plt.colorbar()
+    plt.xticks(np.arange(len(scaled_n_acc.columns)),
+               [x.replace('.', "\n") for x in scaled_n_acc.columns], fontsize=1)
+    plt.yticks(np.arange(len(scaled_n_acc.index)),
+               [x.replace('.', "\n") for x in scaled_n_acc.index], fontsize=1)
+
+    max_flat_index = np.argmax(np.array(scaled_n_acc).astype(float), axis=None)
+
+    # Convert flat index to row and column index
+    max_row, max_col = np.unravel_index(max_flat_index, scaled_n_acc.shape)
+    max_row, max_col = max_row - 0.5, max_col - 0.5
+    plt.plot([max_col, max_col], [max_row, max_row + 1], 'r-')
+    plt.plot([max_col, max_col + 1], [max_row + 1, max_row + 1], 'r-')
+    plt.plot([max_col, max_col + 1], [max_row, max_row], 'r-')
+    plt.plot([max_col + 1, max_col + 1], [max_row, max_row + 1], 'r-')
+    plt.title('Scaled number of cells with accuracy',
               fontsize='small')
     plt.show()
