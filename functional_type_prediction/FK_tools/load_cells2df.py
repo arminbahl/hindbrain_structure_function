@@ -1,7 +1,5 @@
 import numpy as np
-
-from hindbrain_structure_function.visualization.FK_tools.load_pa_table import *
-from hindbrain_structure_function.visualization.FK_tools.load_clem_table import *
+from hindbrain_structure_function.functional_type_prediction.classifier_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.visualization.FK_tools.load_em_table import *
 from hindbrain_structure_function.visualization.FK_tools.load_mesh import *
 from hindbrain_structure_function.visualization.FK_tools.load_brs import *
