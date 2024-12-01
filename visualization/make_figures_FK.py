@@ -87,6 +87,7 @@ class make_figures_FK:
         # Set the flag for applying smoothing to photoactivation data based on the constructor argument.
         self.use_smooth_pa = use_smooth_pa
         # Set the base path for data by reading from a configuration file; ensures correct data location is used.
+
         self.path_to_data = get_base_path()  # Ensure this path is set in path_configuration.txt
 
         # Define a dictionary mapping cell types to specific RGBA color codes for consistent visual representation.
@@ -782,9 +783,8 @@ class make_figures_FK:
         
 
 if __name__ == "__main__":
-
-        kk = make_figures_FK(modalities=['em','pa'],
-                                                   keywords=['133478','20230628.2'],
+    kk = make_figures_FK(modalities=['pa'],
+                         keywords=['dynamic_threshold'],
                                                    use_smooth_pa=True,
                                                    mirror=True,
                                                    only_soma=True,
