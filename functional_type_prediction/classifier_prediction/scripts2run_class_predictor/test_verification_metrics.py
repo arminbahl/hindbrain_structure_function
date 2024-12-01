@@ -4,7 +4,10 @@ from hindbrain_structure_function.functional_type_prediction.classifier_predicti
 from itertools import product
 
 
-def calc_validation_metric_matrix(df, variables):
+def calc_validation_metric_matrix(df, variables, scaled=False):
+    suffix = ""
+    if scaled:
+        suffix = '_scaled'
     combinations1 = list(product([True, False], repeat=len(variables[:np.floor(len(variables) / 2).astype(int)])))
     combinations2 = list(product([True, False], repeat=len(variables[np.floor(len(variables) / 2).astype(int):])))
     clem_func_recorded = df.query(
@@ -39,7 +42,8 @@ def calc_validation_metric_matrix(df, variables):
 
             temp = clem_func_recorded[clem_func_recorded[temp_selector].all(axis=1)]
 
-            verification_accuracy_matrix.loc[row, column] = accuracy_score(temp['function'], temp['prediction'])
+            verification_accuracy_matrix.loc[row, column] = accuracy_score(temp['function'],
+                                                                           temp[f'prediction{suffix}'])
             verification_n_cells_matrix.loc[row, column] = temp.shape[0]
     return verification_accuracy_matrix, verification_n_cells_matrix
 
@@ -106,7 +110,7 @@ if __name__ == "__main__":
     verification_accuracy_matrix, verification_n_cells_matrix = calc_validation_metric_matrix(
         with_neurotransmitter.prediction_predict_df, variables)
     verification_accuracy_matrix_scaled, verification_n_cells_matrix_scaled = calc_validation_metric_matrix(
-        with_neurotransmitter.prediction_predict_df, variables_scaled)
+        with_neurotransmitter.prediction_predict_df, variables_scaled, scaled=True)
 
     #NOT SCALED
 
@@ -151,6 +155,6 @@ if __name__ == "__main__":
         'imaging_modality == "clem" and function != "to_predict" and function != "neg_control"')
     verification_accuracy_matrix_delta_scaled = verification_accuracy_matrix_scaled - accuracy_score(
         clem_func_recorded_scaled['function'],
-        clem_func_recorded_scaled['prediction'])
+        clem_func_recorded_scaled['prediction_scaled'])
     plot_validation_metric_matrix(verification_accuracy_matrix_delta_scaled,
                                   'SCALED\n∂Accuracy after applying validation metrics.')
