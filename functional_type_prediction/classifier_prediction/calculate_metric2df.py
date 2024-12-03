@@ -189,6 +189,8 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
 
         temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'function', 'morphology', 'neurotransmitter']]
         temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'function_morphology_neurotransmitter')
+        temp2.to_hdf(path_to_data / 'prediction' / 'features' / f'{file_name}_features.hdf5',
+                     'function_morphology_neurotransmitter')
 
 
 
