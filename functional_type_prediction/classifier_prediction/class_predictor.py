@@ -19,6 +19,8 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.svm import LinearSVC
 from sklearn.svm import OneClassSVM
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
 import plotly
 
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
@@ -1528,9 +1530,11 @@ class class_predictor:
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
                 if method == "ss":
-                    plt.title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    plt.title(
+                        f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 elif method == 'lpo':
-                    plt.title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    plt.title(
+                        f"Confusion Matrix (LPO = {p})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
                 ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
                 if spines_red:
@@ -1546,9 +1550,11 @@ class class_predictor:
             else:
                 ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
                 if method == "ss":
-                    ax.set_title(f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    ax.set_title(
+                        f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 elif method == 'lpo':
-                    ax.set_title(f"Confusion Matrix (LPO = {p})" + f'\nAccuracy: {round(accuracy_score(true_labels, pred_labels) * 100, 2)}%' + f'\n{figure_label}')
+                    ax.set_title(
+                        f"Confusion Matrix (LPO = {p})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
                 ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
                 if spines_red:
@@ -2118,7 +2124,7 @@ if __name__ == "__main__":
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=LogisticRegression(random_state=0), cv_method_RFE='lpo')
+                                              estimator=Perceptron(random_state=0), cv_method_RFE='lpo')
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
@@ -2147,7 +2153,7 @@ if __name__ == "__main__":
     without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
     # with_neurotransmitter.calculate_published_metrics()
     without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
-                                                 drop_neurotransmitter=True)
+                                                 drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
     without_neurotransmitter.remove_incomplete()
     # apply gregors manual morphology annotations
