@@ -2,6 +2,7 @@ from holoviews.plotting.bokeh.styles import font_size
 
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.class_predictor import *
 from itertools import product
+from sklearn.metrics import f1_score
 
 
 def calc_validation_metric_matrix(df, variables, scaled=False):
@@ -29,6 +30,7 @@ def calc_validation_metric_matrix(df, variables, scaled=False):
 
     verification_accuracy_matrix = pd.DataFrame(index=combinations1_names, columns=combinations2_names)
     verification_n_cells_matrix = pd.DataFrame(index=combinations1_names, columns=combinations2_names)
+    verification_accuracy_matrix_f1 = pd.DataFrame(index=combinations1_names, columns=combinations2_names)
 
     for row in verification_accuracy_matrix.index:
         for column in verification_accuracy_matrix.columns:
@@ -44,8 +46,10 @@ def calc_validation_metric_matrix(df, variables, scaled=False):
 
             verification_accuracy_matrix.loc[row, column] = accuracy_score(temp['function'],
                                                                            temp[f'prediction{suffix}'])
+            verification_accuracy_matrix_f1.loc[row, column] = f1_score(temp['function'],
+                                                                        temp[f'prediction{suffix}'], average='weighted')
             verification_n_cells_matrix.loc[row, column] = temp.shape[0]
-    return verification_accuracy_matrix, verification_n_cells_matrix
+    return verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1
 
 
 def plot_validation_metric_matrix(df, title='no title'):
@@ -107,7 +111,7 @@ if __name__ == "__main__":
                  'NBLAST_ks_2samp_passed', 'OCSVM', 'IF', 'LOF']
     variables_scaled = ['NBLAST_general_pass', 'NBLAST_zscore_pass_scaled', 'NBLAST_anderson_ksamp_passed_scaled',
                         'NBLAST_ks_2samp_passed_scaled', 'OCSVM', 'IF', 'LOF']
-    verification_accuracy_matrix, verification_n_cells_matrix = calc_validation_metric_matrix(
+    verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1 = calc_validation_metric_matrix(
         with_neurotransmitter.prediction_predict_df, variables)
     verification_accuracy_matrix_scaled, verification_n_cells_matrix_scaled = calc_validation_metric_matrix(
         with_neurotransmitter.prediction_predict_df, variables_scaled, scaled=True)
