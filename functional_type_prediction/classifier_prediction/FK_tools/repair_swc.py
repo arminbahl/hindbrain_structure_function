@@ -210,6 +210,7 @@ if __name__ == '__main__':
     # set path
     path_to_data = Path('C:/Users/ag-bahl/Desktop/hindbrain_structure_function/nextcloud_folder/CLEM_paper_data')   # Ensure this path is set in path_configuration.txt
     path_to_data = Path(r'D:\hindbrain_structure_function\nextcloud')
+    path_to_data = Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud')
     #load em data
     # all_cells_em = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["em"],mirror=False,load_repaired=False)
     # all_cells_em = all_cells_em.sort_values('classifier')
@@ -227,7 +228,8 @@ if __name__ == '__main__':
     # all_cells_clem_predict = all_cells_clem_predict.dropna(subset='swc', axis=0)
     #
     # all_cells = pd.concat([all_cells_clem_predict,all_cells_em,all_cells_clem,all_cells_pa])
-    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["clem"], mirror=False, load_repaired=False)
+    all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data, modalities=["em"], mirror=False,
+                                              load_repaired=False)
     all_cells = all_cells.dropna(subset='swc', axis=0)
     #repair all_swcs
 
