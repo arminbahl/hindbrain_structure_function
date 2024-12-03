@@ -98,10 +98,10 @@ class make_figures_FK:
 
         # Define a dictionary mapping cell types to specific RGBA color codes for consistent visual representation.
         self.color_cell_type_dict = {
-            "integrator_ipsi": (254, 179, 38, 0.7),
-            "ipsi_integrator": (254, 179, 38, 0.7),
-            "integrator_contra": (232, 77, 138, 0.7),
-            "contra_integrator": (232, 77, 138, 0.7),
+            "integrator_ipsilateral": (254, 179, 38, 0.7),
+            "ipsilateral_integrator": (254, 179, 38, 0.7),
+            "integrator_contralateral": (232, 77, 138, 0.7),
+            "contralateral_integrator": (232, 77, 138, 0.7),
             "dynamic_threshold": (100, 197, 235, 0.7),
             "motor_command": (127, 88, 175, 0.7),
         }
@@ -172,6 +172,15 @@ class make_figures_FK:
                 subset_for_keyword = all_cells['cell_type_labels'].apply(
                     lambda label: keyword.replace("_", " ") in label or keyword in label)
                 all_cells = all_cells[subset_for_keyword]
+        for i, cell in all_cells.iterrows():
+            width_brain = 495.56
+            if cell.function == 'integrator':
+                if cell.swc.nodes.x.max() >= width_brain / 2:
+                    all_cells.loc[i, 'function'] = "contralateral_" + cell.function
+                elif cell.swc.nodes.x.max() < width_brain / 2:
+                    all_cells.loc[i, 'function'] = "ipsilateral_" + cell.function
+
+
         if cell_type != '':
             all_cells = all_cells[all_cells['function'] == cell_type]
         self.all_cells = all_cells
@@ -219,70 +228,21 @@ class make_figures_FK:
         # Determine the view settings based on the projection type ('z' or 'y').
         if projection == "z":
             view = ('x', "-y")  # Set the 2D view to the X-Y plane for Z projection.
-            ylim = [-850, -50]  # Define the Y-axis limits for the Z projection.
+            ylim = [750, 50]  # Define the Y-axis limits for the Z projection.
         elif projection == 'y':
             view = ('x', "z")  # Set the 2D view to the X-Z plane for Y projection.
             ylim = [-30, 300]  # Define the Y-axis limits for the Y projection.
         projection_string = projection + "_" + which_brs + "_projection"  # Create a string to denote the type
 
         # Rebuild the list of visualized cells and their colors if necessary.
-        if not "visualized_cells" in self.__dir__() or force_new_cell_list:
-            self.visualized_cells = []  # Reset the list of cells to be visualized.
-            self.color_cells = []  # Reset the list of colors corresponding to the cells.
 
-            # Iterate over all cells to determine their colors based on their types and specific conditions.
-            for i, cell in self.all_cells.iterrows():
-                if black_neuron == True and cell["imaging_modality"] == "photoactivation":
-                    # Color all photoactivation modality cells black if specified.
-                    self.color_cells.append("black")
-                    self.color_cells.append("black")
-                    black_neuron = False
-                elif type(black_neuron) == str:
-                    # Color a specific neuron black if its name matches the specified string.
-                    if cell['cell_name'] == black_neuron:
-                        self.color_cells.append("black")
-                        self.color_cells.append("black")
-                else:
-                    # Assign colors based on cell type labels using a predefined color dictionary.
-                    if 'cell_type_labels' in cell.index and type(cell.cell_type_labels) != float:
-                        for label in cell.cell_type_labels:
-                            if label == "integrator" and "ipsilateral" in cell.cell_type_labels:
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_ipsi"]
-                                break
-                            elif label == "integrator" and "contralateral" in cell.cell_type_labels:
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ") + "_contra"]
-                                break
-                            elif label.replace("_", " ") in self.color_cell_type_dict.keys():
-                                temp_color = self.color_cell_type_dict[label.replace("_", " ")]
-                                break
-                            else:
-                                temp_color = 'k'
-                    else:
-                        temp_color = 'k'
+        self.visualized_cells = []  # Reset the list of cells to be visualized.
+        self.color_cells = []  # Reset the list of colors corresponding to the cells.
 
-                    # Append visualized cells and their colors.
-                    for key in ["soma_mesh", "axon_mesh", "dendrite_mesh", "neurites_mesh"]:
-                        if only_soma:
-                            if not type(cell[key]) == float and key == "soma_mesh":
-                                self.visualized_cells.append(navis.MeshNeuron(navis.Volume(cell[key]).resize(2)))
-                                self.visualized_cells[-1].units = 'micrometer'
-                                self.color_cells.append(temp_color)
-                        else:
-                            if not type(cell[key]) == float:
-                                if not type(cell[key]) == float:
-                                    self.visualized_cells.append(cell[key])
-                                    if key != "dendrite_mesh":
-                                        self.color_cells.append(temp_color)
-                                    elif key == "dendrite_mesh":
-                                        self.color_cells.append("black")
-        if self.visualized_cells == []:
-            self.visualized_cells = []  # Reset the list of cells to be visualized.
-            self.color_cells = []  # Reset the list of colors corresponding to the cells.
-
-            # Iterate over all cells to determine their colors based on their types and specific conditions.
-            for i, cell in self.all_cells.iterrows():
-                self.color_cells.append(self.color_cell_type_dict[cell['function']])
-                self.visualized_cells.append(cell['swc'])
+        # Iterate over all cells to determine their colors based on their types and specific conditions.
+        for i, cell in self.all_cells.iterrows():
+            self.color_cells.append(self.color_cell_type_dict[cell['function']])
+            self.visualized_cells.append(cell['swc'])
 
         # Load brain regions and initialize settings for plot if selected brain regions should be shown.
         if show_brs:
@@ -727,34 +687,35 @@ class make_figures_FK:
 
 
 if __name__ == "__main__":
-    kk = make_figures_FK(modalities=['pa'],
-                         keywords='all',
-                         use_smooth_pa=True,
-                         mirror=True,
-                         only_soma=True,
-                         load_what='swc',
-                         cell_type='dynamic_threshold')
+    for cell_type in ['dynamic_threshold', 'ipsilateral_integrator', 'contralateral_integrator', 'motor_command']:
+        kk = make_figures_FK(modalities=['pa'],
+                             keywords='all',
+                             use_smooth_pa=True,
+                             mirror=True,
+                             only_soma=True,
+                             load_what='swc',
+                             cell_type=cell_type)
 
-    kk.plot_y_projection(show_brs=True,
-                         which_brs="raphe",
-                         force_new_cell_list=False,
-                         rasterize=True,
-                         black_neuron=False,
-                         standard_size=True,
-                         volume_outlines=True,
-                         background_gray=True,
-                         only_soma=False,
-                         midline=True,
-                         plot_synapse_distribution=False)
+        kk.plot_y_projection(show_brs=True,
+                             which_brs="raphe",
+                             force_new_cell_list=False,
+                             rasterize=False,
+                             black_neuron=False,
+                             standard_size=True,
+                             volume_outlines=True,
+                             background_gray=True,
+                             only_soma=False,
+                             midline=True,
+                             plot_synapse_distribution=False)
 
-    kk.plot_z_projection(show_brs=True,
-                         which_brs="raphe",
-                         force_new_cell_list=False,
-                         rasterize=True,
-                         black_neuron=False,
-                         standard_size=True,
-                         volume_outlines=True,
-                         background_gray=True,
-                         only_soma=False,
-                         midline=True,
-                         plot_synapse_distribution=False)
+        kk.plot_z_projection(show_brs=True,
+                             which_brs="raphe",
+                             force_new_cell_list=False,
+                             rasterize=False,
+                             black_neuron=False,
+                             standard_size=True,
+                             volume_outlines=True,
+                             background_gray=True,
+                             only_soma=False,
+                             midline=True,
+                             plot_synapse_distribution=False)
