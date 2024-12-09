@@ -186,6 +186,8 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
         temp1 = cell_df.loc[:, cell_df.columns[temp1_index:]]
 
         temp1.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'predictor_pipeline_features')
+        temp1.to_hdf(path_to_data / 'prediction' / 'features' / f'{file_name}_features.hdf5',
+                     'predictor_pipeline_features')
 
         temp2 = cell_df.loc[:, ['cell_name', 'imaging_modality', 'function', 'morphology', 'neurotransmitter']]
         temp2.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'function_morphology_neurotransmitter')
@@ -227,9 +229,11 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
 
         temp3 = cell_df.loc[:, ['angle', 'angle2d', 'x_cross', 'y_cross', 'z_cross']]
         temp3.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'angle_cross')
+        temp3.to_hdf(path_to_data / 'prediction' / 'features' / f'{file_name}_features.hdf5', 'angle_cross')
 
         complete_df = pd.concat([temp2, temp1, temp3], axis=1)
         complete_df.to_hdf(path_to_data / 'make_figures_FK_output' / f'{file_name}_features.hdf5', 'complete_df')
+        complete_df.to_hdf(path_to_data / 'prediction' / 'features' / f'{file_name}_features.hdf5', 'complete_df')
 
 
 
