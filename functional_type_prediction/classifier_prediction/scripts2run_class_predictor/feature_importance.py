@@ -18,8 +18,8 @@ if __name__ == "__main__":
 
     test.add_new_morphology_annotation()
 
-    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=LogisticRegression(random_state=0),
-                             cv_method_RFE='lpo')
+    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=Perceptron(random_state=0),
+                             cv_method_RFE='ss')
 
     np.random.seed(42)
     copy_features = copy.deepcopy(test.features_fk)
