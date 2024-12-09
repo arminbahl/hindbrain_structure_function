@@ -1256,10 +1256,12 @@ class class_predictor:
                 plt.axvline(np.nanargmax(acc_list), c='red', alpha=0.3)
                 plt.text(np.nanargmax(acc_list) + 1, np.mean(plt.ylim()), f'n = {np.nanargmax(acc_list) + 1}', fontsize=12, color='red', ha='left', va='bottom')
                 plt.gca().set_xticks(np.arange(0, self.features_fk.shape[1], 3), np.arange(1, self.features_fk.shape[1] + 2, 3))
-                plt.title(f"{str(estimator)}\n{metric} {acc_list[np.nanargmax(acc_list)]}%", fontsize='small')
+                plt.title(
+                    f"{str(estimator)}\n{metric} {acc_list[np.nanargmax(acc_list)]}% {str(cv_method_RFE)} {metric}",
+                    fontsize='small')
                 selector = RFE(estimator, n_features_to_select=np.nanargmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
 
-                temp_str = f"Estimator_{str(estimator)}\nfeatures_{np.sum(selector.support_)}"
+                temp_str = f"Estimator_{str(estimator)}\nfeatures_{np.sum(selector.support_)}\n{str(cv_method_RFE)}\n{metric}"
                 temp_str = '\n'.join([x.split('(')[0] for x in temp_str.split('\n')])
                 print(temp_str, '\n')
 
@@ -1589,12 +1591,12 @@ class class_predictor:
                 if metric == 'accuracy':
                     return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
                 elif metric == 'f1':
-                    return f1_score(true_labels, pred_labels, average='weighted'), len(pred_labels)
+                    return round(f1_score(true_labels, pred_labels, average='weighted') * 100, 2), len(pred_labels)
             else:
                 if metric == 'accuracy':
                     return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
                 elif metric == 'f1':
-                    return f1_score(true_labels, pred_labels, average='weighted'), len(pred_labels)
+                    return round(f1_score(true_labels, pred_labels, average='weighted') * 100, 2), len(pred_labels)
 
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
@@ -2153,7 +2155,8 @@ if __name__ == "__main__":
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss', metric='f1')
+                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss',
+                                              metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0)
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
@@ -2189,7 +2192,8 @@ if __name__ == "__main__":
     without_neurotransmitter.add_new_morphology_annotation()
     # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                                 estimator=Perceptron(random_state=0), cv_method_RFE='ss', metric='f1')
+                                                 estimator=Perceptron(random_state=0), cv_method_RFE='ss',
+                                                 metric='accuracy')
     # make confusion matrices
     without_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
     # predict cells
