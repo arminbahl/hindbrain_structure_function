@@ -75,10 +75,10 @@ if __name__ == "__main__":
 
             rel = np.round(np.nanmean(np.mean(st, axis=0) / np.nanstd(st, axis=0), axis=0),2)
 
-            temp_df = pd.DataFrame({'cell_name': [directory],
+            temp_df = pd.DataFrame([{'cell_name': directory,
                                     'reliability': rel,
                                     'time_constant': peak_indices[0],
-                                    'direction_selectivity': direction_selectivity})
+                                     'direction_selectivity': direction_selectivity}])
 
             for it in ['PD', 'ND']:
                 temp_df[it] = None
@@ -139,10 +139,10 @@ if __name__ == "__main__":
             peak_indices = np.where(PD[40:120] >= peak)[0]
             direction_selectivity = np.round((max(PD[20:100]) - max(ND[20:100])) / (max(PD[20:100]) + max(ND[20:100])), 2)
 
-            temp_df = pd.DataFrame({'cell_name': [directory],
+            temp_df = pd.DataFrame([{'cell_name': "_".join(directory.split('_')[2:]),
                                     'reliability': rel,
                                     'time_constant': peak_indices[0],
-                                    'direction_selectivity': direction_selectivity})
+                                     'direction_selectivity': direction_selectivity}])
 
             for it in ['PD', 'ND']:
                 temp_df[it] = None
@@ -216,8 +216,8 @@ if __name__ == "__main__":
             functional_id_target = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'functional_id'].iloc[0]
             imaging_modality = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'imaging_modality'].iloc[0]
         except:
-            functional_id_target = cell_data.loc[cell_data['cell_name'] == cell['cell_name'][12:], 'functional_id'].iloc[0]
-            imaging_modality = cell_data.loc[cell_data['cell_name'] == cell['cell_name'][12:], 'imaging_modality'].iloc[0]
+            functional_id_target = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'functional_id'].iloc[0]
+            imaging_modality = cell_data.loc[cell_data['cell_name'] == cell['cell_name'], 'imaging_modality'].iloc[0]
         df.loc[i, 'functional_id'] = functional_id_target
         df.loc[i, 'imaging_modality'] = imaging_modality
 
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 
     kk = df.loc[:, ['cell_name', 'kmeans_labels_final', 'kmeans_labels_int']]
     kk.columns = ['cell_name', 'kmeans_labels', 'kmeans_labels_int']
-    kk['cell_name'] = kk['cell_name'].apply(lambda x: x[12:] if 'cell' in x else x)
+
 
     em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
     em_pa_cells = em_pa_cells.loc[em_pa_cells['function'] != 'neg_control', :]
@@ -328,3 +328,104 @@ if __name__ == "__main__":
     # save regressor
     regressors = np.vstack([kmeans.cluster_centers_[1:], kmeans_2nd.cluster_centers_])
     np.save(savepath / 'kmeans_regressors.npy', regressors, )
+
+    # add morphology
+    df = pd.merge(df, em_pa_cells.loc[:, ["cell_name", "morphology"]], on='cell_name', how='left')
+
+
+    # create jon activity plots
+
+    def jon_activity_plot(activity_array, cell_type, dt=0.5, color='red', savepath=savepath):
+        fig, ax = plt.subplots()
+        activity_array = ((activity_array - np.nanmin(activity_array, axis=1)[:, np.newaxis]) / (
+                np.nanmax(activity_array, axis=1)[:, np.newaxis] - np.nanmin(activity_array, axis=1)[:,
+                                                                   np.newaxis])) * 100
+
+        plt.axvspan(10, 50, color='gray', alpha=0.1)
+        time_axis = np.arange(activity_array.shape[1]) * dt
+        for i in range(activity_array.shape[0]):
+            plt.plot(time_axis, activity_array[i, :], color=color, alpha=0.7, linestyle='-', linewidth=1)
+
+        # Remove the axes and add the scale bars
+        ax.plot([0, 10], [-5, -5], color='k', lw=2)  # Time scale bar (10 sec)
+        ax.text(5, -7, '10 sec', ha='center', fontfamily='Arial', fontsize=14)
+
+        # Adapted scale bar for normalized activity (using 10% of the normalized scale)
+        ax.plot([-2, -2], [0, 10], color='k', lw=2)  # Activity scale bar (10% of normalized activity)
+        ax.text(-2.5, 5, '10%', va='center', fontfamily='Arial', rotation=90, fontsize=14)
+
+        # Set aspect ratio to 1 and remove the axis lines
+        x_left, x_right = ax.get_xlim()
+        y_low, y_high = ax.get_ylim()
+        ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)))
+        ax.set_axis_off()  # Remove the axis
+
+        plt.show()
+
+        # # Save the figure
+        filename = f"{cell_type}_activity-traces.pdf"
+        savepath = savepath / 'activity_plots4fig'
+        os.makedirs(savepath, exist_ok=True)
+        output_path = savepath / filename
+        fig.savefig(output_path, dpi=1200)
+        print(f"Figure saved successfully at: {output_path}")
+
+
+    unpack_activity_traces = lambda x: np.array([y for y in x])
+    activity_dt = unpack_activity_traces(df.loc[(df.imaging_modality == 'photoactivation') &
+                                                (df.kmeans_labels == 'dynamic_threshold'), "PD"].to_numpy())
+    activity_mc = unpack_activity_traces(df.loc[(df.imaging_modality == 'photoactivation') &
+                                                (df.kmeans_labels == 'motor_command'), "PD"].to_numpy())
+    activity_ii = unpack_activity_traces(df.loc[(df.morphology == 'ipsilateral') &
+                                                (df.imaging_modality == 'photoactivation') &
+                                                (df.kmeans_labels == 'integrator'), "PD"].to_numpy())
+    activity_ci = unpack_activity_traces(df.loc[(df.morphology == 'contralateral') &
+                                                (df.imaging_modality == 'photoactivation') &
+                                                (df.kmeans_labels == 'integrator'), "PD"].to_numpy())
+
+    jon_activity_plot(activity_dt, cell_type='dynamic_threshold', color='#64c5ebb3')
+    jon_activity_plot(activity_mc, cell_type='motor_command', color='#7f58afb3')
+    jon_activity_plot(activity_ii, cell_type='ipsilateral_integrator', color='#feb326b3')
+    jon_activity_plot(activity_ci, cell_type='contralateral_integrator', color='#e84d8ab3')
+    # neurotransmitter
+    df['cell_class'] = df['kmeans_labels']
+
+    df['cell_class'] = df.apply(
+        lambda x: x['cell_class'] if x.kmeans_labels != 'integrator' else x.kmeans_labels + "_" + x.morphology, axis=1)
+
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    # Group and reset the index to make the grouped columns regular columns
+    stacked_barplot = df.groupby(['imaging_modality', 'cell_class', 'neurotransmitter']).size().reset_index(
+        name='count')
+
+    # Fill NaN neurotransmitter values with 'unknown'
+    stacked_barplot['neurotransmitter'] = stacked_barplot['neurotransmitter'].fillna('unknown')
+
+    # Pivot the data for the stacked barplot
+    pivot_data = stacked_barplot.pivot_table(index='cell_class', columns='neurotransmitter', values='count',
+                                             aggfunc='sum', fill_value=0)
+
+    # Normalize the bars (convert counts to proportions)
+    normalized_data = pivot_data.div(pivot_data.sum(axis=1), axis=0)
+
+    # Plotting with spacing between bars
+    ax = normalized_data.plot(kind='bar', stacked=True, figsize=(10, 6), colormap='viridis', width=0.8)
+
+    # Add space between bars by reducing the bar width and shifting the positions slightly
+    for bar_group in ax.containers:
+        for bar in bar_group:
+            bar.set_x(bar.get_x() + 0.05)  # Add space between bars
+
+    # Adding labels and title
+    plt.title('Normalized Stacked Bar Plot: Neurotransmitters per Cell Class')
+    plt.xlabel('Cell Class')
+    plt.ylabel('Proportion')
+    plt.legend(title='Neurotransmitter', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    neurotransmitter_path = savepath / 'neurotransmitter_plot'
+    os.makedirs(neurotransmitter_path, exist_ok=True)
+    plt.savefig(neurotransmitter_path / 'neurotransmitter_stacked_barplot.pdf')
+    plt.show()
