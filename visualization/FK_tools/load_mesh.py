@@ -29,13 +29,16 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         cell_name_em_obj = f'em_fish1_{cell.cell_name}'
         path_seed_cells_em = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em / 'mapped'
         path_89189_postsynaptic_em = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
+        path_89189_presynaptic_em = path / 'em_zfish1' / 'presynapses' / 'cell_89189_presynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_10_postsynaptic_em = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_11_postsynaptic_em = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
         path_19_postsynaptic_em = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em / 'mapped'
+
         path_dt_em = path / 'em_zfish1' / 'search4putativeDTs' / 'output_data' / cell_name_em_obj / 'mapped'
         cell_name_em_obj = f'em_fish1_{cell.cell_name}'
         path_seed_cells_em_obj = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em_obj / 'mapped'
         path_89189_postsynaptic_em_obj = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_89189_presynaptic_em_obj = path / 'em_zfish1' / 'presynapses' / 'cell_89189_presynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_10_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_11_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_19_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
@@ -44,6 +47,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         cell_name_em = f'em_zfish1_{cell.cell_name}'
         path_seed_cells_em =            path / 'em_zfish1' / 'all_cells_repaired'
         path_89189_postsynaptic_em =    path / 'em_zfish1' / 'all_cells_repaired'
+        path_89189_presynaptic_em = path / 'em_zfish1' / 'all_cells_repaired'
         path_10_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
         path_11_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
         path_19_postsynaptic_em =       path / 'em_zfish1' / 'all_cells_repaired'
@@ -51,6 +55,7 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         cell_name_em_obj = f'em_fish1_{cell.cell_name}'
         path_seed_cells_em_obj = path / 'em_zfish1' / 'data_seed_cells' / 'output_data' / cell_name_em_obj / 'mapped'
         path_89189_postsynaptic_em_obj = path / 'em_zfish1' / 'data_cell_89189_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
+        path_89189_presynaptic_em_obj = path / 'em_zfish1' / 'presynapses' / 'cell_89189_presynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_10_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_010_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_11_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_011_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
         path_19_postsynaptic_em_obj = path / 'em_zfish1' / 'cell_019_postsynaptic_partners' / 'output_data' / cell_name_em_obj / 'mapped'
@@ -111,23 +116,20 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
 
                 if path_seed_cells_em.exists():
                     file_path = path_seed_cells_em / f'{cell_name_em}{suffix}.swc'
-
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_89189_postsynaptic_em.exists():
                     file_path = path_89189_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
+                elif path_89189_presynaptic_em.exists():
+                    file_path = path_89189_presynaptic_em / f'{cell_name_em}{suffix}.swc'
                 elif path_10_postsynaptic_em.exists():
                     file_path = path_10_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_11_postsynaptic_em.exists():
                     file_path = path_11_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_19_postsynaptic_em.exists():
                     file_path = path_19_postsynaptic_em / f'{cell_name_em}{suffix}.swc'
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
                 elif path_dt_em.exists():
                     file_path = path_dt_em / f'{cell_name_em}{suffix}.swc'
-                    cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
+
+                cell['swc'] = load_file(file_path, 'SWC', is_swc=True)
 
 
 
@@ -153,6 +155,8 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
                 file_path = path_seed_cells_em_obj
             elif path_89189_postsynaptic_em_obj.exists():
                 file_path = path_89189_postsynaptic_em_obj
+            elif path_89189_presynaptic_em_obj.exists():
+                file_path = path_89189_presynaptic_em_obj
             elif path_10_postsynaptic_em_obj.exists():
                 file_path = path_10_postsynaptic_em_obj
             elif path_11_postsynaptic_em_obj.exists():
