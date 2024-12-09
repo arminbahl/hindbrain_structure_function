@@ -1179,7 +1179,8 @@ class class_predictor:
 
         return bool_features_2_use, max_accuracy_key, train_mod, test_mod
 
-    def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None, save_features=False,cv_method_RFE='lpo'):
+    def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None,
+                            save_features=False, cv_method_RFE='lpo', metric='accuracy'):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
         """
         Selects features using Recursive Feature Elimination (RFE) or RFECV.
@@ -1233,15 +1234,29 @@ class class_predictor:
                 acc_list = []
                 for i in np.arange(1, self.features_fk.shape[1] + 1):
                     selector = RFE(estimator, n_features_to_select=i, step=1).fit(self.features_fk, self.labels_fk)
-                    acc = self.do_cv(method=cv_method_RFE, clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
-                                     train_mod=train_mod, test_mod=test_mod, figure_label=str(estimator) + "_n" + str(i), fraction_across_classes=True,n_repeats=100, idx=selector.support_, plot=False)
+                    try:
+                        acc, length = self.do_cv(method=cv_method_RFE,
+                                                 clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                                                 feature_type='fk',
+                                                 train_mod=train_mod, test_mod=test_mod,
+                                                 figure_label=str(estimator) + "_n" + str(i),
+                                                 fraction_across_classes=True, n_repeats=100, idx=selector.support_,
+                                                 plot=False, metric=metric)
+                    except:
+                        acc = self.do_cv(method=cv_method_RFE,
+                                         clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                                         feature_type='fk',
+                                         train_mod=train_mod, test_mod=test_mod,
+                                         figure_label=str(estimator) + "_n" + str(i),
+                                         fraction_across_classes=True, n_repeats=100, idx=selector.support_,
+                                         plot=False, metric=metric)
                     acc_list.append(acc)
                 plt.figure()
                 plt.plot(acc_list)
                 plt.axvline(np.nanargmax(acc_list), c='red', alpha=0.3)
                 plt.text(np.nanargmax(acc_list) + 1, np.mean(plt.ylim()), f'n = {np.nanargmax(acc_list) + 1}', fontsize=12, color='red', ha='left', va='bottom')
                 plt.gca().set_xticks(np.arange(0, self.features_fk.shape[1], 3), np.arange(1, self.features_fk.shape[1] + 2, 3))
-                plt.title(f"{str(estimator)}\nAccuracy {acc_list[np.nanargmax(acc_list)]}%", fontsize='small')
+                plt.title(f"{str(estimator)}\n{metric} {acc_list[np.nanargmax(acc_list)]}%", fontsize='small')
                 selector = RFE(estimator, n_features_to_select=np.nanargmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
 
                 temp_str = f"Estimator_{str(estimator)}\nfeatures_{np.sum(selector.support_)}"
@@ -1284,7 +1299,8 @@ class class_predictor:
                         print(temp_str, '\n')
                         accuracy = self.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'), feature_type='fk',
                                               train_mod=train_mod, test_mod=test_mod, figure_label=temp_str,
-                                              fraction_across_classes=False, idx=selector.support_, plot=True)
+                                              fraction_across_classes=False, idx=selector.support_, plot=True,
+                                              metric=metric)
                         temp_path = self.path / 'prediction' / 'RFECV'
                         os.makedirs(temp_path, exist_ok=True)
                         temp_str = str(int(np.round(accuracy))) + "_" + temp_str.replace('\n', "_")
@@ -1298,7 +1314,7 @@ class class_predictor:
                 self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
-              fraction_across_classes=True, idx=None, plot=True, return_cm=False, proba_cutoff=None):
+              fraction_across_classes=True, idx=None, plot=True, return_cm=False, proba_cutoff=None, metric='accuracy'):
         """
         Perform cross-validation on the given classifier and dataset.
 
@@ -1570,9 +1586,16 @@ class class_predictor:
             return cm
         else:
             if proba_cutoff is not None:
-                return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
+                if metric == 'accuracy':
+                    return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
+                elif metric == 'f1':
+                    return f1_score(true_labels, pred_labels, average='weighted'), len(pred_labels)
             else:
-                return round(accuracy_score(true_labels, pred_labels) * 100, 2)
+                if metric == 'accuracy':
+                    return round(accuracy_score(true_labels, pred_labels) * 100, 2), len(pred_labels)
+                elif metric == 'f1':
+                    return f1_score(true_labels, pred_labels, average='weighted'), len(pred_labels)
+
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
@@ -1623,7 +1646,8 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
 
-    def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False):
+    def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False,
+                                       load_summit_matrix=True):
 
         acronym_dict = {'dynamic_threshold': "dt",
                         'integrator_contralateral': "ci",
@@ -1652,8 +1676,13 @@ class class_predictor:
             with open(path,'wb') as f:
                 pickle.dump(self.smat_fish, f)
         else:
-            with open(path,'rb') as f:
-                self.smat_fish = pickle.load(f)
+            if load_summit_matrix:
+                temp = pd.read_csv(self.path / 'custom_matrix.csv', index_col=0)
+                self.smat_fish = navis.nbl.ablast_funcs.Lookup2d.from_dataframe(temp)
+                pass
+            else:
+                with open(path, 'rb') as f:
+                    self.smat_fish = pickle.load(f)
 
         # perform nblast calculation
         self.nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
@@ -2111,11 +2140,11 @@ if __name__ == "__main__":
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                                         modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_241204')
 
 
     # with_neurotransmitter.calculate_published_metrics()
-    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_241204', with_neg_control=True,
                                               drop_neurotransmitter=False)
     #throw out truncated, exits and growth cone
     with_neurotransmitter.remove_incomplete()
@@ -2124,7 +2153,7 @@ if __name__ == "__main__":
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=Perceptron(random_state=0), cv_method_RFE='lpo')
+                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss', metric='f1')
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
@@ -2137,22 +2166,22 @@ if __name__ == "__main__":
     with_neurotransmitter.predict_cells(use_jon_priors=False, suffix='_optimize_all_predict')
     with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
-    with_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+    with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
 
     with_neurotransmitter.predict_cells(use_jon_priors=True,
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
     with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
     with_neurotransmitter.plot_neurons('clem',
                                        output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
-    with_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+    with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
 
     # without neurotrasnmitter
     without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     without_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                                            modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_241204')  #
     # with_neurotransmitter.calculate_published_metrics()
-    without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+    without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_241204', with_neg_control=True,
                                                  drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
     without_neurotransmitter.remove_incomplete()
@@ -2160,7 +2189,7 @@ if __name__ == "__main__":
     without_neurotransmitter.add_new_morphology_annotation()
     # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                                 estimator=Perceptron(random_state=0), cv_method_RFE='lpo')
+                                                 estimator=Perceptron(random_state=0), cv_method_RFE='ss', metric='f1')
     # make confusion matrices
     without_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
     # predict cells
@@ -2170,14 +2199,14 @@ if __name__ == "__main__":
                                           output_filename='EM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
     without_neurotransmitter.plot_neurons('clem',
                                           output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+    without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
     without_neurotransmitter.predict_cells(use_jon_priors=False,
                                            suffix='_optimize_all_predict_without_neurotransmitter')
     without_neurotransmitter.plot_neurons('EM',
                                           output_filename='EM_predicted_optimize_all_predict_without_neurotransmitter.html')
     without_neurotransmitter.plot_neurons('clem',
                                           output_filename='CLEM_predicted_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.calculate_verification_metrics(calculate_smat=True, with_kunst=False)
+    without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
 
 
     def plot_on_verification(df, modality='clem', scaled=False, cutoff=8):
