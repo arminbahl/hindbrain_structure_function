@@ -36,10 +36,12 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'),'13772')
         em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'),'149747')
         em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'),'119243')
+        em_table6 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('presynapses').joinpath(
+            'cell_89189_presynaptic_partners').joinpath('output_data'), '119243')
         em_table_dt = load_em_table(
             path_to_data.joinpath('em_zfish1').joinpath('search4putativeDTs').joinpath('output_data'), 'DT')
-        em_table = pd.concat([em_table1, em_table2, em_table3, em_table4, em_table5, em_table_dt])
-        em_table.loc[:, "classifier"] = em_table.loc[:, "classifier"].apply(lambda x: x.replace('?', ""))
+        em_table = pd.concat([em_table1, em_table2, em_table3, em_table4, em_table5, em_table6, em_table_dt])
+        em_table.loc[:, "classifier"] = None
         table_list.append(em_table)
 
 
