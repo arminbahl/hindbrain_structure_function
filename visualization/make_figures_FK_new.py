@@ -98,6 +98,7 @@ class make_figures_FK:
 
         # Define a dictionary mapping cell types to specific RGBA color codes for consistent visual representation.
         self.color_cell_type_dict = {
+            'to_predict': (0, 0, 0, 1),
             "integrator_ipsilateral": (254, 179, 38, 0.7),
             "ipsilateral_integrator": (254, 179, 38, 0.7),
             "integrator_contralateral": (232, 77, 138, 0.7),
@@ -694,7 +695,7 @@ if __name__ == "__main__":
                              mirror=True,
                              only_soma=True,
                              load_what='swc',
-                             cell_type=cell_type)
+                             cell_type='')
 
         kk.plot_y_projection(show_brs=True,
                              which_brs="raphe",
