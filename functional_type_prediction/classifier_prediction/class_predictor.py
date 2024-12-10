@@ -2172,6 +2172,9 @@ if __name__ == "__main__":
     with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
+    print(with_neurotransmitter.prediction_predict_df.loc[
+              with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
+                  'cell_name', 'prediction', 'prediction_scaled']])
 
     with_neurotransmitter.predict_cells(use_jon_priors=True,
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
