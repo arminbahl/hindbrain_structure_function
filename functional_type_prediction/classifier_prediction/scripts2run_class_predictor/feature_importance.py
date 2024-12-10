@@ -19,13 +19,14 @@ if __name__ == "__main__":
     test.add_new_morphology_annotation()
 
     test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=Perceptron(random_state=0),
-                             cv_method_RFE='ss')
+                             cv_method_RFE='ss', metric='f1')
 
     np.random.seed(42)
     copy_features = copy.deepcopy(test.features_fk)
     reference_value = test.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
                                  feature_type='fk',
-                                 train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False)
+                                 train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False,
+                                 metric='f1')[0]
     mean_permutated_accuracy = []
     importance = []
 
@@ -41,8 +42,8 @@ if __name__ == "__main__":
                 np.random.shuffle(test.features_fk[:, j])
                 a = test.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
                                feature_type='fk',
-                               train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False)
-                permutated_accuracy.append(a)
+                               train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False, metric='f1')
+                permutated_accuracy.append(a[0])
             mean_permutated_accuracy.append(np.mean(permutated_accuracy))
             importance.append(reference_value - (1 / K) * np.sum(permutated_accuracy))
             test.features_fk = copy_features
