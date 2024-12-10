@@ -425,7 +425,8 @@ class class_predictor:
         self.pa_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'photoactivation').to_numpy()
         self.em_idx_with_to_predict = (self.cells_with_to_predict['imaging_modality'] == 'EM').to_numpy()
 
-    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], neg_control=True):
+    def load_cells_df(self, kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem'], neg_control=True,
+                      input_em=True):
         """
         This method loads the cells dataframe and applies the preprocessing pipeline to the data.
 
@@ -454,7 +455,8 @@ class class_predictor:
 
         self.cells_with_to_predict = load_cells_predictor_pipeline(path_to_data=Path(self.path),
                                                                    modalities=modalities,
-                                                                   load_repaired=True)
+                                                                   load_repaired=True,
+                                                                   input_em=input_em)
 
         self.cells_with_to_predict = self.prepare_data_4_metric_calc(self.cells_with_to_predict, neg_control=neg_control)
         self.cells_with_to_predict = self.cells_with_to_predict.loc[self.cells_with_to_predict.cell_name.apply(lambda x: False if 'axon' in x else True), :]
@@ -1658,7 +1660,6 @@ class class_predictor:
                         'neg_control': "nc"}
 
         #check if ipsi got asigned as contra and vice versa
-        print(self.prediction_predict_df.groupby(['morphology_clone', 'prediction']).size())
 
         train_cells = self.prediction_train_df
         to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
@@ -2141,7 +2142,8 @@ if __name__ == "__main__":
     # load metrics and cells
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
-                                        modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
+                                        modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True,
+                                        input_em=True)
     with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_241204')
 
 
@@ -2155,8 +2157,8 @@ if __name__ == "__main__":
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss',
-                                              metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0)
+                                              estimator=RidgeClassifier(random_state=0), cv_method_RFE='ss',
+                                              metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0) AdaBoostClassifier(random state=0)|
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
     n_estimators_rf = 100
@@ -2178,39 +2180,40 @@ if __name__ == "__main__":
                                        output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
 
-    # without neurotrasnmitter
-    without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
-    without_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
-                                           modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_241204')  #
-    # with_neurotransmitter.calculate_published_metrics()
-    without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_241204', with_neg_control=True,
-                                                 drop_neurotransmitter=False)
-    # throw out truncated, exits and growth cone
-    without_neurotransmitter.remove_incomplete()
-    # apply gregors manual morphology annotations
-    without_neurotransmitter.add_new_morphology_annotation()
-    # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
-    without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                                 estimator=Perceptron(random_state=0), cv_method_RFE='ss',
-                                                 metric='accuracy')
-    # make confusion matrices
-    without_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
-    # predict cells
-    without_neurotransmitter.predict_cells(use_jon_priors=True,
-                                           suffix='_optimize_all_predict_without_neurotransmitter')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
-    without_neurotransmitter.plot_neurons('EM',
-                                          output_filename='EM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.plot_neurons('clem',
-                                          output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
-    without_neurotransmitter.predict_cells(use_jon_priors=False,
-                                           suffix='_optimize_all_predict_without_neurotransmitter')
-    without_neurotransmitter.plot_neurons('EM',
-                                          output_filename='EM_predicted_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.plot_neurons('clem',
-                                          output_filename='CLEM_predicted_optimize_all_predict_without_neurotransmitter.html')
-    without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
+
+    # # without neurotrasnmitter
+    # without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
+    # without_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
+    #                                        modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
+    # without_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    # # with_neurotransmitter.calculate_published_metrics()
+    # without_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+    #                                              drop_neurotransmitter=True)
+    # # throw out truncated, exits and growth cone
+    # without_neurotransmitter.remove_incomplete()
+    # # apply gregors manual morphology annotations
+    # without_neurotransmitter.add_new_morphology_annotation()
+    # # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
+    # without_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
+    #                                              estimator=LogisticRegression(random_state=0), cv_method_RFE='ss',
+    #                                              metric='accuracy')
+    # # make confusion matrices
+    # without_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
+    # # predict cells
+    # without_neurotransmitter.predict_cells(use_jon_priors=True,
+    #                                        suffix='_optimize_all_predict_without_neurotransmitter')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
+    # without_neurotransmitter.plot_neurons('EM',
+    #                                       output_filename='EM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
+    # without_neurotransmitter.plot_neurons('clem',
+    #                                       output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict_without_neurotransmitter.html')
+    # without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
+    # without_neurotransmitter.predict_cells(use_jon_priors=False,
+    #                                        suffix='_optimize_all_predict_without_neurotransmitter')
+    # without_neurotransmitter.plot_neurons('EM',
+    #                                       output_filename='EM_predicted_optimize_all_predict_without_neurotransmitter.html')
+    # without_neurotransmitter.plot_neurons('clem',
+    #                                       output_filename='CLEM_predicted_optimize_all_predict_without_neurotransmitter.html')
+    # without_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False)
 
 
     def plot_on_verification(df, modality='clem', scaled=False, cutoff=8):
