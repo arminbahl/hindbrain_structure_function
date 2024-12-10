@@ -14,7 +14,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                                   use_smooth=True,
                                   load_repaired=False,
                                   load_both=False,
-                                  summarize_off_response=True):
+                                  summarize_off_response=True, input_em=True):
     # Load the photoactivation table if 'pa' modality is selected; path assumes a specific directory structure.
     table_list = []
     if 'pa' in modalities:
@@ -36,13 +36,19 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         em_table3 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_010_postsynaptic_partners').joinpath('output_data'),'13772')
         em_table4 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_011_postsynaptic_partners').joinpath('output_data'),'149747')
         em_table5 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('cell_019_postsynaptic_partners').joinpath('output_data'),'119243')
-        em_table6 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('presynapses').joinpath(
-            'cell_89189_presynaptic_partners').joinpath('output_data'), '119243')
         em_table_dt = load_em_table(
             path_to_data.joinpath('em_zfish1').joinpath('search4putativeDTs').joinpath('output_data'), 'DT')
-        em_table = pd.concat([em_table1, em_table2, em_table3, em_table4, em_table5, em_table6, em_table_dt])
-        em_table.loc[:, "classifier"] = None
-        table_list.append(em_table)
+        if input_em:
+            em_table6 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('presynapses').joinpath(
+                'cell_89189_presynaptic_partners').joinpath('output_data'), 'p119243')
+            em_table = pd.concat([em_table1, em_table2, em_table3, em_table4, em_table5, em_table6, em_table_dt])
+            em_table.loc[:, "classifier"] = None
+            table_list.append(em_table)
+        else:
+
+            em_table = pd.concat([em_table1, em_table2, em_table3, em_table4, em_table5, em_table_dt])
+            em_table.loc[:, "classifier"] = None
+            table_list.append(em_table)
 
 
     if 'clem_predict' in modalities:
@@ -146,28 +152,33 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
 
         if cell.imaging_modality == "EM":
+
             if True in list(cell['swc'].nodes.loc[:, "x"] > (width_brain / 2)+10):
                 all_cells.loc[i, 'morphology'] = 'contralateral'
             else:
                 all_cells.loc[i, 'morphology'] = 'ipsilateral'
             try:
-                path_to_neurotransmitter_xlsx = \
-                [x for x in cell.metadata_path.parent.parent.parent.glob('*.xlsx') if "inh_exc" in str(x)][0]
-                neurotransmitter_df = pd.read_excel(path_to_neurotransmitter_xlsx)
-                if not neurotransmitter_df.loc[
-                    neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].empty:
-                    try:
-                        neurotransmitter = neurotransmitter_df.loc[
-                            neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].item().lower()
-                    except:
-                        neurotransmitter = neurotransmitter_df.loc[
-                            neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].item()
+                if cell.cell_name == "147009" or cell.cell_name == "102596":
+                    all_cells.loc[i, 'neurotransmitter'] = 'inhibitory'
+                    pass
                 else:
-                    neurotransmitter = 'nan'
-                if neurotransmitter in neurotransmitter_dict.keys():
-                    all_cells.loc[i, 'neurotransmitter'] = neurotransmitter_dict[neurotransmitter]
-                else:
-                    all_cells.loc[i, 'neurotransmitter'] = 'na'
+                    path_to_neurotransmitter_xlsx = \
+                        [x for x in cell.metadata_path.parent.parent.parent.glob('*.xlsx') if "inh_exc" in str(x)][0]
+                    neurotransmitter_df = pd.read_excel(path_to_neurotransmitter_xlsx)
+                    if not neurotransmitter_df.loc[
+                        neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].empty:
+                        try:
+                            neurotransmitter = neurotransmitter_df.loc[
+                                neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].item().lower()
+                        except:
+                            neurotransmitter = neurotransmitter_df.loc[
+                                neurotransmitter_df['id'] == int(cell.cell_name), 'neurotransmitter_ID'].item()
+                    else:
+                        neurotransmitter = 'nan'
+                    if neurotransmitter in neurotransmitter_dict.keys():
+                        all_cells.loc[i, 'neurotransmitter'] = neurotransmitter_dict[neurotransmitter]
+                    else:
+                        all_cells.loc[i, 'neurotransmitter'] = 'na'
             except:
                 all_cells.loc[i, 'neurotransmitter'] = 'na'
 
