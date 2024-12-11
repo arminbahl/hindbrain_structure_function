@@ -126,7 +126,8 @@ class make_figures_FK:
             row['swc'].nodes.loc[:, 'node_id'] = row['swc'].nodes.loc[:, 'node_id'] + 1
             row['swc'].nodes.loc[:, 'parent_id'] = row['swc'].nodes.loc[:, 'parent_id'] + 1
             row['swc'].nodes.iloc[0, -2] = -1
-            row['swc'].soma = 1
+
+            row['swc'].soma = int(row['swc'].nodes.loc[row['swc'].nodes.type == 'root', 'node_id'])
             return row
 
         all_cells = load_cells_predictor_pipeline(modalities=modalities,
@@ -135,7 +136,7 @@ class make_figures_FK:
                                                   path_to_data=self.path_to_data,
                                                   use_smooth=use_smooth_pa,
                                                   load_repaired=True,
-                                                  load_both=False,
+                                                  load_both=True,
                                                   summarize_off_response=True)
         all_cells = all_cells.apply(prepare_neuron, axis=1)
 
@@ -198,7 +199,8 @@ class make_figures_FK:
 
     def plot_projection(self, projection='z', show_brs=False, force_new_cell_list=False, rasterize=True,
                         black_neuron=True, standard_size=True, volume_outlines=True, background_gray=True,
-                        only_soma=False, midline=True, plot_synapse_distribution=True, which_brs='raphe'):
+                        only_soma=False, midline=True, plot_synapse_distribution=True, which_brs='raphe',
+                        plot_em_mesh=True):
         """
         Generates and saves a 2D projection plot of visualized brain cells, optionally including selected brain regions and other visual enhancements.
 
@@ -242,8 +244,17 @@ class make_figures_FK:
 
         # Iterate over all cells to determine their colors based on their types and specific conditions.
         for i, cell in self.all_cells.iterrows():
-            self.color_cells.append(self.color_cell_type_dict[cell['function']])
-            self.visualized_cells.append(cell['swc'])
+
+            if plot_em_mesh and cell.imaging_modality == "EM":
+                self.visualized_cells.append(cell['soma_mesh'])
+                self.visualized_cells.append(cell['axon_mesh'])
+                self.visualized_cells.append(cell['dendrite_mesh'])
+                self.color_cells.append(self.color_cell_type_dict[cell['function']])
+                self.color_cells.append(self.color_cell_type_dict[cell['function']])
+                self.color_cells.append(self.color_cell_type_dict[cell['function']])
+            else:
+                self.visualized_cells.append(cell['swc'])
+                self.color_cells.append(self.color_cell_type_dict[cell['function']])
 
         # Load brain regions and initialize settings for plot if selected brain regions should be shown.
         if show_brs:
@@ -425,7 +436,7 @@ class make_figures_FK:
         Note:
         - For a detailed explanation of all customizable parameters, refer to the docstring of the `plot_projection` method.
         """
-        self.plot_projection(projection='y',
+        self.plot_projection(projection='y', plot_em_mesh=True,
                              **kwargs)  # Directly calls the plot_projection method with 'y' axis setting
 
     def plot_z_projection(self, **kwargs):
@@ -446,7 +457,7 @@ class make_figures_FK:
         Note:
         - For detailed descriptions of all customizable parameters, refer to the docstring of the `plot_projection` method.
         """
-        self.plot_projection(projection='z',
+        self.plot_projection(projection='z', plot_em_mesh=True,
                              **kwargs)  # Directly calls the plot_projection method with 'x' axis setting
 
     def make_interactive(self, show_brs=True, force_new_cell_list=False, which_brs='whole_brain'):
