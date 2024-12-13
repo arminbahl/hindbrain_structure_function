@@ -13,10 +13,13 @@ from pathlib import Path
 warnings.filterwarnings("ignore")
 
 def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_repaired=False):
+
     if cell['imaging_modality'] == 'clem' and not load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path_functionally_imaged = path / 'clem_zfish1' / 'functionally_imaged' / cell_name_clem / 'mapped'
         clem_path_non_functionally_imaged = path / 'clem_zfish1' / 'non_functionally_imaged' / cell_name_clem / 'mapped'
+        clem_path_functionally_imaged_111224 = path / 'clem_zfish1' / 'new_batch_111224' / 'functionally_imaged_111224' / cell_name_clem / 'mapped'
+        clem_path_non_functionally_imaged_111224 = path / 'clem_zfish1' / 'new_batch_111224' / 'non_functionally_imaged_111224' / cell_name_clem / 'mapped'
     elif cell['imaging_modality'] == 'clem' and load_repaired:
         cell_name_clem = f'clem_zfish1_{cell.cell_name}'
         clem_path_repaired = path / 'clem_zfish1' / 'all_cells_repaired'
@@ -70,11 +73,6 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
         pa_path = path / 'paGFP' / str(cell.cell_name)
     elif cell['imaging_modality'] == 'photoactivation' and load_repaired:
         pa_path = path / 'paGFP' /'all_cells_repaired'
-
-
-
-    if load_both:
-        swc = True
 
     def load_file(file_path, file_type, is_swc=False):
         if file_path.exists():
@@ -182,6 +180,64 @@ def load_mesh(cell, path, swc=False, use_smooth_pa=False, load_both=False,load_r
             cell['neurites_mesh'] = load_file(pa_path / f'{cell.cell_name}{file_suffix}', 'neurites')
             cell['soma_mesh'] = load_file(pa_path / f'{cell.cell_name}_soma.obj', 'soma')
             cell['all_mesh'] = load_file(pa_path / f'{cell.cell_name}_combined.obj', 'Combined file')
+
+    if type(cell['swc']) != float:
+        cell['swc'].nodes.loc[:, 'radius'] = 0.5
+        cell['swc'].nodes.loc[0, 'radius'] = 2
+    if type(cell['swc']) == float:
+        pass
+    return cell
+
+
+def load_mesh_new(cell, swc=False, use_smooth_pa=False, load_both=False, load_repaired=False):
+    def load_file(file_path, file_type, is_swc=False):
+        if file_path.exists():
+
+            return navis.read_swc(file_path, units="um", read_meta=False) if is_swc else navis.read_mesh(file_path,
+                                                                                                         units="um")
+        else:
+            print(f"No {file_type} found at {file_path}")
+            return np.nan
+
+    if load_both:
+        swc = True
+    file_suffix = '_mapped.swc' if cell['imaging_modality'] != 'photoactivation' else '.swc'
+    if swc:
+        file_suffix = '_smoothed.swc' if use_smooth_pa and cell[
+            'imaging_modality'] == 'photoactivation' else file_suffix
+        file_suffix = "_repaired" + file_suffix if load_repaired else file_suffix
+
+    cell_name = cell['cell_name']
+    if cell['imaging_modality'] == 'clem':
+        cell_name = f'clem_zfish1_{cell.cell_name}'
+    elif cell['imaging_modality'].lower() == 'em':
+        cell_name = f'em_fish1_{cell.cell_name}'
+
+    if cell['imaging_modality'] == 'photoactivation':
+        path = (cell.metadata_path.parent / (cell_name + file_suffix))
+    else:
+        path = (cell.metadata_path.parent / 'mapped' / (cell_name + file_suffix))
+
+    if swc:
+        cell['swc'] = load_file(path, 'SWC', is_swc=True)
+    if not swc or load_both:
+        if cell['imaging_modality'] == 'clem':
+            cell['axon_mesh'] = load_file(path.parent / f'{cell_name}_axon_mapped.obj', 'axon')
+            if not 'axon' in cell_name:
+                cell['dendrite_mesh'] = load_file(path.parent / f'{cell_name}_dendrite_mapped.obj', 'dendrite')
+                cell['soma_mesh'] = load_file(path.parent / f'{cell_name}_soma_mapped.obj', 'soma')
+        elif cell['imaging_modality'] == 'EM':
+            cell['axon_mesh'] = load_file(path.parent / f'{cell_name}_axon_mapped.obj', 'axon')
+
+            cell['dendrite_mesh'] = load_file(path.parent / f'{cell_name}_dendrite_mapped.obj', 'dendrite')
+            cell['soma_mesh'] = load_file(path.parent / f'{cell_name}_soma_mapped.obj', 'soma')
+        elif cell['imaging_modality'] == 'photoactivation':
+            if use_smooth_pa:
+                cell['neurites_mesh'] = load_file(path.parent / f'{cell_name}_smoothed.obj', 'neurites')
+            else:
+                cell['neurites_mesh'] = load_file(path.parent / f'{cell_name}.obj', 'neurites')
+            cell['soma_mesh'] = load_file(path.parent / f'{cell_name}_soma.obj', 'soma')
+            cell['all_mesh'] = load_file(path.parent / f'{cell_name}_combined.obj', 'Combined file')
 
     if type(cell['swc']) != float:
         cell['swc'].nodes.loc[:, 'radius'] = 0.5
