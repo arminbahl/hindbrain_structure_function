@@ -25,9 +25,22 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
     if 'clem' in modalities:
         clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('functionally_imaged'))
+    if 'clem_predict' in modalities:
+        clem_predict_table = load_clem_table(
+            path_to_data.joinpath('clem_zfish1').joinpath('non_functionally_imaged'))
+        table_list.append(clem_predict_table)
 
 
         table_list.append(clem_table)
+    if 'clem241211' in modalities:
+        clem_table = load_clem_table(
+            path_to_data.joinpath('clem_zfish1').joinpath('new_batch_111224').joinpath('functionally_imaged_111224'))
+        table_list.append(clem_table)
+
+    if 'clem_predict241211' in modalities:
+        clem_predict_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('new_batch_111224').joinpath(
+            'non_functionally_imaged_111224'))
+        table_list.append(clem_predict_table)
 
 
     if 'em' in modalities:
@@ -51,9 +64,7 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
             table_list.append(em_table)
 
 
-    if 'clem_predict' in modalities:
-        clem_predict_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('non_functionally_imaged'))
-        table_list.append(clem_predict_table)
+
 
     # Concatenate data from different modalities into a single DataFrame if multiple modalities are specified.
     if len(modalities) > 1:
@@ -86,7 +97,9 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     # Load mesh data for each cell based on selected modalities and smoothing setting.
     for i, cell in all_cells.iterrows():
-        all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=load_repaired,load_both=load_both)
+        # all_cells.loc[i, :] = load_mesh(cell, path_to_data, use_smooth_pa=use_smooth, swc=True,load_repaired=load_repaired,load_both=load_both)
+        all_cells.loc[i, :] = load_mesh_new(cell, use_smooth_pa=use_smooth, swc=True, load_repaired=load_repaired,
+                                            load_both=load_both)
         if type(all_cells.loc[i,'swc']) == float:
             print(f'{cell.cell_name} is not a TreeNeuron\n')
 
