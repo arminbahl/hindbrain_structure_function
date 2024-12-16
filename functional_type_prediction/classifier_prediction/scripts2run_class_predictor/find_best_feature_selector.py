@@ -62,19 +62,19 @@ if __name__ == "__main__":
     # load metrics and cells
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
-                                        modalities=['pa', 'clem', 'em', 'clem_predict'], neg_control=True)
-    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA_241204')
+                                        modalities=['pa', 'clem241211', 'em', 'clem_predict241211'], neg_control=True)
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211')
 
     # with_neurotransmitter.calculate_published_metrics()
-    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA_241204', with_neg_control=True,
+    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211', with_neg_control=True,
                                               drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
     with_neurotransmitter.remove_incomplete()
     # apply gregors manual morphology annotations
     with_neurotransmitter.add_new_morphology_annotation()
     # select features
-    with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, cv_method_RFE='lpo',
-                                              metric='accuracy')  # runs through all estimator
+    with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, cv_method_RFE='ss',
+                                              metric='f1')  # runs through all estimator
 
     # # without neurotrasnmitter
     # without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
