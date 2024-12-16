@@ -232,6 +232,7 @@ class class_predictor:
                         df.loc[i, 'direction_selectivity'] = float(t.split('\n')[13].split(' ')[2].strip('"'))
                         df.loc[i, 'time_constant'] = int(t.split('\n')[14].split(' ')[2].strip('"'))
 
+
                 elif cell.imaging_modality == "clem":
                     if cell.function == "neg_control":
                         df.loc[i, 'kmeans_function'] = 'neg_control'
@@ -239,12 +240,21 @@ class class_predictor:
                         df.loc[i, 'kmeans_function'] = 'to_predict'
                     else:
                         temp_path_clem = (str(cell.metadata_path)[:-4] + "_with_regressor.txt")
-                        with open(temp_path_clem, 'r') as f:
-                            t = f.read()
-                            df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
-                            df.loc[i, 'reliability'] = float(t.split('\n')[16].split(' ')[2].strip('"'))
-                            df.loc[i, 'direction_selectivity'] = float(t.split('\n')[17].split(' ')[2].strip('"'))
-                            df.loc[i, 'time_constant'] = int(t.split('\n')[18].split(' ')[2].strip('"'))
+                        if '111224' in temp_path_clem:
+                            temp_path_clem = temp_path_clem.replace('new_batch_111224/', "").replace('_111224', '')
+                        if Path(temp_path_clem).exists():
+                            with open(temp_path_clem, 'r') as f:
+                                t = f.read()
+                                df.loc[i, 'kmeans_function'] = t.split('\n')[15].split(' ')[2].strip('"')
+                                df.loc[i, 'reliability'] = float(t.split('\n')[16].split(' ')[2].strip('"'))
+                                df.loc[i, 'direction_selectivity'] = float(t.split('\n')[17].split(' ')[2].strip('"'))
+                                df.loc[i, 'time_constant'] = int(t.split('\n')[18].split(' ')[2].strip('"'))
+                        else:
+
+                            df.loc[i, 'kmeans_function'] = cell['function']
+                            df.loc[i, 'reliability'] = np.nan
+                            df.loc[i, 'direction_selectivity'] = np.nan
+                            df.loc[i, 'time_constant'] = np.nan
 
                 elif cell.imaging_modality == "EM":
                     df.loc[i, 'kmeans_function'] = df.loc[i, 'function']
