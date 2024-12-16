@@ -53,7 +53,7 @@ def load_em_table(path,presynaptic=None):
             else:
                 df = pd.concat([df,temp_row])
     df.reset_index(drop=True)
-
+    df['imaging_modality'] = 'EM'
     df = df.rename(columns={"name": "bad_name",'id':'cell_name'})
     df.loc[:,'cell_name'] = df['cell_name'].astype(str)
     return df
