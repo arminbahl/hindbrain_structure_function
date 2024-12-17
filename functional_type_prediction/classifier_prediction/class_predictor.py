@@ -1332,7 +1332,8 @@ class class_predictor:
                 self.select_method = str(str(estimator) + "_" + str(all_scoring) + "_" + str(cv_method))
 
     def do_cv(self, method: str, clf, feature_type, train_mod, test_mod, n_repeats=100, test_size=0.3, p=1, ax=None, figure_label='error:no figure label', spines_red=False,
-              fraction_across_classes=True, idx=None, plot=True, return_cm=False, proba_cutoff=None, metric='accuracy'):
+              fraction_across_classes=True, idx=None, plot=True, return_cm=False, proba_cutoff=None, metric='accuracy',
+              plot_cm_order_jon=False):
         """
         Perform cross-validation on the given classifier and dataset.
 
@@ -1561,18 +1562,30 @@ class class_predictor:
             self.cm = cm
 
         if plot:
+            if plot_cm_order_jon:
+                new_order = [2, 1, 0, 3]
+                cm_plot = cm[np.ix_(new_order, new_order)]
+
+            else:
+                cm_plot = cm
+
             split = f"{(1 - test_size) * 100}:{test_size * 100}"
             if ax is None:
                 fig, ax = plt.subplots(figsize=(10, 10))
-                ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
+                ConfusionMatrixDisplay(cm_plot).plot(ax=ax, cmap='Blues')
                 if method == "ss":
                     plt.title(
                         f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 elif method == 'lpo':
                     plt.title(
                         f"Confusion Matrix (LPO = {p})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
+
                 ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
                 ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
+                if plot_cm_order_jon:
+                    ax.set_xticklabels(['II', 'IC', "DT", 'MC'])
+                    ax.set_yticklabels(['II', 'IC', "DT", 'MC'])
+
                 if spines_red:
                     ax.spines['bottom'].set_color('red')
                     ax.spines['top'].set_color('red')
@@ -1584,7 +1597,7 @@ class class_predictor:
                     ax.spines['right'].set_linewidth(2)
 
             else:
-                ConfusionMatrixDisplay(cm).plot(ax=ax, cmap='Blues')
+                ConfusionMatrixDisplay(cm_plot).plot(ax=ax, cmap='Blues')
                 if method == "ss":
                     ax.set_title(
                         f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
@@ -1593,6 +1606,9 @@ class class_predictor:
                         f"Confusion Matrix (LPO = {p})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
                 ax.set_xticklabels([acronym_dict[x] for x in clf_work.classes_])
                 ax.set_yticklabels([acronym_dict[x] for x in clf_work.classes_])
+                if plot_cm_order_jon:
+                    ax.set_xticklabels(['II', 'IC', "DT", 'MC'])
+                    ax.set_yticklabels(['II', 'IC', "DT", 'MC'])
                 if spines_red:
                     ax.spines['bottom'].set_color('red')
                     ax.spines['top'].set_color('red')
@@ -1619,7 +1635,7 @@ class class_predictor:
 
     def confusion_matrices(self, clf, method: str, n_repeats=100,
                            test_size=0.3, p=1,
-                           fraction_across_classes=False, feature_type='fk',idx=None):
+                           fraction_across_classes=False, feature_type='fk', idx=None, plot_cm_order_jon=False):
         """
         Generate and save confusion matrices for different training and testing modalities.
 
@@ -1660,7 +1676,8 @@ class class_predictor:
             for test_mod, loc_y in zip(['ALL', "CLEM", "PA"], range(3)):
                 spines_red = train_mod + test_mod in target_train_test
                 self.do_cv(method, clf, feature_type, train_mod.lower(), test_mod.lower(), figure_label=f'{train_mod}_{test_mod}',
-                           ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes, n_repeats=n_repeats, test_size=test_size, p=p,idx=idx)
+                           ax=ax[loc_x, loc_y], spines_red=spines_red, fraction_across_classes=fraction_across_classes,
+                           n_repeats=n_repeats, test_size=test_size, p=p, idx=idx, plot_cm_order_jon=plot_cm_order_jon)
         fig.suptitle(suptitle, fontsize='xx-large')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.png')
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
