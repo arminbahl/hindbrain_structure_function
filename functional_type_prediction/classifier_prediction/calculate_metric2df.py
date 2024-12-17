@@ -91,7 +91,7 @@ def calculate_metric2df(cell_df, file_name, path_to_data, force_new=False):
             else:
                 branches_df = pd.concat([branches_df, temp])
 
-        for i, cell in tqdm(cell_df.iterrows()):
+        for i, cell in tqdm(cell_df.iterrows(), total=cell_df.shape[0]):
             cell_df.loc[i, "main_path_longest_neurite"] = branches_df.loc[(branches_df['cell_name'] == cell.cell_name) &
                                                                           (branches_df['main_path']) &
                                                                           (branches_df['end_type'] != 'end'), 'longest_neurite_in_branch'].iloc[0]
