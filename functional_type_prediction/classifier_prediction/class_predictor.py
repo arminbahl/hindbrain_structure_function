@@ -1684,7 +1684,19 @@ class class_predictor:
         plt.show()
 
     def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False,
-                                       load_summit_matrix=True):
+                                       load_summit_matrix=True, required_tests=['NBLAST_general_pass'],
+                                       force_new=False):
+        # NBLAST_general_pass
+        # NBLAST_zscore_pass
+        # NBLAST_anderson_ksamp_passed
+        # NBLAST_anderson_ksamp_passed_scaled
+        # NBLAST_ks_2samp_passed
+        # NBLAST_ks_2samp_passed_scaled
+        # probability_test_passed
+        # probability_test_passed_scaled
+        # OCSVM
+        # IF
+        # LOF
 
         acronym_dict = {'dynamic_threshold': "dt",
                         'integrator_contralateral': "ci",
@@ -1880,7 +1892,7 @@ class class_predictor:
                           'NBLAST_anderson_ksamp_passed', 'NBLAST_anderson_ksamp_passed_scaled',
                           'NBLAST_ks_2samp_passed',
                           'NBLAST_ks_2samp_passed_scaled', 'probability_test_passed', 'probability_test_passed_scaled',
-                          'OCSVM', 'IF', 'LOF', 'sum_passed', 'sum_passed_scaled']
+                          'OCSVM', 'IF', 'LOF', 'sum_passed', 'sum_passed_scaled', 'passed_tests']
 
         sum_columns = ['NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_anderson_ksamp_passed',
                        'NBLAST_ks_2samp_passed', 'OCSVM', 'IF', 'LOF']
@@ -1891,6 +1903,9 @@ class class_predictor:
         self.prediction_predict_df['sum_passed_scaled'] = self.prediction_predict_df.loc[:, sum_columns_scaled].astype(
             int).sum(
             axis=1)
+
+        self.prediction_predict_df['passed_tests'] = False
+        self.prediction_predict_df.loc[self.prediction_predict_df[required_tests].all(axis=1), 'passed_tests'] = True
 
         def find_newest_file(suffix, path, imaging_modality='clem'):
             if imaging_modality.lower() == 'clem':
@@ -1931,7 +1946,12 @@ class class_predictor:
                                                                                                 'prediction_scaled']].reset_index(
                 drop=True)
                                    == newest_em.loc[:, ['prediction', 'prediction_scaled']]).all().all()
+
         except:
+            save_prediction_em = True
+
+        if force_new:
+            save_prediction_clem = True
             save_prediction_em = True
         if save_prediction_clem:
             self.prediction_predict_df.loc[
