@@ -229,7 +229,7 @@ if __name__ == '__main__':
     #
     # all_cells = pd.concat([all_cells_clem_predict,all_cells_em,all_cells_clem,all_cells_pa])
     all_cells = load_cells_predictor_pipeline(path_to_data=path_to_data,
-                                              modalities=['pa', 'clem', 'em', 'clem_predict', 'clem241211',
+                                              modalities=['clem241211',  # 'pa', 'clem', 'em', 'clem_predict',
                                                           'clem_predict241211'], mirror=False,
                                               load_repaired=False)
     all_cells = all_cells.dropna(subset='swc', axis=0)
