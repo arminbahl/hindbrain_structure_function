@@ -32,7 +32,7 @@ if __name__ == "__main__":
     clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
     clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
     # make confusion matrices
-    with_neurotransmitter.confusion_matrices(clf_fk, method='lpo')
+    with_neurotransmitter.confusion_matrices(clf_fk, method='lpo', plot_cm_order_jon=True)
     # predict cells
     with_neurotransmitter.predict_cells(use_jon_priors=True,
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
