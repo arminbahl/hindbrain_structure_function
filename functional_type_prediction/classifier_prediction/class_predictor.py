@@ -32,7 +32,10 @@ from slack_sdk import WebClient
 from sklearn.metrics import accuracy_score
 from matplotlib.patches import Patch
 import scipy.stats as stats
-
+import datetime
+import glob
+import os
+import re
 
 def send_slack_message(RECEIVER="Florian Kämpf",MESSAGE="Script finished!"):
     slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
@@ -1287,6 +1290,7 @@ class class_predictor:
                 temp_str = str(int(np.round(np.nanmax(acc_list)))) + "_" + temp_str.replace('\n', "_")
 
                 plt.savefig(temp_path / f"{temp_str}.png")
+                plt.savefig(temp_path / f"{temp_str}.pdf")
 
                 plt.show()
                 selector = RFE(estimator, n_features_to_select=np.argmax(acc_list) + 1, step=1).fit(self.features_fk, self.labels_fk)
@@ -1551,8 +1555,10 @@ class class_predictor:
                         pass
         if fraction_across_classes:
             cm = confusion_matrix(true_labels, pred_labels, normalize='true').astype(float)
+            self.cm = cm
         else:
             cm = confusion_matrix(true_labels, pred_labels, normalize='pred').astype(float)
+            self.cm = cm
 
         if plot:
             split = f"{(1 - test_size) * 100}:{test_size * 100}"
@@ -1869,11 +1875,56 @@ class class_predictor:
             int).sum(
             axis=1)
 
-        self.prediction_predict_df.loc[
-            self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(
-            self.path / 'clem_zfish1' / f'clem_cell_prediction{self.suffix}.xlsx')
-        self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(
-            self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}.xlsx')
+        def find_newest_file(suffix, path, imaging_modality='clem'):
+            if imaging_modality.lower() == 'clem':
+                imaging_modality = imaging_modality.lower()
+            elif imaging_modality.lower() == 'em':
+                imaging_modality = imaging_modality.lower()
+            # compare if new data
+
+            file_pattern = f"{imaging_modality}_cell_prediction{suffix}_*.xlsx"
+            files = glob.glob(os.path.join(path, file_pattern))
+            date_pattern = r"_(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})\.xlsx"
+
+            # Extract dates and sort by the newest
+            def extract_date(file):
+                match = re.search(date_pattern, file)
+                return match.group(1) if match else None
+
+            return max(files, key=lambda f: extract_date(f) or "", default=None)
+
+        newest_clem = pd.read_excel(find_newest_file(self.suffix, self.path / 'clem_zfish1'))
+        newest_clem = newest_clem.drop(newest_clem.columns[0], axis=1)
+
+        newest_em = pd.read_excel(find_newest_file(self.suffix, self.path / 'em_zfish1', imaging_modality='em'))
+        newest_em = newest_em.drop(newest_em.columns[0], axis=1)
+
+        try:
+            save_prediction_clem = ~(self.prediction_predict_df.loc[
+                                         self.prediction_predict_df['imaging_modality'] == 'clem', ['prediction',
+                                                                                                    'prediction_scaled']].reset_index(
+                drop=True)
+                                     == newest_clem.loc[:, ['prediction', 'prediction_scaled']]).all().all()
+        except:
+            save_prediction_clem = True
+
+        try:
+            save_prediction_em = ~(self.prediction_predict_df.loc[
+                                       self.prediction_predict_df['imaging_modality'] == 'EM', ['prediction',
+                                                                                                'prediction_scaled']].reset_index(
+                drop=True)
+                                   == newest_em.loc[:, ['prediction', 'prediction_scaled']]).all().all()
+        except:
+            save_prediction_em = True
+        if save_prediction_clem:
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(
+                self.path / 'clem_zfish1' / f'clem_cell_prediction{self.suffix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx')
+
+        if save_prediction_em:
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(
+                self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx')
 
         for i, item in self.prediction_predict_df.iterrows():
             if not item.cell_name in list(self.nb_matches_cells_train.id):
@@ -2127,11 +2178,18 @@ class class_predictor:
                                              (self.all_cells_with_to_predict['function'] == 'dynamic_threshold')&
                                              (self.all_cells_with_to_predict['imaging_modality'] == 'clem'), 0] = morphology_in_features_dict[morphology]
 
-    def remove_incomplete(self,growth_cone=False,exits_volume=False,truncated=False):
+    def remove_incomplete(self, dendrites_and_axon_complete=False, growth_cone=False, exits_volume=False,
+                          truncated=False):
         if growth_cone:
             bool_growth_cone = ['growth cone' not in str(x) for x in self.cells.comment]
         else:
             bool_growth_cone = [True for x in self.cells.comment]
+        if dendrites_and_axon_complete:
+            bool_daa_reconstructed = all_cells.reconstruction_status.loc[
+                np.array(['axon complete, dendrites complete' in str(x) for x in self.cells.reconstruction_status])]
+        else:
+            bool_daa_reconstructed = [True for x in self.cells.reconstruction_status]
+
         if exits_volume:
             bool_exits = ['exit' not in str(x) for x in self.cells.comment]
         else:
@@ -2140,7 +2198,8 @@ class class_predictor:
             bool_truncated = ['truncated' not in str(x) for x in self.cells.comment]
         else:
             bool_truncated = [True for x in self.cells.comment]
-        bool_all = np.array(bool_truncated)*np.array(bool_growth_cone)*np.array(bool_exits)
+        bool_all = np.array(bool_truncated) * np.array(bool_growth_cone) * np.array(bool_exits) * np.array(
+            bool_daa_reconstructed)
         self.cells = self.cells[bool_all]
         self.all_cells = self.all_cells[bool_all]
         self.features_fk = self.features_fk[bool_all]
@@ -2149,6 +2208,7 @@ class class_predictor:
         self.clem_idx = (self.cells['imaging_modality'] == 'clem').to_numpy()
 
 if __name__ == "__main__":
+    send_slack_message(MESSAGE='Start Script!')
     # load metrics and cells
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
@@ -2194,7 +2254,7 @@ if __name__ == "__main__":
               with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
                   'cell_name', 'prediction', 'prediction_scaled']])
 
-
+    send_slack_message(MESSAGE='Finished Script!')
 
     # # without neurotrasnmitter
     # without_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
