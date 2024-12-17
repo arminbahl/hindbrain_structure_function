@@ -228,7 +228,12 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
         all_cells.loc[(~all_cells['function'].isin(['integrator','dynamic_threshold','motor_command']))&
                       (all_cells['function']!='to_predict'), 'function'] = 'neg_control'
 
+    temp_bool0 = all_cells['imaging_modality'] == 'clem'
+    temp_bool1 = all_cells['reconstruction_status'] != 'axon complete, dendrites complete'
+    temp_bool2 = all_cells['function'].isin(['integrator', 'dynamic_threshold', 'motor_command'])
+    temp_bool_all = np.array(temp_bool0 * temp_bool1 * temp_bool2)
 
+    all_cells = all_cells.loc[~(temp_bool_all), :]
     return all_cells
 
 if __name__ == '__main__':
