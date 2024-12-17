@@ -5,11 +5,13 @@ from hindbrain_structure_function.functional_type_prediction.classifier_predicti
 if __name__ == "__main__":
     # load metrics and cells
     test = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
-    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True, modalities=['pa', 'clem', 'em', 'clem_predict'],
-                       neg_control=True)
-    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_PA')  #
+    test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
+                       modalities=['pa', 'clem241211', 'em', 'clem_predict241211'], neg_control=True,
+                       input_em=True)
+    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216')  #
     # test.calculate_published_metrics()
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True, drop_neurotransmitter=False)
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216', with_neg_control=True,
+                             drop_neurotransmitter=False)
 
     # throw out truncated, exits and growth cone
     test.remove_incomplete()
@@ -23,7 +25,7 @@ if __name__ == "__main__":
 
     np.random.seed(42)
     copy_features = copy.deepcopy(test.features_fk)
-    reference_value = test.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+    reference_value = test.do_cv(method='ss', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
                                  feature_type='fk',
                                  train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False,
                                  metric='f1')[0]
@@ -35,12 +37,13 @@ if __name__ == "__main__":
         if test.reduced_features_idx[j]:
             permutated_accuracy = []
             for i in range(K):
-                test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_PA', with_neg_control=True,
+                test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216',
+                                         with_neg_control=True,
                                          drop_neurotransmitter=False)
                 test.remove_incomplete()
                 test.add_new_morphology_annotation()
                 np.random.shuffle(test.features_fk[:, j])
-                a = test.do_cv(method='lpo', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
+                a = test.do_cv(method='ss', clf=LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto'),
                                feature_type='fk',
                                train_mod='all', test_mod='clem', idx=test.reduced_features_idx, plot=False, metric='f1')
                 permutated_accuracy.append(a[0])
