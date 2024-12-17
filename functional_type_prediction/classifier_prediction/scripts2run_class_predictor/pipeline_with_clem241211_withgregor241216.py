@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # select features
     # test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=AdaBoostClassifier(random_state=0), cv_method_RFE='ss',
+                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss',
                                               metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0) AdaBoostClassifier(random state=0)|
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
