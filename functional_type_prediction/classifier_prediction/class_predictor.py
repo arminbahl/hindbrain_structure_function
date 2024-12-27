@@ -1573,6 +1573,8 @@ class class_predictor:
             if ax is None:
                 fig, ax = plt.subplots(figsize=(10, 10))
                 ConfusionMatrixDisplay(cm_plot).plot(ax=ax, cmap='Blues')
+                im = ax.images[0]
+                im.set_clim(0, 1)
                 if method == "ss":
                     plt.title(
                         f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
@@ -1598,6 +1600,9 @@ class class_predictor:
 
             else:
                 ConfusionMatrixDisplay(cm_plot).plot(ax=ax, cmap='Blues')
+                im = ax.images[0]
+                im.set_clim(0, 1)
+
                 if method == "ss":
                     ax.set_title(
                         f"Confusion Matrix (SS {split} x{n_repeats})" + f'\nF1 Score: {round(f1_score(true_labels, pred_labels, average='weighted'), 3)}' + f'\n{figure_label}')
@@ -2222,7 +2227,7 @@ class class_predictor:
         else:
             bool_growth_cone = [True for x in self.cells.comment]
         if dendrites_and_axon_complete:
-            bool_daa_reconstructed = all_cells.reconstruction_status.loc[
+            bool_daa_reconstructed = self.cells.reconstruction_status.loc[
                 np.array(['axon complete, dendrites complete' in str(x) for x in self.cells.reconstruction_status])]
         else:
             bool_daa_reconstructed = [True for x in self.cells.reconstruction_status]
