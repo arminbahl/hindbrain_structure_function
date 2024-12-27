@@ -41,14 +41,14 @@ if __name__ == "__main__":
                                        output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
                                                          required_tests=['NBLAST_ks_2samp_passed', 'IF',
-                                                                         'NBLAST_general_pass'], force_new=True)
+                                                                         'NBLAST_general_pass'], force_new=False)
 
     with_neurotransmitter.predict_cells(use_jon_priors=False, suffix='_optimize_all_predict')
     with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
                                                          required_tests=['NBLAST_ks_2samp_passed', 'IF',
-                                                                         'NBLAST_general_pass'], force_new=True)
+                                                                         'NBLAST_general_pass'], force_new=False)
     print(with_neurotransmitter.prediction_predict_df.loc[
               with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
                   'cell_name', 'prediction', 'prediction_scaled']])
