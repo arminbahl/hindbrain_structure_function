@@ -75,6 +75,13 @@ def plot_validation_metric_matrix(df, title='no title'):
     for irow in range(len(df.index)):
         for icol in range(len(df.columns)):
             plt.text(icol, irow, f'{df.iloc[irow, icol]:.5f}', ha='center', va='center', color='w', fontsize=2)
+
+    savepath = Path(
+        '/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/prediction/test_verification_metrics')
+    os.makedirs(savepath, exist_ok=True)
+    plt.savefig(
+        savepath / f'{title.replace(" ", "_").replace(".", "_")}.pdf',
+        bbox_inches='tight')
     plt.show()
 if __name__ == "__main__":
     # load metrics and cells
@@ -131,7 +138,7 @@ if __name__ == "__main__":
 
     # plot the accuracy while varying the validation metrics
     plot_validation_metric_matrix(verification_accuracy_matrix_f1,
-                                  'Accuracy after applying validation metrics.')
+                                  'F1 after applying validation metrics.')
 
     # plot the number of cells while varying the validation metrics
     plot_validation_metric_matrix(verification_n_cells_matrix,
@@ -149,5 +156,4 @@ if __name__ == "__main__":
                                                                                        clem_func_recorded['prediction'],
                                                                                        average='weighted')
     plot_validation_metric_matrix(verification_accuracy_matrix_delta_F1,
-                                  '∂Accuracy after applying validation metrics.')
-
+                                  '∂F1 after applying validation metrics.')
