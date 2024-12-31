@@ -1424,7 +1424,10 @@ class class_predictor:
             labels_test = self.labels_fk_[mod2idx[test_mod]]
 
         if idx is None:
-            idx = self.reduced_features_idx
+            if hasattr(self, 'reduced_features_idx') and feature_type == 'fk':
+                idx = self.reduced_features_idx
+            else:
+                idx = np.full(len(self.pa_idx), True)
         features_train = extract_features(feature_type, mod2idx, train_mod, idx)
         features_test = extract_features(feature_type, mod2idx, test_mod, idx)
         labels_train = self.labels_fk[mod2idx[train_mod]]
