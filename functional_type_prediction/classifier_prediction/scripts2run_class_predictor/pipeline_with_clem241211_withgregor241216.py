@@ -48,7 +48,7 @@ if __name__ == "__main__":
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
                                                          required_tests=['NBLAST_ks_2samp_passed', 'IF',
-                                                                         'NBLAST_general_pass'], force_new=False)
+                                                                         'NBLAST_general_pass'], force_new=True)
     print(with_neurotransmitter.prediction_predict_df.loc[
               with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
                   'cell_name', 'prediction', 'prediction_scaled']])
