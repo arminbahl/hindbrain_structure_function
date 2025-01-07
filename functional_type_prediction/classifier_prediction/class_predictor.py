@@ -1829,6 +1829,9 @@ class class_predictor:
             else:
                 query = self.nb_train_predict.loc[
                     self.nb_train_predict.index != cell['cell_name'], cell["cell_name"]].to_numpy()
+                query = self.nb_train_predict.loc[
+                    eval(f"names_{acronym_dict[cell['prediction']].lower()}"), cell["cell_name"]].to_numpy()
+
                 reference_df = self.nb_matches_cells_predict
 
             query_cell_highest_nblast = reference_df.loc[reference_df['id'] == cell.cell_name, 'score_1'].iloc[0]
@@ -1861,22 +1864,22 @@ class class_predictor:
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed'] = stats.anderson_ksamp(
-                [target, query]).pvalue <= 0.05
+                [target, query]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed_scaled'] = stats.anderson_ksamp(
-                [target_scaled, query]).pvalue <= 0.05
+                [target_scaled, query]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed'] = stats.ks_2samp(
-                target, query).pvalue <= 0.05
+                target, query).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed_scaled'] = stats.ks_2samp(
-                target_scaled, query).pvalue <= 0.05
+                target_scaled, query).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
@@ -2137,7 +2140,7 @@ class class_predictor:
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction_scaled'] = [clf.classes_[x] for x in predicted_int_temp]
 
-    def plot_neurons(self, modality: str,scaled:bool=True, output_filename: str = "test.html") -> None:
+    def plot_neurons(self, modality: str, scaled: bool = True, output_filename: str = "test.html", sub_df=None) -> None:
         """
         Plots interactive 3D representations of neurons using the `navis` library and `plotly`.
 
@@ -2173,7 +2176,12 @@ class class_predictor:
             raise ValueError(f"Invalid modality '{modality}'. Must be one of: {valid_modalities}")
 
         # Filter neurons by modality
-        sub_df = self.prediction_predict_df[self.prediction_predict_df['imaging_modality'] == modality].copy().sort_values(f'prediction{scaled_suffix}')
+        if sub_df is None:
+            sub_df = self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == modality, :]
+
+        else:
+            sub_df = sub_df.loc[sub_df['passed_tests'], :]
+        sub_df = sub_df[sub_df['imaging_modality'] == modality].copy().sort_values(f'prediction{scaled_suffix}')
         colors = [self.color_dict[pred] for pred in sub_df[f'prediction{scaled_suffix}']]
 
         # Prepare neurons for visualization
