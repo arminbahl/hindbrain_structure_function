@@ -1692,16 +1692,16 @@ class class_predictor:
         plt.show()
 
     def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False,
-                                       load_summit_matrix=True, required_tests=['NBLAST_general_pass'],
+                                       load_summit_matrix=True, required_tests=['NBLAST_g'],
                                        force_new=False):
-        # NBLAST_general_pass
-        # NBLAST_zscore_pass
-        # NBLAST_anderson_ksamp_passed
-        # NBLAST_anderson_ksamp_passed_scaled
-        # NBLAST_ks_2samp_passed
-        # NBLAST_ks_2samp_passed_scaled
-        # probability_test_passed
-        # probability_test_passed_scaled
+        # NBLAST_g
+        # NBLAST_zs
+        # NBLAST_al
+        # NBLAST_ak_scaled
+        # NBLAST_ks_2samp
+        # NBLAST_ks_2samp_scaled
+        # probability_test
+        # probability_test_scaled
         # OCSVM
         # IF
         # LOF
@@ -1788,8 +1788,8 @@ class class_predictor:
         z_score_mc = lambda x: abs((x - np.mean(list(self.nblast_values_mc.score_2))) / np.std(list(self.nblast_values_mc.score_2)))
 
         # use the average .25 percentile of DTs and CIs as a cutoff for the general nblast
-        cutoff = np.mean([self.nblast_values_dt.score_2.quantile(0.25), self.nblast_values_ci.score_2.quantile(
-            0.25)])  # TODO review this with gregor and jon and armin
+        cutoff = self.nblast_values_dt.score_2.min()
+
         print(f'{(self.nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
 
         subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
@@ -1837,15 +1837,15 @@ class class_predictor:
             query_cell_highest_nblast = reference_df.loc[reference_df['id'] == cell.cell_name, 'score_1'].iloc[0]
 
             self.prediction_predict_df.loc[
-                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_general_pass'] \
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_g'] \
                 = query_cell_highest_nblast > cutoff
 
             self.prediction_predict_df.loc[
-                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_zscore_pass'] \
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_z'] \
                 = eval(f"z_score_{acronym_dict[cell['prediction']]}")(query_cell_highest_nblast) <= 1.96
 
             self.prediction_predict_df.loc[
-                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_zscore_pass_scaled'] \
+                self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_z_scaled'] \
                 = eval(f"z_score_{acronym_dict[cell['prediction_scaled']]}")(query_cell_highest_nblast) <= 1.96
 
             # compare distribution of a single cell vs the classes
@@ -1855,42 +1855,73 @@ class class_predictor:
                 target.index != cell['cell_name'], target.columns != cell['cell_name'],].to_numpy().flatten()
             target = target[target < 1]
 
+
             target_scaled = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}"), eval(
                 f"names_{acronym_dict[cell['prediction_scaled']].lower()}")]
             target_scaled = target_scaled.loc[target_scaled.index != cell['cell_name'], target_scaled.columns != cell[
                 'cell_name'],].to_numpy().flatten()
             target_scaled = target_scaled[target_scaled < 1]
+            # target = target[target>=np.quantile(target,0.2)]
+
+            # import seaborn as sns
+            #
+            # sns.kdeplot(target, label='target')
+            # sns.kdeplot(query, label='query')
+            # plt.legend()
+            # plt.show()
+
+            # statistical tests
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed'] = stats.anderson_ksamp(
+                    'cell_name'] == cell.cell_name, 'NBLAST_ak'] = stats.anderson_ksamp(
                 [target, query]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'NBLAST_anderson_ksamp_passed_scaled'] = stats.anderson_ksamp(
+                    'cell_name'] == cell.cell_name, 'NBLAST_ak_scaled'] = stats.anderson_ksamp(
                 [target_scaled, query]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed'] = stats.ks_2samp(
+                    'cell_name'] == cell.cell_name, 'NBLAST_ks'] = stats.ks_2samp(
                 target, query).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'NBLAST_ks_2samp_passed_scaled'] = stats.ks_2samp(
+                    'cell_name'] == cell.cell_name, 'NBLAST_ks_scaled'] = stats.ks_2samp(
                 target_scaled, query).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'probability_test_passed'] = (cell[['II_proba',
+                    'cell_name'] == cell.cell_name, 'CVM'] = stats.cramervonmises_2samp(
+                target, query).pvalue > 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'CVM_scaled'] = stats.cramervonmises_2samp(
+                target_scaled, query).pvalue > 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'MWU'] = stats.mannwhitneyu(
+                target, query).pvalue > 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'MWU_scaled'] = stats.mannwhitneyu(
+                target_scaled, query).pvalue > 0.05
+
+            self.prediction_predict_df.loc[
+                self.prediction_predict_df[
+                    'cell_name'] == cell.cell_name, 'probability_test'] = (cell[['II_proba',
                                                                                         'MC_proba',
                                                                                         'CI_proba',
                                                                                         'DT_proba']] > 0.7).any()
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
-                    'cell_name'] == cell.cell_name, 'probability_test_passed_scaled'] = (cell[['II_proba_scaled',
+                    'cell_name'] == cell.cell_name, 'probability_test_scaled'] = (cell[['II_proba_scaled',
                                                                                                'MC_proba_scaled',
                                                                                                'CI_proba_scaled',
                                                                                                'DT_proba_scaled']] > 0.7).any()
@@ -1899,19 +1930,20 @@ class class_predictor:
                           'DT_proba', 'CI_proba',
                           'II_proba', 'MC_proba', 'prediction_scaled', 'DT_proba_scaled', 'CI_proba_scaled',
                           'II_proba_scaled',
-                          'MC_proba_scaled', 'NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_zscore_pass_scaled',
-                          'NBLAST_anderson_ksamp_passed', 'NBLAST_anderson_ksamp_passed_scaled',
-                          'NBLAST_ks_2samp_passed',
-                          'NBLAST_ks_2samp_passed_scaled', 'probability_test_passed', 'probability_test_passed_scaled',
-                          'OCSVM', 'IF', 'LOF', 'sum_passed', 'sum_passed_scaled', 'passed_tests']
+                          'MC_proba_scaled', 'NBLAST_g', 'NBLAST_z', 'NBLAST_z_scaled',
+                          'NBLAST_ak', 'NBLAST_ak_scaled',
+                          'NBLAST_ks',
+                          'NBLAST_ks_scaled', 'probability_test', 'probability_test_scaled',
+                          'OCSVM', 'IF', 'LOF', 'CVM', 'CVM_scaled', 'MWU',
+                          'MWU_scaled', 'sum', 'sum_scaled', 'passed_tests']
 
-        sum_columns = ['NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_anderson_ksamp_passed',
-                       'NBLAST_ks_2samp_passed', 'OCSVM', 'IF', 'LOF']
-        sum_columns_scaled = ['NBLAST_general_pass', 'NBLAST_zscore_pass_scaled', 'NBLAST_anderson_ksamp_passed_scaled',
-                              'NBLAST_ks_2samp_passed_scaled', 'OCSVM', 'IF', 'LOF']
-        self.prediction_predict_df['sum_passed'] = self.prediction_predict_df.loc[:, sum_columns].astype(int).sum(
+        sum_columns = ['NBLAST_g', 'NBLAST_z', 'NBLAST_ak',
+                       'NBLAST_ks', 'OCSVM', 'IF', 'LOF']
+        sum_columns_scaled = ['NBLAST_g', 'NBLAST_z_scaled', 'NBLAST_ak_scaled',
+                              'NBLAST_ks_scaled', 'OCSVM', 'IF', 'LOF']
+        self.prediction_predict_df['sum'] = self.prediction_predict_df.loc[:, sum_columns].astype(int).sum(
             axis=1)
-        self.prediction_predict_df['sum_passed_scaled'] = self.prediction_predict_df.loc[:, sum_columns_scaled].astype(
+        self.prediction_predict_df['sum_scaled'] = self.prediction_predict_df.loc[:, sum_columns_scaled].astype(
             int).sum(
             axis=1)
 
@@ -2140,7 +2172,8 @@ class class_predictor:
         predicted_int_temp = np.argmax(self.prediction_predict_df.loc[:, ['DT_proba_scaled', 'CI_proba_scaled', 'II_proba_scaled', 'MC_proba_scaled']].to_numpy(), axis=1)
         self.prediction_predict_df['prediction_scaled'] = [clf.classes_[x] for x in predicted_int_temp]
 
-    def plot_neurons(self, modality: str, scaled: bool = True, output_filename: str = "test.html", sub_df=None) -> None:
+    def plot_neurons(self, modality: str, scaled: bool = True, output_filename: str = "test.html",
+                     only_pass=False) -> None:
         """
         Plots interactive 3D representations of neurons using the `navis` library and `plotly`.
 
@@ -2176,11 +2209,12 @@ class class_predictor:
             raise ValueError(f"Invalid modality '{modality}'. Must be one of: {valid_modalities}")
 
         # Filter neurons by modality
-        if sub_df is None:
+        if not only_pass:
             sub_df = self.prediction_predict_df.loc[self.prediction_predict_df['imaging_modality'] == modality, :]
 
         else:
-            sub_df = sub_df.loc[sub_df['passed_tests'], :]
+            sub_df = self.prediction_predict_df.loc[(self.prediction_predict_df['imaging_modality'] == modality) & (
+            self.prediction_predict_df['passed_tests']), :]
         sub_df = sub_df[sub_df['imaging_modality'] == modality].copy().sort_values(f'prediction{scaled_suffix}')
         colors = [self.color_dict[pred] for pred in sub_df[f'prediction{scaled_suffix}']]
 
@@ -2361,10 +2395,10 @@ if __name__ == "__main__":
             "motor_command": '#7f58afb3',
         }
         scaled_suffix = "prediction"
-        sum_suffix = 'sum_passed'
+        sum_suffix = 'sum'
         if scaled:
             scaled_suffix = 'prediction_scaled'
-            sum_suffix = 'sum_passed_scaled'
+            sum_suffix = 'sum_scaled'
 
         sub_df = df[
             (df['imaging_modality'] == modality) &
