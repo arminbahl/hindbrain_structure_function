@@ -34,21 +34,39 @@ if __name__ == "__main__":
     # make confusion matrices
     with_neurotransmitter.confusion_matrices(clf_fk, method='lpo', plot_cm_order_jon=True)
     # predict cells
-    with_neurotransmitter.predict_cells(use_jon_priors=True,
+    with_neurotransmitter.predict_cells(use_jon_priors=False,
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
-    with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_with_jon_priors_optimize_all_predict.html')
-    with_neurotransmitter.plot_neurons('clem',
-                                       output_filename='CLEM_predicted_with_jon_priors_optimize_all_predict.html')
-    with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['NBLAST_ks_2samp_passed', 'IF',
-                                                                         'NBLAST_general_pass'], force_new=False)
 
-    with_neurotransmitter.predict_cells(use_jon_priors=False, suffix='_optimize_all_predict')
-    with_neurotransmitter.plot_neurons('EM', output_filename='EM_predicted_optimize_all_predict.html')
-    with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['NBLAST_ks_2samp_passed', 'IF',
-                                                                         'NBLAST_general_pass'], force_new=True)
-    print(with_neurotransmitter.prediction_predict_df.loc[
-              with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
-                  'cell_name', 'prediction', 'prediction_scaled']])
+                                                         required_tests=['NBLAST_g', 'NBLAST_z', 'CVM'], force_new=True)
+
+    # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak','NBLAST_ks'
+    # jon satisfied and gregors IIs 'NBLAST_g', 'NBLAST_z', 'CVM'
+
+    # 'NBLAST_ks_2samp_passed', 'IF','NBLAST_general_pass'
+    # 'NBLAST_general_pass','NBLAST_zscore_pass','NBLAST_anderson_ksamp_passed','NBLAST_ks_2samp_passed'
+
+    # this codes looks how much different the new metrics are
+    # print('new_metrics')
+    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality').size())
+    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality')['passed_tests'].sum())
+
+    # with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
+    #                                                      required_tests=['NBLAST_ks_2samp_passed', 'IF','NBLAST_general_pass'], force_new=True)
+    # print('old_metrics')
+    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality').size())
+    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality')['passed_tests'].sum())
+    #
+    #
+    # print(with_neurotransmitter.prediction_predict_df.loc[
+    #           with_neurotransmitter.prediction_predict_df['cell_name'].isin(['147009', '102596']), [
+    #               'cell_name', 'prediction', 'prediction_scaled']])
+
+    with_neurotransmitter.plot_neurons('EM',
+                                       output_filename='EM_predicted_optimize_all_predict.html')
+    with_neurotransmitter.plot_neurons('EM',
+                                       output_filename='EM_predicted_only_pass_tests.html',
+                                       only_pass=True)
+
+    with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
+    with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_only_pass_tests.html', only_pass=True)
