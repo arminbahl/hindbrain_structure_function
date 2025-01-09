@@ -53,7 +53,7 @@ def calc_validation_metric_matrix(df, variables, scaled=False):
 
 
 def plot_validation_metric_matrix(df, title='no title'):
-    plt.figure(dpi=1000)
+    plt.figure(dpi=1200)
     plt.imshow(np.array(df).astype(float))
     plt.colorbar()
     plt.xticks(np.arange(len(df.columns)),
@@ -74,7 +74,7 @@ def plot_validation_metric_matrix(df, title='no title'):
               fontsize='small')
     for irow in range(len(df.index)):
         for icol in range(len(df.columns)):
-            plt.text(icol, irow, f'{df.iloc[irow, icol]:.5f}', ha='center', va='center', color='w', fontsize=2)
+            plt.text(icol, irow, f'{df.iloc[irow, icol]:.5f}', ha='center', va='center', color='w', fontsize=1)
 
     savepath = Path(
         '/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/prediction/test_verification_metrics')
@@ -125,10 +125,10 @@ if __name__ == "__main__":
         with_neurotransmitter.prediction_predict_df['imaging_modality'] == 'clem']
 
     # calculate the matrices
-    variables = ['NBLAST_general_pass', 'NBLAST_zscore_pass', 'NBLAST_anderson_ksamp_passed',
-                 'NBLAST_ks_2samp_passed', 'OCSVM', 'IF', 'LOF']
-    variables_scaled = ['NBLAST_general_pass', 'NBLAST_zscore_pass_scaled', 'NBLAST_anderson_ksamp_passed_scaled',
-                        'NBLAST_ks_2samp_passed_scaled', 'OCSVM', 'IF', 'LOF']
+    variables = ['NBLAST_g', 'NBLAST_z', 'NBLAST_ak',
+                 'NBLAST_ks', 'OCSVM', 'IF', 'LOF', 'CVM', 'MWU']
+    variables_scaled = ['NBLAST_g', 'NBLAST_z_scaled', 'NBLAST_ak_scaled',
+                        'NBLAST_ks_scaled', 'OCSVM', 'IF', 'LOF']
     verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1 = calc_validation_metric_matrix(
         with_neurotransmitter.prediction_predict_df, variables)
     verification_accuracy_matrix_scaled, verification_n_cells_matrix_scaled, verification_accuracy_matrix_f1_scaled = calc_validation_metric_matrix(
