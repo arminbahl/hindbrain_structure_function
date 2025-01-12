@@ -43,21 +43,7 @@ if __name__ == "__main__":
     # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak','NBLAST_ks'
     # jon satisfied and gregors IIs 'NBLAST_g', 'NBLAST_z', 'MWU'
 
-    # 'NBLAST_ks_2samp_passed', 'IF','NBLAST_general_pass'
-    # 'NBLAST_general_pass','NBLAST_zscore_pass','NBLAST_anderson_ksamp_passed','NBLAST_ks_2samp_passed'
 
-    # this codes looks how much different the new metrics are
-    # print('new_metrics')
-    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality').size())
-    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality')['passed_tests'].sum())
-
-    # with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-    #                                                      required_tests=['NBLAST_ks_2samp_passed', 'IF','NBLAST_general_pass'], force_new=True)
-    # print('old_metrics')
-    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality').size())
-    # print(with_neurotransmitter.prediction_predict_df[with_neurotransmitter.prediction_predict_df.function=='to_predict'].groupby('imaging_modality')['passed_tests'].sum())
-    #
-    #
     print("G II")
     print(with_neurotransmitter.prediction_predict_df.loc[
               with_neurotransmitter.prediction_predict_df['cell_name'].isin(['89189', '137722', '149747', '119243']), [
