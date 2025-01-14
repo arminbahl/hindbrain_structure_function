@@ -1718,36 +1718,37 @@ class class_predictor:
         to_predict_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'to_predict']
         neg_control_cells = self.prediction_predict_df[self.prediction_predict_df.function == 'neg_control']
 
+        # get the subset of cells that belong to each class
         names_dt = train_cells.loc[(train_cells['function'] == 'dynamic_threshold'), 'cell_name']
         names_ii = train_cells.loc[(train_cells['function'] == 'integrator_ipsilateral'), 'cell_name']
         names_ci = train_cells.loc[(train_cells['function'] == 'integrator_contralateral'), 'cell_name']
         names_mc = train_cells.loc[(train_cells['function'] == 'motor_command'), 'cell_name']
-        names_nc = neg_control_cells['cell_name']
-        if with_kunst:
-            path = self.path / 'prediction' / f'smat_fish_with_kunst.pkl'
-        else:
-            path = self.path / 'prediction' / f'smat_fish.pkl'
-        if calculate_smat:
-            self.smat_fish = calculate_zebrafish_nblast_matrix(self.cells_with_to_predict,path_to_data=self.path,with_kunst=with_kunst, return_smat_obj=True, prune=False)
-            with open(path,'wb') as f:
-                pickle.dump(self.smat_fish, f)
-        else:
-            if load_summit_matrix:
-                temp = pd.read_csv(self.path / 'custom_matrix.csv', index_col=0)
-                self.smat_fish = navis.nbl.ablast_funcs.Lookup2d.from_dataframe(temp)
-                pass
-            else:
-                with open(path, 'rb') as f:
-                    self.smat_fish = pickle.load(f)
+
+        # read summits nblast matrix
+        temp = pd.read_csv(self.path / 'custom_matrix.csv', index_col=0)
+        self.smat_fish = navis.nbl.ablast_funcs.Lookup2d.from_dataframe(temp)
+
+        def remove_self_match(df):
+            mask = pd.DataFrame(np.equal.outer(df.index, df.columns), index=df.index, columns=df.columns)
+            df[mask] = np.nan
+            return df
 
         # perform nblast calculation
-        self.nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish, shift_neurons=False)
+        self.nb_train = nblast_two_groups_custom_matrix(train_cells, train_cells, custom_matrix=self.smat_fish,
+                                                        shift_neurons=False)
+        self.nb_train = remove_self_match(self.nb_train)
+
         self.nb_train_nc = nblast_two_groups_custom_matrix(train_cells, neg_control_cells, custom_matrix=self.smat_fish,
                                                            shift_neurons=False)
+        self.nb_train_nc = remove_self_match(self.nb_train_nc)
+
         self.nb_train_predict = nblast_two_groups_custom_matrix(train_cells, to_predict_cells,
                                                                 custom_matrix=self.smat_fish, shift_neurons=False)
+        self.nb_train_predict = remove_self_match(self.nb_train_predict)
+
         if calculate4recorded:
             self.nb_train_predict = pd.concat([self.nb_train, self.nb_train_predict], axis=1)
+            self.nb_train_predict = remove_self_match(self.nb_train_predict)
 
 
         # calculate how separable the classes are with nblast
@@ -1759,40 +1760,34 @@ class class_predictor:
         self.per_class = nb_train_copy.groupby([nb_train_copy.index]).mean().T.groupby(nb_train_copy.index).mean()
 
         #get matches NBLAST
-        self.nb_matches_cells_train = navis.nbl.extract_matches(self.nb_train, 2)
-        self.nb_matches_cells_nc = navis.nbl.extract_matches(self.nb_train_nc.T, 2)
-        self.nb_matches_cells_predict = navis.nbl.extract_matches(self.nb_train_predict.T, 2)
-        if calculate4recorded:
-            nb_matches_cells_predict_2_names = self.nb_matches_cells_predict.loc[
-                self.nb_matches_cells_predict['score_1'] >= 1, 'id']
-            nb_matches_cells_predict2 = navis.nbl.extract_matches(self.nb_train_predict.T, 3)
-            nb_matches_cells_predict2 = nb_matches_cells_predict2.loc[
-                nb_matches_cells_predict2['id'].isin(nb_matches_cells_predict_2_names)].drop(['match_1', 'score_1'],
-                                                                                             axis=1)
-            nb_matches_cells_predict2.columns = ['id', 'match_1', 'score_1', 'match_2', 'score_2']
-            self.nb_matches_cells_predict = pd.concat([self.nb_matches_cells_predict.loc[
-                                                       ~self.nb_matches_cells_predict.id.isin(
-                                                           nb_matches_cells_predict_2_names), :],
-                                                       nb_matches_cells_predict2])
+        self.nb_matches_train = navis.nbl.extract_matches(self.nb_train, 2).loc[:, ['id', 'match_2', 'score_2']].rename(
+            columns={'match_2': 'match_1', 'score_2': 'score_1'})
+        self.nb_matches_nc = navis.nbl.extract_matches(self.nb_train_nc.T, 1)
+        self.nb_matches_predict = navis.nbl.extract_matches(self.nb_train_predict.T, 1)
 
         #get the distributions of NBLAST values how a class matches with its self
-        self.nblast_values_dt = navis.nbl.extract_matches(self.nb_train.loc[names_dt, names_dt], 2)
-        self.nblast_values_ii = navis.nbl.extract_matches(self.nb_train.loc[names_ii, names_ii], 2)
-        self.nblast_values_ci = navis.nbl.extract_matches(self.nb_train.loc[names_ci, names_ci], 2)
-        self.nblast_values_mc = navis.nbl.extract_matches(self.nb_train.loc[names_mc, names_mc], 2)
+        self.nblast_values_dt = navis.nbl.extract_matches(self.nb_train.loc[names_dt, names_dt], 2).loc[:,
+                                ['id', 'match_2', 'score_2']].rename(
+            columns={'match_2': 'match_1', 'score_2': 'score_1'})
+        self.nblast_values_ii = navis.nbl.extract_matches(self.nb_train.loc[names_ii, names_ii], 2).loc[:,
+                                ['id', 'match_2', 'score_2']].rename(
+            columns={'match_2': 'match_1', 'score_2': 'score_1'})
+        self.nblast_values_ci = navis.nbl.extract_matches(self.nb_train.loc[names_ci, names_ci], 2).loc[:,
+                                ['id', 'match_2', 'score_2']].rename(
+            columns={'match_2': 'match_1', 'score_2': 'score_1'})
+        self.nblast_values_mc = navis.nbl.extract_matches(self.nb_train.loc[names_mc, names_mc], 2).loc[:,
+                                ['id', 'match_2', 'score_2']].rename(columns={'match_2': 'match_1', 'score_2': 'score_1'})
 
-        # create functions then calculate zscore in relation to the classes NBLAST distributions
-        z_score_dt = lambda x: abs((x - np.mean(list(self.nblast_values_dt.score_2))) / np.std(list(self.nblast_values_dt.score_2)))
-        z_score_ii = lambda x: abs((x - np.mean(list(self.nblast_values_ii.score_2))) / np.std(list(self.nblast_values_ii.score_2)))
-        z_score_ci = lambda x: abs((x - np.mean(list(self.nblast_values_ci.score_2))) / np.std(list(self.nblast_values_ci.score_2)))
-        z_score_mc = lambda x: abs((x - np.mean(list(self.nblast_values_mc.score_2))) / np.std(list(self.nblast_values_mc.score_2)))
 
         # use the average .25 percentile of DTs and CIs as a cutoff for the general nblast
-        cutoff = self.nblast_values_dt.score_2.min()
+        cutoff = np.mean([self.nblast_values_dt.score_1.mean(), self.nblast_values_ii.score_1.mean(),
+                          self.nblast_values_ci.score_1.mean(), self.nblast_values_mc.score_1.mean()])
+        cutoff = 0.55
 
-        print(f'{(self.nb_matches_cells_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_cells_nc.shape[0]} neg_control cells pass NBlast general test.')
+        print(
+            f'{(self.nb_matches_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_nc.shape[0]} neg_control cells pass NBlast general test.')
 
-        subset_predict_cells = list(self.nb_matches_cells_predict.loc[self.nb_matches_cells_predict['score_1'] >= cutoff, 'id'])
+
 
         OCSVM = OneClassSVM(gamma='scale', kernel='poly').fit(self.prediction_train_features)
         IF = IsolationForest(contamination=0.1, random_state=42).fit(self.prediction_train_features)
@@ -1802,11 +1797,36 @@ class class_predictor:
         self.prediction_predict_df.loc[:, 'IF'] = IF.predict(self.prediction_predict_features) == 1
         self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(self.prediction_predict_features) == 1
 
-        # for i, cell in self.prediction_predict_df.iterrows():
+
         for idx, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
             i, cell = idx_item
+            if cell['cell_name'] == '180348':
+                pass
+            if cell['function'] == 'neg_control':
+                nb_df = self.nb_train_nc
+            else:
+                nb_df = self.nb_train_predict
 
-            if calculate4recorded and cell.cell_name in list(self.nb_matches_cells_train.id):
+            target_nb_dist = nb_df.loc[
+                eval(f"names_{acronym_dict[cell['prediction']].lower()}"), cell['cell_name']].dropna()
+            target_nb_dist = list(target_nb_dist.loc[target_nb_dist.index != cell['cell_name']])
+            target_match = np.max(target_nb_dist)
+
+            predict_names = eval(f"names_{acronym_dict[cell['prediction']].lower()}")
+            predict_names = predict_names[predict_names != cell['cell_name']]
+            predict_names_scaled = eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}")
+            predict_names_scaled = predict_names_scaled[predict_names_scaled != cell['cell_name']]
+            query_nb_dist = self.nb_train.loc[predict_names, predict_names].to_numpy().flatten()
+            query_nb_dist = query_nb_dist[~np.isnan(query_nb_dist)]
+            query_nb_dist_scaled = self.nb_train.loc[predict_names_scaled, predict_names_scaled].to_numpy().flatten()
+            query_nb_dist_scaled = query_nb_dist_scaled[~np.isnan(query_nb_dist_scaled)]
+            query_match_dist = list(navis.nbl.extract_matches(self.nb_train.loc[predict_names, predict_names], 2).loc[:,
+                                    ['id', 'match_2', 'score_2']].score_2)
+            query_match_dist_scaled = list(
+                navis.nbl.extract_matches(self.nb_train.loc[predict_names_scaled, predict_names_scaled], 2).loc[:,
+                ['id', 'match_2', 'score_2']].score_2)
+
+            if calculate4recorded and cell.cell_name in list(self.nb_matches_train.id):
                 bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
                 bool_copy[idx] = False
 
@@ -1823,108 +1843,77 @@ class class_predictor:
 
 
 
-            if cell['function'] == 'neg_control':
-                query = self.nb_train_nc.loc[self.nb_train_nc.index != cell['cell_name'], cell["cell_name"]].to_numpy()
-                reference_df = self.nb_matches_cells_nc
-            else:
-                query = self.nb_train_predict.loc[
-                    self.nb_train_predict.index != cell['cell_name'], cell["cell_name"]].to_numpy()
-                query = self.nb_train_predict.loc[
-                    eval(f"names_{acronym_dict[cell['prediction']].lower()}"), cell["cell_name"]].to_numpy()
 
-                reference_df = self.nb_matches_cells_predict
-
-            query_cell_highest_nblast = reference_df.loc[reference_df['id'] == cell.cell_name, 'score_1'].iloc[0]
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_g'] \
-                = query_cell_highest_nblast > cutoff
+                = target_match > cutoff
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_z'] \
-                = eval(f"z_score_{acronym_dict[cell['prediction']]}")(query_cell_highest_nblast) <= 1.96
+                = abs((target_match - np.mean(query_match_dist)) / np.std(query_match_dist)) <= 1.96
+
+
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df['cell_name'] == cell.cell_name, 'NBLAST_z_scaled'] \
-                = eval(f"z_score_{acronym_dict[cell['prediction_scaled']]}")(query_cell_highest_nblast) <= 1.96
-
-            # compare distribution of a single cell vs the classes
-            target = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction']].lower()}"), eval(
-                f"names_{acronym_dict[cell['prediction']].lower()}")]
-            target = target.loc[
-                target.index != cell['cell_name'], target.columns != cell['cell_name'],].to_numpy().flatten()
-            target = target[target < 1]
-
-
-            target_scaled = self.nb_train.loc[eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}"), eval(
-                f"names_{acronym_dict[cell['prediction_scaled']].lower()}")]
-            target_scaled = target_scaled.loc[target_scaled.index != cell['cell_name'], target_scaled.columns != cell[
-                'cell_name'],].to_numpy().flatten()
-            target_scaled = target_scaled[target_scaled < 1]
-            # target = target[target>=np.quantile(target,0.2)]
-
-            # import seaborn as sns
-            #
-            # sns.kdeplot(target, label='target')
-            # sns.kdeplot(query, label='query')
-            # plt.legend()
-            # plt.show()
+                = abs((target_match - np.mean(query_match_dist_scaled)) / np.std(query_match_dist_scaled)) <= 1.96
 
             # statistical tests
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ak'] = stats.anderson_ksamp(
-                [target, query]).pvalue > 0.05
+                [query_nb_dist, target_nb_dist]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ak_scaled'] = stats.anderson_ksamp(
-                [target_scaled, query]).pvalue > 0.05
+                [query_nb_dist_scaled, target_nb_dist]).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks'] = stats.ks_2samp(
-                target, query).pvalue > 0.05
+                query_nb_dist, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks_scaled'] = stats.ks_2samp(
-                target_scaled, query).pvalue > 0.05
+                query_nb_dist_scaled, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'CVM'] = stats.cramervonmises_2samp(
-                target, query).pvalue > 0.05
+                query_nb_dist, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'CVM_scaled'] = stats.cramervonmises_2samp(
-                target_scaled, query).pvalue > 0.05
+                query_nb_dist_scaled, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'MWU'] = stats.mannwhitneyu(
-                target, query).pvalue > 0.05
+                query_nb_dist, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'MWU_scaled'] = stats.mannwhitneyu(
-                target_scaled, query).pvalue > 0.05
+                query_nb_dist_scaled, target_nb_dist).pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'probability_test'] = (cell[['II_proba',
-                                                                                        'MC_proba',
-                                                                                        'CI_proba',
-                                                                                        'DT_proba']] > 0.7).any()
+                                                                                 'MC_proba',
+                                                                                 'CI_proba',
+                                                                                 'DT_proba']] > 0.7).any()
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'probability_test_scaled'] = (cell[['II_proba_scaled',
-                                                                                               'MC_proba_scaled',
-                                                                                               'CI_proba_scaled',
-                                                                                               'DT_proba_scaled']] > 0.7).any()
+                                                                                        'MC_proba_scaled',
+                                                                                        'CI_proba_scaled',
+                                                                                        'DT_proba_scaled']] > 0.7).any()
 
         export_columns = ['cell_name', 'function', 'morphology_clone', 'neurotransmitter_clone', 'prediction',
                           'DT_proba', 'CI_proba',
@@ -2007,7 +1996,7 @@ class class_predictor:
                 self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx')
 
         for i, item in self.prediction_predict_df.iterrows():
-            if not item.cell_name in list(self.nb_matches_cells_train.id):
+            if not item.cell_name in list(self.nb_matches_train.id):
                 with open(item["metadata_path"], 'r') as f:
                     t = f.read()
                 t = t.replace('\n[others]\n', '')
