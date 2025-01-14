@@ -38,10 +38,14 @@ if __name__ == "__main__":
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
 
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['NBLAST_g', 'NBLAST_z', 'MWU'], force_new=True)
+                                                         required_tests=['NBLAST_ak', 'NBLAST_g', 'LOF'],
+                                                         force_new=True)
 
-    # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak','NBLAST_ks'
+    # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak','NBLAST_ak'
     # jon satisfied and gregors IIs 'NBLAST_g', 'NBLAST_z', 'MWU'
+    # 'NBLAST_ak', 'NBLAST_g','LOF' gets cells for evertyhing but not gregors IIs
+    # If IF has to be left out NBLAST_z, NBLAST_ak is best
+    # 'MWU',"NBLAST_g",'LOF' would have all three and gives satstfying results deltaF1 is
 
 
     print("G II")
@@ -52,11 +56,16 @@ if __name__ == "__main__":
     print(with_neurotransmitter.prediction_predict_df.loc[
               with_neurotransmitter.prediction_predict_df['cell_name'].isin(['102596', '147009', '166876', '172045']), [
                   'cell_name', 'prediction', 'prediction_scaled', 'passed_tests']])
-    print('G All DT Predict')
+
+    print('G Cell types')
     print(with_neurotransmitter.prediction_predict_df.loc[
-              (with_neurotransmitter.prediction_predict_df['prediction'] == 'dynamic_threshold') &
-              (with_neurotransmitter.prediction_predict_df['imaging_modality'] == 'EM'), [
-                  'cell_name', 'prediction', 'prediction_scaled', 'passed_tests']])
+              with_neurotransmitter.prediction_predict_df.imaging_modality == 'EM'].groupby('prediction')[
+              'passed_tests'].sum())
+    print('J Cell types')
+    print(with_neurotransmitter.prediction_predict_df.loc[
+              with_neurotransmitter.prediction_predict_df.imaging_modality == 'clem'].groupby('prediction')[
+              'passed_tests'].sum())
+
 
     with_neurotransmitter.plot_neurons('EM',
                                        output_filename='EM_predicted_optimize_all_predict.html')
