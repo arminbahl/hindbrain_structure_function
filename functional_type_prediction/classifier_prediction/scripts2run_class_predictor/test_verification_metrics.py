@@ -48,6 +48,7 @@ def calc_validation_metric_matrix(df, variables, scaled=False):
                                                                            temp[f'prediction{suffix}'])
             verification_accuracy_matrix_f1.loc[row, column] = f1_score(temp['function'],
                                                                         temp[f'prediction{suffix}'], average='weighted')
+
             verification_n_cells_matrix.loc[row, column] = temp.shape[0]
     return verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1
 
