@@ -57,7 +57,7 @@ def nblast_two_groups(df1,df2,k = 5, resample_size=0.1,shift_neurons = True):
     return nbl
 
 
-def nblast_two_groups_custom_matrix(df1,df2,custom_matrix,k = 5, resample_size=0.1,shift_neurons = True):
+def nblast_two_groups_custom_matrix(df1, df2, custom_matrix, k=5, resample_size=0.1, shift_neurons=False):
     df1 = df1.reset_index(drop=True)
     df2 = df2.reset_index(drop=True)
     if shift_neurons:
@@ -88,9 +88,12 @@ def nblast_two_groups_custom_matrix(df1,df2,custom_matrix,k = 5, resample_size=0
 
         my_neuron_list1 = navis.NeuronList(df1['swc'],k=k,resample = resample_size)
         my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
-
-    my_neuron_list1 = navis.NeuronList(df1['swc'],k=k,resample = resample_size)
-    my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
+    if shift_neurons:
+        my_neuron_list1 = navis.NeuronList(df1['swc2'], k=k, resample=resample_size)
+        my_neuron_list2 = navis.NeuronList(df2['swc2'], k=k, resample=resample_size)
+    else:
+        my_neuron_list1 = navis.NeuronList(df1['swc'], k=k, resample=resample_size)
+        my_neuron_list2 = navis.NeuronList(df2['swc'], k=k, resample=resample_size)
 
 
     dps1 = navis.make_dotprops(my_neuron_list1,k=k,resample = resample_size,progress =False)
