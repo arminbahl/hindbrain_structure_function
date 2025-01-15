@@ -38,10 +38,10 @@ if __name__ == "__main__":
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
 
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['NBLAST_ak', 'NBLAST_g', 'LOF'],
+                                                         required_tests=['NBLAST_ak', "IF"],
                                                          force_new=True)
 
-    # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak','NBLAST_ak'
+    # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak',
     # jon satisfied and gregors IIs 'NBLAST_g', 'NBLAST_z', 'MWU'
     # 'NBLAST_ak', 'NBLAST_g','LOF' gets cells for evertyhing but not gregors IIs
     # If IF has to be left out NBLAST_z, NBLAST_ak is best
