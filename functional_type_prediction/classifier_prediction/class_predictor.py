@@ -1782,7 +1782,7 @@ class class_predictor:
         # use the average .25 percentile of DTs and CIs as a cutoff for the general nblast
         cutoff = np.mean([self.nblast_values_dt.score_1.mean(), self.nblast_values_ii.score_1.mean(),
                           self.nblast_values_ci.score_1.mean(), self.nblast_values_mc.score_1.mean()])
-        cutoff = 0.55
+        # cutoff = 0.6
 
         print(
             f'{(self.nb_matches_nc["score_1"] >= cutoff).sum()} of {self.nb_matches_nc.shape[0]} neg_control cells pass NBlast general test.')
@@ -1800,8 +1800,7 @@ class class_predictor:
 
         for idx, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
             i, cell = idx_item
-            if cell['cell_name'] == '180348':
-                pass
+
             if cell['function'] == 'neg_control':
                 nb_df = self.nb_train_nc
             else:
@@ -1825,7 +1824,11 @@ class class_predictor:
             query_match_dist_scaled = list(
                 navis.nbl.extract_matches(self.nb_train.loc[predict_names_scaled, predict_names_scaled], 2).loc[:,
                 ['id', 'match_2', 'score_2']].score_2)
-
+            if cell['cell_name'] == '159673':
+                plt.show()
+                sns.kdeplot(query_nb_dist)
+                plt.axvline(target_match)
+                plt.show()
             if calculate4recorded and cell.cell_name in list(self.nb_matches_train.id):
                 bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
                 bool_copy[idx] = False
@@ -1874,12 +1877,12 @@ class class_predictor:
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks'] = stats.ks_2samp(
-                query_nb_dist, target_nb_dist).pvalue > 0.05
+                query_nb_dist, target_nb_dist, alternative="less").pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'NBLAST_ks_scaled'] = stats.ks_2samp(
-                query_nb_dist_scaled, target_nb_dist).pvalue > 0.05
+                query_nb_dist_scaled, target_nb_dist, alternative="less").pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
@@ -1894,12 +1897,12 @@ class class_predictor:
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'MWU'] = stats.mannwhitneyu(
-                query_nb_dist, target_nb_dist).pvalue > 0.05
+                query_nb_dist, target_nb_dist, alternative='less').pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
                     'cell_name'] == cell.cell_name, 'MWU_scaled'] = stats.mannwhitneyu(
-                query_nb_dist_scaled, target_nb_dist).pvalue > 0.05
+                query_nb_dist_scaled, target_nb_dist, alternative='less').pvalue > 0.05
 
             self.prediction_predict_df.loc[
                 self.prediction_predict_df[
