@@ -100,6 +100,7 @@ def nblast_two_groups_custom_matrix(df1, df2, custom_matrix, k=5, resample_size=
     dps2 = navis.make_dotprops(my_neuron_list2, k=k, resample=resample_size,progress =False)
 
     nbl = navis.nblast(dps1, dps2, progress=False, smat=custom_matrix, n_cores=10)
+    # nbl = navis.nblast(dps1, dps2, progress=False, n_cores=10)
     nbl_array = np.array(nbl)
     nbl.index = df1.cell_name
     nbl.columns = df2.cell_name
