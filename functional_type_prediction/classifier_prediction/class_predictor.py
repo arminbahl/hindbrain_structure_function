@@ -36,6 +36,8 @@ import datetime
 import glob
 import os
 import re
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 def send_slack_message(RECEIVER="Florian Kämpf",MESSAGE="Script finished!"):
     slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
@@ -1796,6 +1798,21 @@ class class_predictor:
         self.prediction_predict_df.loc[:, 'OCSVM'] = OCSVM.predict(self.prediction_predict_features) == 1
         self.prediction_predict_df.loc[:, 'IF'] = IF.predict(self.prediction_predict_features) == 1
         self.prediction_predict_df.loc[:, 'LOF'] = LOF.predict(self.prediction_predict_features) == 1
+        # test viz
+        pca = PCA(n_components=2)
+        pca.fit(self.prediction_train_features)
+        train_pca_2d = pca.transform(self.prediction_train_features)
+        test_pca_2d = pca.transform(self.prediction_predict_features)
+
+        tsne = TSNE(n_components=2)
+        tsne_2d = tsne.fit_transform(np.concatenate([self.prediction_train_features, self.prediction_predict_features]))
+
+
+
+
+
+
+
 
 
         for idx, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
@@ -1815,6 +1832,7 @@ class class_predictor:
             predict_names = predict_names[predict_names != cell['cell_name']]
             predict_names_scaled = eval(f"names_{acronym_dict[cell['prediction_scaled']].lower()}")
             predict_names_scaled = predict_names_scaled[predict_names_scaled != cell['cell_name']]
+
             query_nb_dist = self.nb_train.loc[predict_names, predict_names].to_numpy().flatten()
             query_nb_dist = query_nb_dist[~np.isnan(query_nb_dist)]
             query_nb_dist_scaled = self.nb_train.loc[predict_names_scaled, predict_names_scaled].to_numpy().flatten()
@@ -1824,11 +1842,164 @@ class class_predictor:
             query_match_dist_scaled = list(
                 navis.nbl.extract_matches(self.nb_train.loc[predict_names_scaled, predict_names_scaled], 2).loc[:,
                 ['id', 'match_2', 'score_2']].score_2)
-            if cell['cell_name'] == '159673':
-                plt.show()
-                sns.kdeplot(query_nb_dist)
-                plt.axvline(target_match)
-                plt.show()
+
+            # the validation metric plot
+
+            plt.clf()
+            fig, ax = plt.subplots(3, 3, figsize=(30, 30))
+            ax[0, 0].axvline(target_match, label='ground truth cells', color='red')
+            sns.histplot(query_match_dist, ax=ax[0, 0], kde=True, alpha=0.25, label='test cell', color='blue',
+                         stat='probability')
+            ax[0, 0].set_title(
+                'Best NBLAST match of test cell with ground truth cells of predicted class\nvs.\nBest NBLAST match of ground truth cell of predicted class\n'
+                'with other ground truth cell of predicted class\n\nUsed in: NBLAST_z')
+            # 2
+
+            sns.histplot(target_nb_dist, ax=ax[0, 1], kde=True, alpha=0.25, label='test cell', color='red',
+                         stat='probability')
+            sns.histplot(query_nb_dist, ax=ax[0, 1], kde=True, alpha=0.25, label='ground truth cells', color='blue',
+                         stat='probability')
+            ax[0, 1].set_title(
+                'Distribution of NBLAST values of test cell with all ground truth cells of predicted class\nvs.\n'
+                'Distribution of NBLAST values within ground truth cells of predicted class\nwith all other ground truth cells of predicted class\n\nUsed in: NBLAST_ak, NBLAST_ks, CVM, MWU')
+            # 3
+            ax[0, 2].axvline(target_match, label='test cell', color='red')
+            ax[0, 2].axvline(cutoff, label='ground truth cells based cutoff', color='blue')
+            ax[0, 2].set_title(
+                'Best NBLAST match of test cell with ground truth cells of predicted class\nvs.\nCutoff determined by average of DTs, CIs,IIs, and MCs within class average best match\n\nUsed in: NBLAST_g')
+
+            def draw_circle_on_axis(x, y, radius=1, ax=None):
+                if ax is None:
+                    raise ValueError("An axis object must be provided.")
+
+                # Create a circle around the point (x, y)
+                circle = plt.Circle((x, y), radius, color='blue', fill=False)
+
+                # Add the circle to the provided axis
+                ax.add_artist(circle)
+
+                # Optionally, plot the point as well
+                ax.plot(x, y, 'ro')
+
+            hue_array_pca = self.prediction_predict_df.loc[:, 'IF'].to_numpy()
+
+            sns.scatterplot(
+                x=train_pca_2d[:, 0],
+                y=train_pca_2d[:, 1],
+                hue=True,
+                palette={True: 'blue'},
+                alpha=0.8,
+                ax=ax[1, 0]
+            )
+            sns.scatterplot(
+                x=test_pca_2d[:, 0],
+                y=test_pca_2d[:, 1],
+                hue=hue_array_pca,
+                palette={True: 'green', False: 'red'},
+                alpha=0.8,
+                ax=ax[1, 0]
+            )
+            draw_circle_on_axis(test_pca_2d[idx, 0], test_pca_2d[idx, 1], ax=ax[1, 0], radius=0.25)
+
+            ax[1, 0].set_title('PCA projection of Isolation Forest (IF)')
+            legend_elements_ax = [Patch(facecolor='red', edgecolor='red', label='Test cell: Fail'),
+                                  Patch(facecolor='green', edgecolor='green', label='Test cell: Pass'),
+                                  Patch(facecolor='blue', edgecolor='blue', label='Ground truth cell')]
+            ax[1, 0].legend(handles=legend_elements_ax)
+
+            hue_array_pca = self.prediction_predict_df.loc[:, 'LOF'].to_numpy()
+
+            sns.scatterplot(
+                x=train_pca_2d[:, 0],
+                y=train_pca_2d[:, 1],
+                hue=True,
+                palette={True: 'blue'},
+                alpha=0.8,
+                ax=ax[1, 1]
+            )
+            sns.scatterplot(
+                x=test_pca_2d[:, 0],
+                y=test_pca_2d[:, 1],
+                hue=hue_array_pca,
+                palette={True: 'green', False: 'red'},
+                alpha=0.8,
+                ax=ax[1, 1]
+            )
+            ax[1, 1].set_title('PCA projection of LocalOutlierFactor (LOF)')
+            ax[1, 1].legend(handles=legend_elements_ax)
+            draw_circle_on_axis(test_pca_2d[idx, 0], test_pca_2d[idx, 1], ax=ax[1, 1], radius=0.25)
+
+            hue_array_pca = self.prediction_predict_df.loc[:, 'OCSVM'].to_numpy()
+
+            sns.scatterplot(
+                x=train_pca_2d[:, 0],
+                y=train_pca_2d[:, 1],
+                hue=True,
+                palette={True: 'blue'},
+                alpha=0.8,
+                ax=ax[1, 2]
+            )
+            sns.scatterplot(
+                x=test_pca_2d[:, 0],
+                y=test_pca_2d[:, 1],
+                hue=hue_array_pca,
+                palette={True: 'green', False: 'red'},
+                alpha=0.8,
+                ax=ax[1, 2]
+            )
+            ax[1, 2].set_title('PCA projection of OneClassSVM (OCSVM)')
+            ax[1, 2].legend(handles=legend_elements_ax)
+            draw_circle_on_axis(test_pca_2d[idx, 0], test_pca_2d[idx, 1], ax=ax[1, 2], radius=0.25)
+            hue_array_tsne = np.concatenate([np.full(self.prediction_train_features.shape[0], 2),
+                                             self.prediction_predict_df.loc[:, 'IF'].to_numpy()])
+
+            sns.scatterplot(
+                x=tsne_2d[:, 0],
+                y=tsne_2d[:, 1],
+                hue=hue_array_tsne,
+                palette={0: 'red', 1: 'green', 2: 'blue'},
+                alpha=0.8,
+                ax=ax[2, 0]
+            )
+            ax[2, 0].set_title('TSNE projection of Isolation Forest (IF)')
+            ax[2, 0].legend(handles=legend_elements_ax)
+            draw_circle_on_axis(tsne_2d[idx + 120, 0], tsne_2d[idx + 120, 1], ax=ax[2, 0])
+            hue_array_tsne = np.concatenate([np.full(self.prediction_train_features.shape[0], 2),
+                                             self.prediction_predict_df.loc[:, 'LOF'].to_numpy()])
+
+            sns.scatterplot(
+                x=tsne_2d[:, 0],
+                y=tsne_2d[:, 1],
+                hue=hue_array_tsne,
+                palette={0: 'red', 1: 'green', 2: 'blue'},
+                alpha=0.8,
+                ax=ax[2, 1]
+            )
+            ax[2, 1].set_title('TSNE projection of LocalOutlierFactor (LOF)')
+            ax[2, 1].legend(handles=legend_elements_ax)
+            draw_circle_on_axis(tsne_2d[idx + 120, 0], tsne_2d[idx + 120, 1], ax=ax[2, 1])
+            hue_array_tsne = np.concatenate([np.full(self.prediction_train_features.shape[0], 2),
+                                             self.prediction_predict_df.loc[:, 'OCSVM'].to_numpy()])
+
+            sns.scatterplot(
+                x=tsne_2d[:, 0],
+                y=tsne_2d[:, 1],
+                hue=hue_array_tsne,
+                palette={0: 'red', 1: 'green', 2: 'blue'},
+                alpha=0.8,
+                ax=ax[2, 2]
+            )
+            ax[2, 2].set_title('TSNE projection of OneClassCVS (OCSVM)')
+            ax[2, 2].legend(handles=legend_elements_ax)
+            draw_circle_on_axis(tsne_2d[idx + 120, 0], tsne_2d[idx + 120, 1], ax=ax[2, 2])
+
+            legend_elements = [Patch(facecolor='red', edgecolor='red', label='Test cell'),
+                               Patch(facecolor='blue', edgecolor='blue', label='Ground truth')]
+            plt.subplots_adjust(top=0.8, bottom=0.05, left=0.075, right=0.925)
+            fig.legend(handles=legend_elements, bbox_to_anchor=(0.99, 0.88), fontsize='large')
+
+            plt.savefig(cell['metadata_path'].parent / ('validation_test_visualized_' + cell['cell_name'] + '.png'))
+
             if calculate4recorded and cell.cell_name in list(self.nb_matches_train.id):
                 bool_copy = np.full_like(self.prediction_train_labels, True).astype(bool)
                 bool_copy[idx] = False
@@ -1842,9 +2013,6 @@ class class_predictor:
                     bool(OCSVM_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1),
                     bool(IF_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1),
                     bool(LOF_alt.predict(self.prediction_train_features[~bool_copy].reshape(1, -1)) == 1)]
-
-
-
 
 
 
