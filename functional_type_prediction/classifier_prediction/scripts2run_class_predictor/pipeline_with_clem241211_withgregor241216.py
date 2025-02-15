@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # throw out truncated, exits and growth cone
     with_neurotransmitter.remove_incomplete()
     # apply gregors manual morphology annotations
-    with_neurotransmitter.add_new_morphology_annotation()
+    # with_neurotransmitter.add_new_morphology_annotation()
     # select features
     # test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
