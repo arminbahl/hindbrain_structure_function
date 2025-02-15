@@ -60,6 +60,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
                 'cell_137722_presynaptic_partners').joinpath('output_data'), 'p137722')
             em_table9 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('presynapses').joinpath(
                 'cell_149747_presynaptic_partners').joinpath('output_data'), 'p149747')
+            em_table9 = load_em_table(path_to_data.joinpath('em_zfish1').joinpath('presynapses').joinpath(
+                'cell_147009_presynaptic_partners').joinpath('output_data'), 'p147009')
 
             em_table = pd.concat(
                 [em_table1, em_table2, em_table3, em_table4, em_table5, em_table6, em_table7, em_table8, em_table9,
@@ -221,6 +223,8 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
 
     if not 'function' in all_cells.columns:
         all_cells.loc[:, 'function'] = np.nan
+    if not 'reconstruction_status' in all_cells.columns:
+        all_cells.loc[:, 'reconstruction_status'] = np.nan
 
     all_cells.loc[all_cells['function'].isna(), 'function'] = 'to_predict'
     all_cells['function'] = all_cells['function'].apply(lambda x: x.replace(" ","_"))
