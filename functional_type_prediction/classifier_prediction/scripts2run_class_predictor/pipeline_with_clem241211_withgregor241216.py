@@ -10,20 +10,20 @@ if __name__ == "__main__":
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                                         modalities=['pa', 'clem241211', 'em', 'clem_predict241211'], neg_control=True,
                                         input_em=True)
-    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250215')
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220')
 
     # with_neurotransmitter.calculate_published_metrics()
-    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250215',
+    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220',
                                               with_neg_control=True,
                                               drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
     with_neurotransmitter.remove_incomplete()
     # apply gregors manual morphology annotations
-    # with_neurotransmitter.add_new_morphology_annotation()
+    with_neurotransmitter.add_new_morphology_annotation()
     # select features
     # test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss',
+                                              estimator=AdaBoostClassifier(random_state=0), cv_method_RFE='ss',
                                               metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0) AdaBoostClassifier(random state=0)|
     # select classifiers for the confusion matrices
     clf_fk = LinearDiscriminantAnalysis(solver='lsqr', shrinkage='auto')
@@ -38,7 +38,7 @@ if __name__ == "__main__":
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
 
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['NBLAST_ak', "IF"],
+                                                         required_tests=['LOF', "IF"],
                                                          force_new=True)
 
     # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak',
