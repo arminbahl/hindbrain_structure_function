@@ -53,14 +53,14 @@ def calc_validation_metric_matrix(df, variables, scaled=False):
     return verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1
 
 
-def plot_validation_metric_matrix(df, title='no title'):
+def plot_validation_metric_matrix(df, title='no title', fontsize='small'):
     plt.figure(dpi=1200)
     plt.imshow(np.array(df).astype(float))
     plt.colorbar()
     plt.xticks(np.arange(len(df.columns)),
-               [x.replace('.', "\n") for x in df.columns], fontsize=1)
+               [x.replace('.', "\n") for x in df.columns], fontsize=fontsize * 0.8, rotation=90)
     plt.yticks(np.arange(len(df.index)),
-               [x.replace('.', "\n") for x in df.index], fontsize=1)
+               [x.replace('.', "\n") for x in df.index], fontsize=fontsize * 0.8)
 
     max_flat_index = np.argmax(np.array(df).astype(float), axis=None)
 
@@ -72,10 +72,10 @@ def plot_validation_metric_matrix(df, title='no title'):
     plt.plot([max_col, max_col + 1], [max_row, max_row], 'r-')
     plt.plot([max_col + 1, max_col + 1], [max_row, max_row + 1], 'r-')
     plt.title(title,
-              fontsize='small')
+              fontsize=fontsize)
     for irow in range(len(df.index)):
         for icol in range(len(df.columns)):
-            plt.text(icol, irow, f'{df.iloc[irow, icol]:.5f}', ha='center', va='center', color='w', fontsize=1)
+            plt.text(icol, irow, f'{df.iloc[irow, icol]:.5f}', ha='center', va='center', color='w', fontsize=fontsize)
 
     savepath = Path(
         '/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/prediction/test_verification_metrics')
@@ -90,11 +90,11 @@ if __name__ == "__main__":
     with_neurotransmitter.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                                         modalities=['pa', 'clem241211', 'em', 'clem_predict241211'], neg_control=True,
                                         input_em=True)
-    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216')
+    with_neurotransmitter.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220')
 
 
     # with_neurotransmitter.calculate_published_metrics()
-    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216',
+    with_neurotransmitter.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220',
                                               with_neg_control=True,
                                               drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # select features
     #test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
     with_neurotransmitter.select_features_RFE('all', 'clem', cv=False, save_features=True,
-                                              estimator=Perceptron(random_state=0), cv_method_RFE='ss',
+                                              estimator=AdaBoostClassifier(random_state=0), cv_method_RFE='ss',
                                               metric='f1')  # RidgeClassifier(random_state=0) Perceptron(random_state=0) AdaBoostClassifier(random state=0)|
     # predict cells
     with_neurotransmitter.predict_cells(use_jon_priors=False,
@@ -126,8 +126,7 @@ if __name__ == "__main__":
         with_neurotransmitter.prediction_predict_df['imaging_modality'] == 'clem']
 
     # calculate the matrices
-    variables = ['NBLAST_g', 'NBLAST_z', 'NBLAST_ak',
-                 'NBLAST_ks', 'OCSVM', 'IF', 'LOF', 'CVM', 'MWU']
+    variables = ['OCSVM_intra_class', 'IF_intra_class', 'LOF_intra_class', 'OCSVM', 'IF', 'LOF']
     variables_scaled = ['NBLAST_g', 'NBLAST_z_scaled', 'NBLAST_ak_scaled',
                         'NBLAST_ks_scaled', 'OCSVM', 'IF', 'LOF']
     verification_accuracy_matrix, verification_n_cells_matrix, verification_accuracy_matrix_f1 = calc_validation_metric_matrix(
@@ -139,16 +138,16 @@ if __name__ == "__main__":
 
     # plot the accuracy while varying the validation metrics
     plot_validation_metric_matrix(verification_accuracy_matrix_f1,
-                                  'F1 after applying validation metrics.')
+                                  'F1 after applying validation metrics.', fontsize=6)
 
     # plot the number of cells while varying the validation metrics
     plot_validation_metric_matrix(verification_n_cells_matrix,
-                                  'N cells after applying validation metrics')
+                                  'N cells after applying validation metrics', fontsize=6)
 
     #plot cells lost
     cells_lost = 1 - (verification_n_cells_matrix / np.max(verification_n_cells_matrix))
     plot_validation_metric_matrix(cells_lost,
-                                  'Percent of cells lost after applying validation metrics')
+                                  'Percent of cells lost after applying validation metrics', fontsize=6)
 
     # Visualization of Validation Metrics delta accuracy from optimal
     clem_func_recorded = with_neurotransmitter.prediction_predict_df.query(
@@ -157,4 +156,4 @@ if __name__ == "__main__":
                                                                                        clem_func_recorded['prediction'],
                                                                                        average='weighted')
     plot_validation_metric_matrix(verification_accuracy_matrix_delta_F1,
-                                  '∂F1 after applying validation metrics.')
+                                  '∂F1 after applying validation metrics.', fontsize=6)
