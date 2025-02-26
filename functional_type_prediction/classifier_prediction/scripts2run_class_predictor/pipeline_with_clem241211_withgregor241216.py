@@ -4,6 +4,13 @@ from hindbrain_structure_function.functional_type_prediction.classifier_predicti
 from itertools import product
 from sklearn.metrics import f1_score
 
+
+def send_slack_message(RECEIVER="Florian Kämpf", MESSAGE="Script finished!"):
+    slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
+    client = WebClient(token=slack_token)
+    ul = client.users_list()
+    ul['real_name']
+    member_list = []
 if __name__ == "__main__":
     # load metrics and cells
     with_neurotransmitter = class_predictor(Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud'))
@@ -38,7 +45,7 @@ if __name__ == "__main__":
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
 
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['LOF', "IF"],
+                                                         required_tests=['IF_intra_class', 'LOF_intra_class'],
                                                          force_new=True)
 
     # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak',
@@ -75,3 +82,17 @@ if __name__ == "__main__":
 
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_optimize_all_predict.html')
     with_neurotransmitter.plot_neurons('clem', output_filename='CLEM_predicted_only_pass_tests.html', only_pass=True)
+
+    # little code showing that on gregor cells ada confirms more with my manual classification
+
+    eva = pd.read_excel(
+        '/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/manual_evaluation_all_cells_fk.xlsx')
+    eva['correct_ada'] = np.where(eva['adaboost'] == eva['fk_cell_type'], eva['fk_rating_3.good_1.bad'], 0)
+    eva['correct_perceptron'] = np.where(eva['perceptron'] == eva['fk_cell_type'], eva['fk_rating_3.good_1.bad'], 0)
+    eva_proc = eva.groupby(['imaging_modality', 'fk_cell_type'])[
+        ['correct_ada', 'correct_perceptron']].sum().reset_index(drop=False)
+    eva_fk_groundtruth = eva['fk_cell_type'].value_counts().reset_index()
+    eva_proc['normed_correct_ada'] = eva_proc['correct_ada'] / eva_proc['fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+    eva_proc['normed_correct_perceptron'] = eva_proc['correct_perceptron'] / eva_proc['fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
