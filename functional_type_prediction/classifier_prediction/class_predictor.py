@@ -1,9 +1,11 @@
 import chardet
-import numpy as np
 from sklearn.base import clone
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import IsolationForest
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier, \
     AdaBoostClassifier
+import pandas as pd
+import datetime
 from sklearn.feature_selection import RFE
 from sklearn.feature_selection import RFECV
 from sklearn.feature_selection import SelectFromModel
@@ -12,32 +14,30 @@ from sklearn.feature_selection import f_classif, mutual_info_classif
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression, RidgeClassifier, Perceptron, PassiveAggressiveClassifier
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import f1_score
 from sklearn.model_selection import LeavePOut
 from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.neighbors import LocalOutlierFactor
+from sklearn.preprocessing import StandardScaler
 from sklearn.svm import LinearSVC
 from sklearn.svm import OneClassSVM
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import recall_score
-from sklearn.metrics import f1_score
-import plotly
 
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.preprocessing import StandardScaler
+
 np.set_printoptions(suppress=True)
 from hindbrain_structure_function.functional_type_prediction.NBLAST.nblast_matrix_navis import *
 from slack_sdk import WebClient
 from sklearn.metrics import accuracy_score
 from matplotlib.patches import Patch
 import scipy.stats as stats
-import datetime
 import glob
 import os
 import re
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+
 
 def send_slack_message(RECEIVER="Florian Kämpf",MESSAGE="Script finished!"):
     slack_token = "xoxb-2212881652034-3363495253589-2kSTt6BcH3YTJtb3hIjsOJDp"
@@ -1199,6 +1199,7 @@ class class_predictor:
     def select_features_RFE(self, train_mod, test_mod, cv=False, estimator=None, scoring=None, cv_method=None,
                             save_features=False, cv_method_RFE='lpo', metric='accuracy'):
         mod2idx = {'all': np.full(len(self.pa_idx), True), 'pa': self.pa_idx, 'clem': self.clem_idx}
+        self.estimator = str(estimator)
         """
         Selects features using Recursive Feature Elimination (RFE) or RFECV.
 
@@ -1693,6 +1694,12 @@ class class_predictor:
         plt.savefig(self.path_to_save_confusion_matrices / f'{suptitle}.pdf')
         plt.show()
 
+    def check_swc_validity(self, df):
+        for i, cell in df.iterrows():
+            if ((cell.swc.nodes.node_id < cell.swc.nodes.parent_id).any()):
+                df.loc[i, 'swc'].nodes = navis.read_swc(cell.swc.origin).nodes
+        return df
+
     def calculate_verification_metrics(self, calculate_smat=False, with_kunst=True, calculate4recorded=False,
                                        load_summit_matrix=True, required_tests=['NBLAST_g'],
                                        force_new=False):
@@ -1807,15 +1814,20 @@ class class_predictor:
         tsne = TSNE(n_components=2)
         tsne_2d = tsne.fit_transform(np.concatenate([self.prediction_train_features, self.prediction_predict_features]))
 
+        sholl_dt = navis.sholl_analysis(navis.NeuronList(
+            self.prediction_train_df.loc[self.prediction_train_df.function == 'dynamic_threshold', 'swc']),
+                                        center='root', radii=np.arange(0, 200, 10))
+        array_3d = np.stack([df.to_numpy() for df in sholl_dt], axis=-1)
+        std_array = np.std(array_3d, axis=-1, ddof=0)
+        df_std = pd.DataFrame(std_array, index=sholl_dt[0].index, columns=sholl_dt[0].columns)
 
+        sholl_ii = 1
+        sholl_mc = 1
 
-
-
-
-
-
+        self.prediction_predict_df = self.check_swc_validity(self.prediction_predict_df)
 
         for idx, idx_item in zip(range(len(self.prediction_predict_df)), self.prediction_predict_df.iterrows()):
+
             i, cell = idx_item
 
             if cell['function'] == 'neg_control':
@@ -1825,8 +1837,27 @@ class class_predictor:
 
             target_nb_dist = nb_df.loc[
                 eval(f"names_{acronym_dict[cell['prediction']].lower()}"), cell['cell_name']].dropna()
+
             target_nb_dist = list(target_nb_dist.loc[target_nb_dist.index != cell['cell_name']])
             target_match = np.max(target_nb_dist)
+
+            # outlier test within class
+
+            OCSVM_intra_class = OneClassSVM(gamma='scale', kernel='poly').fit(
+                self.prediction_train_features[self.prediction_train_labels == cell['prediction'], :])
+            IF_intra_class = IsolationForest(contamination=0.1, random_state=42).fit(
+                self.prediction_train_features[self.prediction_train_labels == cell['prediction'], :])
+            LOF_intra_class = LocalOutlierFactor(n_neighbors=5, novelty=True).fit(
+                self.prediction_train_features[self.prediction_train_labels == cell['prediction'], :])
+
+            self.prediction_predict_df.loc[i, 'OCSVM_intra_class'] = OCSVM_intra_class.predict(
+                self.prediction_predict_features[idx, :].reshape(1, -1)) == 1
+            self.prediction_predict_df.loc[i, 'IF_intra_class'] = IF_intra_class.predict(
+                self.prediction_predict_features[idx, :].reshape(1, -1)) == 1
+            self.prediction_predict_df.loc[i, 'LOF_intra_class'] = LOF_intra_class.predict(
+                self.prediction_predict_features[idx, :].reshape(1, -1)) == 1
+
+
 
             predict_names = eval(f"names_{acronym_dict[cell['prediction']].lower()}")
             predict_names = predict_names[predict_names != cell['cell_name']]
@@ -2094,7 +2125,8 @@ class class_predictor:
                           'NBLAST_ak', 'NBLAST_ak_scaled',
                           'NBLAST_ks',
                           'NBLAST_ks_scaled', 'probability_test', 'probability_test_scaled',
-                          'OCSVM', 'IF', 'LOF', 'CVM', 'CVM_scaled', 'MWU',
+                          'OCSVM', 'IF', 'LOF', 'OCSVM_intra_class', 'IF_intra_class', 'LOF_intra_class',
+                          'CVM', 'CVM_scaled', 'MWU',
                           'MWU_scaled', 'sum', 'sum_scaled', 'passed_tests']
 
         sum_columns = ['NBLAST_g', 'NBLAST_z', 'NBLAST_ak',
@@ -2157,14 +2189,50 @@ class class_predictor:
             save_prediction_clem = True
             save_prediction_em = True
         if save_prediction_clem:
-            self.prediction_predict_df.loc[
-                self.prediction_predict_df['imaging_modality'] == 'clem', export_columns].to_excel(
-                self.path / 'clem_zfish1' / f'clem_cell_prediction{self.suffix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx')
+            clem_excel_path = self.path / 'clem_zfish1' / f'clem_cell_prediction{self.suffix}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx'
+
+            with pd.ExcelWriter(clem_excel_path, engine='xlsxwriter') as writer:
+                self.prediction_predict_df.loc[
+                    self.prediction_predict_df['imaging_modality'] == 'clem', export_columns
+                ].to_excel(writer, sheet_name='Sheet1', index=False)
+
+                workbook = writer.book
+
+                workbook.set_properties({
+                    'title': 'predictions clem',
+                    'subject': 'cell prediction',
+                    'author': 'Florian Kämpf',
+                    'manager': 'Florian Kämpf',
+                    'company': 'AG Bahl',
+                    'category': 'code_generated',
+                    'keywords': f'prediction, clem, {self.estimator}',
+                    'comments': f'Estimator: {self.estimator}',
+                    'status': "_".join(str(clem_excel_path).split("_")[-2:])[:-5]
+                })
+
 
         if save_prediction_em:
-            self.prediction_predict_df.loc[
-                self.prediction_predict_df['imaging_modality'] == 'EM', export_columns].to_excel(
-                self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}_{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx')
+            em_excel_path = self.path / 'em_zfish1' / f'em_cell_prediction{self.suffix}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.xlsx'
+
+            with pd.ExcelWriter(em_excel_path, engine='xlsxwriter') as writer:
+                self.prediction_predict_df.loc[
+                    self.prediction_predict_df['imaging_modality'] == 'EM', export_columns
+                ].to_excel(writer, sheet_name='Sheet1', index=False)
+
+                workbook = writer.book
+
+                workbook.set_properties({
+                    'title': 'predictions em',
+                    'subject': 'cell prediction',
+                    'author': 'Florian Kämpf',
+                    'manager': 'Florian Kämpf',
+                    'company': 'AG Bahl',
+                    'category': 'code_generated',
+                    'keywords': f'prediction, em, {self.estimator}',
+                    'comments': f'Estimator: {self.estimator}',
+                    'status': "_".join(str(em_excel_path).split("_")[-2:])[:-5]  # Use correct file path
+                })
+
 
         for i, item in self.prediction_predict_df.iterrows():
             if not item.cell_name in list(self.nb_matches_train.id):
