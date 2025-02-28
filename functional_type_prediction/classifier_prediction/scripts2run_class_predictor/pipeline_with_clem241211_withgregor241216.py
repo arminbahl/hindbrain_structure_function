@@ -45,7 +45,7 @@ if __name__ == "__main__":
                                         suffix='_optimize_all_predict')  # optimize_all_predict means to go for the 82.05%, alternative is balance_all_pa which goes to 79.49% ALL and 69.75% PA
 
     with_neurotransmitter.calculate_verification_metrics(calculate_smat=False, with_kunst=False,
-                                                         required_tests=['IF_intra_class', 'LOF_intra_class'],
+                                                         required_tests=['IF', 'LOF'],
                                                          force_new=True)
 
     # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak',
@@ -89,10 +89,36 @@ if __name__ == "__main__":
         '/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/manual_evaluation_all_cells_fk.xlsx')
     eva['correct_ada'] = np.where(eva['adaboost'] == eva['fk_cell_type'], eva['fk_rating_3.good_1.bad'], 0)
     eva['correct_perceptron'] = np.where(eva['perceptron'] == eva['fk_cell_type'], eva['fk_rating_3.good_1.bad'], 0)
+
+    eva_tests_per = eva[eva['passed_tests_perceptron']]
+    eva_tests_ada = eva[eva['passed_tests_ada']]
+
     eva_proc = eva.groupby(['imaging_modality', 'fk_cell_type'])[
         ['correct_ada', 'correct_perceptron']].sum().reset_index(drop=False)
+    eva_tests_per_proc = eva_tests_per.groupby(['imaging_modality', 'fk_cell_type'])[
+        ['correct_ada', 'correct_perceptron']].sum().reset_index(drop=False)
+    eva_tests_ada_proc = eva_tests_ada.groupby(['imaging_modality', 'fk_cell_type'])[
+        ['correct_ada', 'correct_perceptron']].sum().reset_index(drop=False)
+
     eva_fk_groundtruth = eva['fk_cell_type'].value_counts().reset_index()
     eva_proc['normed_correct_ada'] = eva_proc['correct_ada'] / eva_proc['fk_cell_type'].map(
         eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+
     eva_proc['normed_correct_perceptron'] = eva_proc['correct_perceptron'] / eva_proc['fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+
+    eva_tests_per_proc['normed_correct_ada'] = eva_tests_per_proc['correct_ada'] / eva_tests_per_proc[
+        'fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+
+    eva_tests_per_proc['normed_correct_perceptron'] = eva_tests_per_proc['correct_perceptron'] / eva_tests_per_proc[
+        'fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+
+    eva_tests_ada_proc['normed_correct_ada'] = eva_tests_ada_proc['correct_ada'] / eva_tests_ada_proc[
+        'fk_cell_type'].map(
+        eva_fk_groundtruth.set_index('fk_cell_type')['count'])
+
+    eva_tests_ada_proc['normed_correct_perceptron'] = eva_tests_ada_proc['correct_perceptron'] / eva_tests_ada_proc[
+        'fk_cell_type'].map(
         eva_fk_groundtruth.set_index('fk_cell_type')['count'])
