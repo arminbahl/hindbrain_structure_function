@@ -1,5 +1,5 @@
 from holoviews.plotting.bokeh.styles import font_size
-
+from sklearn.neighbors import KNeighborsClassifier
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.class_predictor import *
 from itertools import product
 from sklearn.metrics import f1_score
@@ -19,8 +19,8 @@ if __name__ == "__main__":
     with_neurotransmitter.calculate_published_metrics()
 
     n_estimators_rf = 100
-    clf_pv = RandomForestClassifier(n_estimators=n_estimators_rf)
-    clf_ps = RandomForestClassifier(n_estimators=n_estimators_rf)
+    clf_pv = KNeighborsClassifier()
+    clf_ps = KNeighborsClassifier()
     clf_ff = RandomForestClassifier(n_estimators=n_estimators_rf)
 
     with_neurotransmitter.confusion_matrices(clf_pv, method='lpo', plot_cm_order_jon=True, feature_type='pv')

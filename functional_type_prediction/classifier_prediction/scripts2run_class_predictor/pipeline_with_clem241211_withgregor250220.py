@@ -25,7 +25,7 @@ if __name__ == "__main__":
                                               drop_neurotransmitter=False)
     # throw out truncated, exits and growth cone
     with_neurotransmitter.remove_incomplete()
-    # apply gregors manual morphology annotations
+    # apply gregors manual morphology annotations``
     with_neurotransmitter.add_new_morphology_annotation()
     # select features
     # test.select_features_RFE('all', 'clem', cv=False,cv_method_RFE='lpo') #runs through all estimator
@@ -48,6 +48,7 @@ if __name__ == "__main__":
                                                          required_tests=['IF', 'LOF'],
                                                          force_new=True)
 
+    #test
     # optimal 'NBLAST_g','NBLAST_z','NBLAST_ak',
     # jon satisfied and gregors IIs 'NBLAST_g', 'NBLAST_z', 'MWU'
     # 'NBLAST_ak', 'NBLAST_g','LOF' gets cells for evertyhing but not gregors IIs
