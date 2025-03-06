@@ -6,9 +6,13 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from scipy import stats
 from sklearn.cluster import KMeans
+import sys
+import os
+sys.path.extend(['/Users/fkampf/PycharmProjects'])
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 import chardet
+
 
 
 # classifying the functional dynamics using regressors and kmeans 2 write to metadata
@@ -21,6 +25,8 @@ def get_encoding(path):
 
 if __name__ == "__main__":
     # set variables
+
+    write_metadata = True
     np.set_printoptions(suppress=True)
     width_brain = 495.56
 
@@ -33,7 +39,7 @@ if __name__ == "__main__":
 
 
     # load all cell infortmation
-    cell_data = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
+    cell_data = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem241211', 'pa'], load_repaired=True)
     cell_data = cell_data.drop_duplicates(subset='cell_name')
     cell_data = cell_data.loc[cell_data['function'].isin(['integrator', 'dynamic_threshold', 'motor_command', 'dynamic threshold', 'motor command'])]
 
@@ -174,14 +180,14 @@ if __name__ == "__main__":
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
 
-    label2class = {'0n': 'dynamic_threshold', '1n': 'integrator', '20': 'integrator', '21': 'motor_command'}
-    int2class = {0: 'dynamic_threshold', 1: 'integrator', 2: 'integrator', 3: 'motor_command'}
+    label2class = {'1n': 'dynamic_threshold', '2n': 'integrator', '01': 'integrator', '00': 'motor_command'}
+    int2class = {2: 'dynamic_threshold', 1: 'integrator', 3: 'integrator', 0: 'motor_command'}
     df['kmeans_labels_int_1st'] = kmeans.labels_
     n_clusters_2nd = 2
     kmeans_2nd = KMeans(n_clusters=n_clusters_2nd, random_state=0)
-    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 2])
+    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 0])
     df['kmeans_labels_int_2nd'] = 'n'
-    df.loc[df['kmeans_labels_int_1st'] == 2, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
+    df.loc[df['kmeans_labels_int_1st'] == 0, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
     df['kmeans_labels_int_1st'] = df['kmeans_labels_int_1st'].astype(str)
     df['kmeans_labels_int_2nd'] = df['kmeans_labels_int_2nd'].astype(str)
     df['kmeans_labels_final'] = df['kmeans_labels_int_1st'] + df['kmeans_labels_int_2nd']
@@ -234,7 +240,9 @@ if __name__ == "__main__":
     kk.columns = ['cell_name', 'kmeans_labels', 'kmeans_labels_int']
 
 
-    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
+    em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem241211', 'pa'], load_repaired=True)
+    em_pa_cells = em_pa_cells.drop_duplicates(subset='cell_name')
+    em_pa_cells = em_pa_cells.loc[em_pa_cells['function'].isin(['integrator', 'dynamic_threshold', 'motor_command', 'dynamic threshold', 'motor command'])]
     em_pa_cells = em_pa_cells.loc[em_pa_cells['function'] != 'neg_control', :]
 
     for i,cell in em_pa_cells.iterrows():
@@ -271,16 +279,19 @@ if __name__ == "__main__":
 
             if (data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}').exists():
                 temp_path = data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
             if (data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}').exists():
                 temp_path = data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
             if (data_path / 'paGFP' / cell.cell_name).exists():
                 temp_path = data_path / 'paGFP' / cell.cell_name / f'{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
 
     color_dict = {
         "integrator": '#e84d8ab3',
