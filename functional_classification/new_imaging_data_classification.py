@@ -18,8 +18,8 @@ with h5py.File('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/c
     F_fish0_no_motion = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/no_motion/F'])
     F_fish0_ramping_right = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/ramping_right/F'])
     F_fish0_ramping_left = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/ramping_left/F'])
-    F_fish0_rdms_left_right = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])
-    F_fish0_rdms_right_left = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])
+    F_fish0_rdms_left_right = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_right/F'])
+    F_fish0_rdms_right_left = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/right_left/F'])
 
 with h5py.File('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud/clem_zfish1/activity_recordings/untitled folder/2025-03-05_13-12-40_fish001_setup1_arena0_AB_preprocessed_data.h5') as f:
     F_fish1_rdms_left = np.array(f['repeat00_tile000_z000_950nm/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])
@@ -37,7 +37,7 @@ F_no_motion = np.concatenate([F_fish0_no_motion, F_fish1_rdms_no_motion], axis=1
 F_ramping_right = np.concatenate([F_fish0_ramping_right, F_fish1_ramping_right], axis=1)[:,:,:120]
 F_ramping_left = np.concatenate([F_fish0_ramping_left, F_fish1_ramping_left], axis=1)[:,:,:120]
 F_rdms_left_right = np.concatenate([F_fish0_rdms_left_right, F_fish1_rdms_left_right], axis=1)[:,:,:120]
-F_rdms_right_left = np.concatenate([F_fish0_rdms_right_left, F_fish1_rdms_right_left], axis=1)[:,:,:120]
+F_rdms_right_left = np.concatenate([F_fish0_rdms_right_left[:-1], F_fish1_rdms_right_left], axis=1)[:,:,:120]
 
 # Function to calculate deltaF/F
 def calc_dF_F(F, dt=0.5):
@@ -92,13 +92,13 @@ def z_scorer(stim_activity_1, stim_activity_2, prestim, stim):
     z_score = (avg_activity_1 - avg_activity_2) / np.sqrt(var_activity_1 + var_activity_2)
     z_score_up = np.nanpercentile(z_score[:, prestim:(prestim + stim)], 90, axis=1)  # Take the highest 10%
     z_score_down = np.nanpercentile(z_score[:, prestim:(prestim + stim)], 10, axis=1)
-    return z_score_up, z_score_down, z_score
+    return z_score_up, z_score_down
 
 # Calculate z-scores for different conditions
-stim0_zu, stim0_zd, stim0 = z_scorer(dF_F_rdms_left, dF_F_rdms_right, prestim=40, stim=60)  # right z-scored
-stim1_zu, stim1_zd, stim1 = z_scorer(dF_F_rdms_right, dF_F_rdms_left, prestim=40, stim=60)  # left z-scored
+rdms_left_zu, rdms_left_zd = z_scorer(dF_F_rdms_left, dF_F_rdms_right, prestim=40, stim=60)  # right z-scored
+rdms_right_zu, rdms_right_zd = z_scorer(dF_F_rdms_right, dF_F_rdms_left, prestim=40, stim=60)  # left z-scored
 
-stim0_cutoff = np.percentile(stim0_zu, 90)
+
 
 # Cut data to correct length
 dF_F_cut_rdms_left = dF_F_rdms_left[:, :, 20:120]
@@ -141,96 +141,87 @@ r3_right = [float(scipy.stats.pearsonr(regressors_cut[3], dF_F_mean_cut_rdms_rig
 # Plotting the results
 
 fig,ax = plt.subplots(2,2,figsize=(10,10))
-ax[0,0].plot(dF_F_mean_rdms_all[np.array(r0_all)>0.85,:].T,c='gray',lw=1,alpha=0.5)
+ax[0,0].plot(dF_F_mean_rdms_all[np.array(r0_all)>np.percentile(r0_all,99),:].T,c='gray',lw=1,alpha=0.5)
 ax[0,0].plot(regressors_cut_shift[0],lw=5,alpha=0.6,c='red')
-ax[0,1].plot(dF_F_mean_rdms_all[np.array(r1_all)>0.95,:].T,c='gray',lw=1,alpha=0.5)
+ax[0,1].plot(dF_F_mean_rdms_all[np.array(r1_all)>np.percentile(r1_all,99),:].T,c='gray',lw=1,alpha=0.5)
 ax[0,1].plot(regressors_cut_shift[1],lw=5,alpha=0.6,c='red')
-ax[1,0].plot(dF_F_mean_rdms_all[np.array(r2_all)>0.95,:].T,c='gray',lw=1,alpha=0.5)
+ax[1,0].plot(dF_F_mean_rdms_all[np.array(r2_all)>np.percentile(r2_all,99),:].T,c='gray',lw=1,alpha=0.5)
 ax[1,0].plot(regressors_cut_shift[2],lw=5,alpha=0.6,c='red')
-ax[1,1].plot(dF_F_mean_rdms_all[np.array(r3_all)>0.95,:].T,c='gray',lw=1,alpha=0.5)
+ax[1,1].plot(dF_F_mean_rdms_all[np.array(r3_all)>np.percentile(r3_all,99),:].T,c='gray',lw=1,alpha=0.5)
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
 fig,ax = plt.subplots(2,2,figsize=(10,10))
 fig.suptitle('Mean dF/F Responses and Regressors RDMS left/right')
-ax[0,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r0_all)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[0,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r0_all)>np.percentile(r0_all,99),:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[0,0].plot(regressors_cut_shift[0],lw=5,alpha=0.6,c='red')
-ax[0,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r1_all)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[0,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r1_all)>np.percentile(r1_all,99),:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[0,1].plot(regressors_cut_shift[1],lw=5,alpha=0.6,c='red')
-ax[1,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r2_all)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[1,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r2_all)>np.percentile(r2_all,99),:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[1,0].plot(regressors_cut_shift[2],lw=5,alpha=0.6,c='red')
-ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>np.percentile(r3_all,99),:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
-fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses  RDMS no motion')
-ax[0,0].plot(np.mean(dF_F_mean_no_motion[np.array(r0_left)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_no_motion[np.array(r1_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_no_motion[np.array(r2_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_no_motion[np.array(r3_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,0].plot(np.mean(dF_F_mean_no_motion[np.array(r0_right)>0.85,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_no_motion[np.array(r1_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_no_motion[np.array(r2_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_no_motion[np.array(r3_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-fig.legend(['Cells responding to RDMS left', 'Cells responding to RDMS right'], loc='upper right')
-plt.show()
 
+from matplotlib.lines import Line2D
 
-fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses  RDMS left > RDMS right')
-ax[0,0].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r0_left)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r1_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r2_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r3_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,0].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r0_right)>0.85,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r1_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r2_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_rdms_left_right[np.array(r3_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-fig.legend(['Cells responding to RDMS left', 'Cells responding to RDMS right'], loc='upper right')
-plt.show()
+def plot_dF_F_responses(dF_F_mean, r_left_list, r_right_list,z_left,z_right, title, legend_labels,z_limit=3.3):
+    """
+    Plot dF/F responses for given data.
+    
+    Parameters:
+    dF_F_mean (numpy array): Mean dF/F data
+    r_left_list (list of numpy arrays): List of correlation coefficients for left responses
+    r_right_list (list of numpy arrays): List of correlation coefficients for right responses
+    title (str): Title of the plot
+    legend_labels (list): Labels for the legend
+    """
+    fig, ax = plt.subplots(2, 2, figsize=(10, 10))
+    fig.suptitle(title)
+    
+    for i in range(4):
+        r_left = r_left_list[i]
+        r_right = r_right_list[i]
+        ax[i//2, i%2].plot(dF_F_mean[(np.array(r_left) > np.percentile(r_left, 99))&(z_left>z_limit), :].T, c='green', lw=1, alpha=0.4)
+        ax[i//2, i%2].plot(np.mean(dF_F_mean[(np.array(r_left) > np.percentile(r_left, 99))&(z_left>z_limit), :], axis=0), c='green', lw=3)
+        ax[i//2, i%2].plot(dF_F_mean[(np.array(r_right) > np.percentile(r_right, 99))&(z_right>z_limit), :].T, c='red', lw=1, alpha=0.4)
+        ax[i//2, i%2].plot(np.mean(dF_F_mean[(np.array(r_right) > np.percentile(r_right, 99))&(z_right>z_limit), :], axis=0), c='red', lw=3)
+    
+    # Create custom legend
+    legend_elements = [Line2D([0], [0], color='green', lw=3, label=legend_labels[0]),
+                       Line2D([0], [0], color='red', lw=3, label=legend_labels[1])]
+    fig.legend(handles=legend_elements, loc='upper right')
+    plt.show()
 
-fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses RDMS right > RDMS left')
-ax[0,0].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r0_left)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r1_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r2_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r3_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,0].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r0_right)>0.85,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r1_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r2_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_rdms_right_left[np.array(r3_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-fig.legend(['Cells responding to RDMS left', 'Cells responding to RDMS right'], loc='upper right')
-plt.show()
-
-fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses ramping right')
-ax[0,0].plot(np.mean(dF_F_mean_ramping_right[np.array(r0_left)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_ramping_right[np.array(r1_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_ramping_right[np.array(r2_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_ramping_right[np.array(r3_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,0].plot(np.mean(dF_F_mean_ramping_right[np.array(r0_right)>0.85,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_ramping_right[np.array(r1_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_ramping_right[np.array(r2_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_ramping_right[np.array(r3_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-fig.legend(['Cells responding to RDMS left', 'Cells responding to RDMS right'], loc='upper right')
-plt.show()
-
-fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses  ramping left')
-ax[0,0].plot(np.mean(dF_F_mean_ramping_left[np.array(r0_left)>0.85,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_ramping_left[np.array(r1_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_ramping_left[np.array(r2_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_ramping_left[np.array(r3_left)>0.95,:],axis=0).T,c='green',lw=5,alpha=0.5)
-ax[0,0].plot(np.mean(dF_F_mean_ramping_left[np.array(r0_right)>0.85,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[0,1].plot(np.mean(dF_F_mean_ramping_left[np.array(r1_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,0].plot(np.mean(dF_F_mean_ramping_left[np.array(r2_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-ax[1,1].plot(np.mean(dF_F_mean_ramping_left[np.array(r3_right)>0.95,:],axis=0).T,c='red',lw=5,alpha=0.5)
-fig.legend(['Cells responding to RDMS left', 'Cells responding to RDMS right'], loc='upper right')
-plt.show()
-
-
-
-
-
-
+# Example usage:
+plot_dF_F_responses(dF_F_mean_no_motion, 
+                    [r0_left, r1_left, r2_left, r3_left], 
+                    [r0_right, r1_right, r2_right, r3_right],
+                    rdms_left_zu,rdms_right_zu,
+                    'Mean dF/F Responses RDMS no motion', 
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+plot_dF_F_responses(dF_F_mean_rdms_left_right, 
+                    [r0_left, r1_left, r2_left, r3_left], 
+                    [r0_right, r1_right, r2_right, r3_right], 
+                    rdms_left_zu,rdms_right_zu,
+                    'dF/F Responses RDMS left > RDMS right', 
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+plot_dF_F_responses(dF_F_mean_rdms_right_left, 
+                    [r0_left, r1_left, r2_left, r3_left], 
+                    [r0_right, r1_right, r2_right, r3_right],
+                    rdms_left_zu,rdms_right_zu,
+                    'dF/F Responses RDMS right > RDMS left', 
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+plot_dF_F_responses(dF_F_mean_ramping_right, 
+                    [r0_left, r1_left, r2_left, r3_left], 
+                    [r0_right, r1_right, r2_right, r3_right], 
+                    rdms_left_zu,rdms_right_zu,
+                    'dF/F Responses ramping right', 
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+plot_dF_F_responses(dF_F_mean_ramping_left, 
+                    [r0_left, r1_left, r2_left, r3_left], 
+                    [r0_right, r1_right, r2_right, r3_right], 
+                    rdms_left_zu,rdms_right_zu,
+                    'dF/F Responses ramping left', 
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
