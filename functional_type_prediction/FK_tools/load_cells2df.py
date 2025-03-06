@@ -25,22 +25,23 @@ def load_cells_predictor_pipeline(modalities=['pa','clem','em'],
     # Load the CLEM table if 'clem' modality is selected; path also assumes a specific directory structure.
     if 'clem' in modalities:
         clem_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('functionally_imaged'))
+        table_list.append(clem_table)
     if 'clem_predict' in modalities:
         clem_predict_table = load_clem_table(
             path_to_data.joinpath('clem_zfish1').joinpath('non_functionally_imaged'))
         table_list.append(clem_predict_table)
 
 
-        table_list.append(clem_table)
+        table_list.append(clem_predict_table)
     if 'clem241211' in modalities:
-        clem_table = load_clem_table(
+        clem241211_table = load_clem_table(
             path_to_data.joinpath('clem_zfish1').joinpath('new_batch_111224').joinpath('functionally_imaged_111224'))
-        table_list.append(clem_table)
+        table_list.append(clem241211_table)
 
     if 'clem_predict241211' in modalities:
-        clem_predict_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('new_batch_111224').joinpath(
+        clem_predict241211_table = load_clem_table(path_to_data.joinpath('clem_zfish1').joinpath('new_batch_111224').joinpath(
             'non_functionally_imaged_111224'))
-        table_list.append(clem_predict_table)
+        table_list.append(clem_predict241211_table)
 
 
     if 'em' in modalities:
