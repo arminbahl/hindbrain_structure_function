@@ -8,9 +8,9 @@ if __name__ == "__main__":
     test.load_cells_df(kmeans_classes=True, new_neurotransmitter=True,
                        modalities=['pa', 'clem241211', 'em', 'clem_predict241211'], neg_control=True,
                        input_em=True)
-    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216')  #
+    test.calculate_metrics('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220')  #
     # test.calculate_published_metrics()
-    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216', with_neg_control=True,
+    test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220', with_neg_control=True,
                              drop_neurotransmitter=False)
 
     # throw out truncated, exits and growth cone
@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     test.add_new_morphology_annotation()
 
-    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=Perceptron(random_state=0),
+    test.select_features_RFE('all', 'clem', cv=False, save_features=True, estimator=AdaBoostClassifier(random_state=0),
                              cv_method_RFE='ss', metric='f1')
 
     np.random.seed(42)
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         if test.reduced_features_idx[j]:
             permutated_accuracy = []
             for i in range(K):
-                test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor241216',
+                test.load_cells_features('FINAL_CLEM_CLEMPREDICT_EM_with_clem241211_withgregor250220',
                                          with_neg_control=True,
                                          drop_neurotransmitter=False)
                 test.remove_incomplete()
