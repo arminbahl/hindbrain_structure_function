@@ -24,7 +24,8 @@
 ../.idea/
 .idea/
 *.DS_Store
-
+*.hdf5
+*.h5
 *.png
 *.jpg
 
