@@ -6,9 +6,13 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from scipy import stats
 from sklearn.cluster import KMeans
+import sys
+import os
+sys.path.extend(['/Users/fkampf/PycharmProjects'])
 from hindbrain_structure_function.functional_type_prediction.FK_tools.load_cells2df import *
 from hindbrain_structure_function.visualization.FK_tools.get_base_path import *
 import chardet
+
 
 
 # classifying the functional dynamics using regressors and kmeans 2 write to metadata
@@ -21,6 +25,8 @@ def get_encoding(path):
 
 if __name__ == "__main__":
     # set variables
+
+    write_metadata = True
     np.set_printoptions(suppress=True)
     width_brain = 495.56
 
@@ -174,14 +180,14 @@ if __name__ == "__main__":
     kmeans = KMeans(n_clusters=n_clusters, random_state=0)
     kmeans.fit(all_PD)
 
-    label2class = {'0n': 'dynamic_threshold', '1n': 'integrator', '20': 'integrator', '21': 'motor_command'}
-    int2class = {0: 'dynamic_threshold', 1: 'integrator', 2: 'integrator', 3: 'motor_command'}
+    label2class = {'1n': 'dynamic_threshold', '2n': 'integrator', '01': 'integrator', '00': 'motor_command'}
+    int2class = {2: 'dynamic_threshold', 1: 'integrator', 3: 'integrator', 0: 'motor_command'}
     df['kmeans_labels_int_1st'] = kmeans.labels_
     n_clusters_2nd = 2
     kmeans_2nd = KMeans(n_clusters=n_clusters_2nd, random_state=0)
-    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 2])
+    kmeans_2nd.fit(all_PD[df['kmeans_labels_int_1st'] == 0])
     df['kmeans_labels_int_2nd'] = 'n'
-    df.loc[df['kmeans_labels_int_1st'] == 2, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
+    df.loc[df['kmeans_labels_int_1st'] == 0, 'kmeans_labels_int_2nd'] = kmeans_2nd.labels_
     df['kmeans_labels_int_1st'] = df['kmeans_labels_int_1st'].astype(str)
     df['kmeans_labels_int_2nd'] = df['kmeans_labels_int_2nd'].astype(str)
     df['kmeans_labels_final'] = df['kmeans_labels_int_1st'] + df['kmeans_labels_int_2nd']
@@ -235,6 +241,8 @@ if __name__ == "__main__":
 
 
     em_pa_cells = load_cells_predictor_pipeline(path_to_data=Path(data_path), modalities=['clem', 'pa'], load_repaired=True)
+    em_pa_cells = em_pa_cells.drop_duplicates(subset='cell_name')
+    em_pa_cells = em_pa_cells.loc[em_pa_cells['function'].isin(['integrator', 'dynamic_threshold', 'motor_command', 'dynamic threshold', 'motor command'])]
     em_pa_cells = em_pa_cells.loc[em_pa_cells['function'] != 'neg_control', :]
 
     for i,cell in em_pa_cells.iterrows():
@@ -271,16 +279,19 @@ if __name__ == "__main__":
 
             if (data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}').exists():
                 temp_path = data_path / 'clem_zfish1' / 'functionally_imaged' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
             if (data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}').exists():
                 temp_path = data_path / 'clem_zfish1' / 'all_cells' / f'clem_zfish1_{cell.cell_name}' / f'clem_zfish1_{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
             if (data_path / 'paGFP' / cell.cell_name).exists():
                 temp_path = data_path / 'paGFP' / cell.cell_name / f'{cell["cell_name"]}_metadata_with_regressor.txt'
-                with open(temp_path, 'w') as meta:
-                    meta.write(new_t)
+                if write_metadata:
+                    with open(temp_path, 'w') as meta:
+                        meta.write(new_t)
 
     color_dict = {
         "integrator": '#e84d8ab3',
@@ -369,6 +380,45 @@ if __name__ == "__main__":
         output_path = savepath / filename
         fig.savefig(output_path, dpi=1200)
         print(f"Figure saved successfully at: {output_path}")
+    
+    def flo_activity_plot(activity_array, cell_type, dt=0.5, color='red', savepath=savepath):
+        fig, ax = plt.subplots()
+        activity_array = ((activity_array - np.nanmin(activity_array, axis=1)[:, np.newaxis]) / (
+                np.nanmax(activity_array, axis=1)[:, np.newaxis] - np.nanmin(activity_array, axis=1)[:,
+                                                                   np.newaxis])) * 100
+
+        plt.axvline(10, color='k', alpha=0.9, linestyle='--', linewidth=1)
+        time_axis = np.arange(activity_array.shape[1]) * dt
+        for i in range(activity_array.shape[0]):
+            plt.plot(time_axis, activity_array[i, :], color='gray', alpha=0.5, linestyle='-', linewidth=1)
+        plt.plot(time_axis, np.nanmean(activity_array, axis=0), color=color, alpha=1, linestyle='-', linewidth=3)
+
+        # Remove the axes and add the scale bars
+        ax.plot([0, 10], [-5, -5], color='k', lw=2)  # Time scale bar (10 sec)
+        ax.text(5, -7, '10 sec', ha='center', fontfamily='Arial', fontsize=14)
+
+        # Adapted scale bar for normalized activity (using 10% of the normalized scale)
+        ax.plot([-2, -2], [0, 10], color='k', lw=2)  # Activity scale bar (10% of normalized activity)
+        ax.text(-2.5, 5, '10%', va='center', fontfamily='Arial', rotation=90, fontsize=14)
+
+        # Set aspect ratio to 1 and remove the axis lines
+        x_left, x_right = ax.get_xlim()
+        y_low, y_high = ax.get_ylim()
+        ax.set_aspect(abs((x_right - x_left) / (y_low - y_high)))
+        ax.set_axis_off()  # Remove the axis
+
+        plt.show()
+
+        # # Save the figure
+        filename = f"{cell_type}_activity-traces_fk.pdf"
+        savepath = savepath / 'activity_plots4fig'
+        os.makedirs(savepath, exist_ok=True)
+        output_path = savepath / filename
+        fig.savefig(output_path, dpi=1200)
+        print(f"Figure saved successfully at: {output_path}")
+
+
+        
 
 
     unpack_activity_traces = lambda x: np.array([y for y in x])
@@ -387,6 +437,13 @@ if __name__ == "__main__":
     jon_activity_plot(activity_mc, cell_type='motor_command', color='#7f58afb3')
     jon_activity_plot(activity_ii, cell_type='ipsilateral_integrator', color='#feb326b3')
     jon_activity_plot(activity_ci, cell_type='contralateral_integrator', color='#e84d8ab3')
+
+    flo_activity_plot
+
+    flo_activity_plot(activity_dt, cell_type='dynamic_threshold', color='#64c5ebb3')
+    flo_activity_plot(activity_mc, cell_type='motor_command', color='#7f58afb3')
+    flo_activity_plot(activity_ii, cell_type='ipsilateral_integrator', color='#feb326b3')
+    flo_activity_plot(activity_ci, cell_type='contralateral_integrator', color='#e84d8ab3')
     # neurotransmitter
     df['cell_class'] = df['kmeans_labels']
 
