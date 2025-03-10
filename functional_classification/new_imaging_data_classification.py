@@ -10,7 +10,7 @@ from scipy.signal import savgol_filter
 from pathlib import Path
 
 #Set path pointing at folder containing the data
-path = Path('/Users/fkampf/Documents/hindbrain_structure_function/nextcloud')
+path = Path('/Users/arminbahl/Nextcloud/CLEM_paper_data')
 path_fish0 = path / 'clem_zfish1/activity_recordings/untitled folder/2025-03-05_13-12-33_fish000_setup0_arena0_AB_preprocessed_data.h5'
 path_fish1 = path / 'clem_zfish1/activity_recordings/untitled folder/2025-03-05_13-12-40_fish001_setup1_arena0_AB_preprocessed_data.h5'
 # Load regressors
@@ -51,13 +51,13 @@ with h5py.File(path_fish1) as f:
 all_fish_df = pd.concat([fish0_df,fish1_df],axis=0)
 
 # Combine data from both fish
-F_rdms_left = np.concatenate([F_fish0_rdms_left,F_fish1_rdms_left], axis=1)[:,:,:120]
-F_rdms_right = np.concatenate([F_fish0_rdms_right,F_fish1_rdms_right[:10,:,:]], axis=1)[:,:,:120]
-F_no_motion = np.concatenate([F_fish0_no_motion, F_fish1_rdms_no_motion], axis=1)[:,:,:120]
-F_ramping_right = np.concatenate([F_fish0_ramping_right, F_fish1_ramping_right], axis=1)[:,:,:120]
-F_ramping_left = np.concatenate([F_fish0_ramping_left, F_fish1_ramping_left], axis=1)[:,:,:120]
-F_rdms_left_right = np.concatenate([F_fish0_rdms_left_right, F_fish1_rdms_left_right], axis=1)[:,:,:120]
-F_rdms_right_left = np.concatenate([F_fish0_rdms_right_left[:-1], F_fish1_rdms_right_left], axis=1)[:,:,:120]
+F_rdms_left = np.concatenate([F_fish0_rdms_left,F_fish1_rdms_left], axis=1)[:,:,:]
+F_rdms_right = np.concatenate([F_fish0_rdms_right,F_fish1_rdms_right[:10,:,:]], axis=1)[:,:,:]
+F_no_motion = np.concatenate([F_fish0_no_motion, F_fish1_rdms_no_motion], axis=1)[:,:,:]
+F_ramping_right = np.concatenate([F_fish0_ramping_right, F_fish1_ramping_right], axis=1)[:,:,:]
+F_ramping_left = np.concatenate([F_fish0_ramping_left, F_fish1_ramping_left], axis=1)[:,:,:]
+F_rdms_left_right = np.concatenate([F_fish0_rdms_left_right, F_fish1_rdms_left_right], axis=1)[:,:,:]
+F_rdms_right_left = np.concatenate([F_fish0_rdms_right_left[:-1], F_fish1_rdms_right_left], axis=1)[:,:,:]
 
 def calc_dF_F(F, dt=0.5):
     """
@@ -70,7 +70,7 @@ def calc_dF_F(F, dt=0.5):
     Returns:
     numpy array: deltaF/F data
     """
-    F0 = np.nanmean(F[:, :, int(5 / dt):int(30 / dt)], axis=2, keepdims=True)
+    F0 = np.nanmean(F[:, :, 10:40], axis=2, keepdims=True)
     dF_F = 100 * (F - F0) / F0
     return dF_F
 
@@ -246,7 +246,6 @@ def determine_function(row):
             return 'integrator'
     return 'none'
 
-
 # Calculate deltaF/F for different conditions
 dF_F_rdms_left = calc_dF_F(F_rdms_left)
 dF_F_rdms_right = calc_dF_F(F_rdms_right)
@@ -265,7 +264,6 @@ dF_F_mean_ramping_left = np.nanmean(dF_F_ramping_left, axis=0)
 
 # Function to calculate z-score
 
-
 # Calculate z-scores for different conditions
 rdms_left_zu, rdms_left_zd = z_scorer(dF_F_rdms_left, dF_F_rdms_right, prestim=40, stim=60)  # right z-scored
 rdms_right_zu, rdms_right_zd = z_scorer(dF_F_rdms_right, dF_F_rdms_left, prestim=40, stim=60)  # left z-scored
@@ -273,15 +271,22 @@ rdms_right_zu, rdms_right_zd = z_scorer(dF_F_rdms_right, dF_F_rdms_left, prestim
 
 
 # Cut data to correct length
-dF_F_cut_rdms_left = dF_F_rdms_left[:, :, 20:120]
-dF_F_cut_rdms_right = dF_F_rdms_right[:, :, 20:120]
+# dF_F_cut_rdms_left = dF_F_rdms_left[:, :, 20:120]
+# dF_F_cut_rdms_right = dF_F_rdms_right[:, :, 20:120]
+# dF_F_mean_cut_rdms_left = dF_F_mean_rdms_left[:, 20:100]
+# dF_F_mean_cut_rdms_right = dF_F_mean_rdms_right[:, 20:100]
+
+dF_F_cut_rdms_left = dF_F_rdms_left[:, :, :]
+dF_F_cut_rdms_right = dF_F_rdms_right[:, :, :]
+
+# Mean over trial, cut to 80 datapoints, to match the length of the regressor (30 s of stimulation)
 dF_F_mean_cut_rdms_left = dF_F_mean_rdms_left[:, 20:100]
 dF_F_mean_cut_rdms_right = dF_F_mean_rdms_right[:, 20:100]
 
 dF_F_mean_cut_rdms_all = np.concatenate([dF_F_mean_cut_rdms_left, dF_F_mean_cut_rdms_right], axis=0)
 dF_F_mean_cut_rdms_all = savgol_filter(dF_F_mean_cut_rdms_all, 10, 3)
 
-dF_F_mean_rdms_all = np.concatenate([dF_F_mean_rdms_left[:, 20:], dF_F_mean_rdms_right[:, 20:]], axis=0)
+dF_F_mean_rdms_all = np.concatenate([dF_F_mean_rdms_left[:, :], dF_F_mean_rdms_right[:, :]], axis=0)
 dF_F_mean_rdms_all = savgol_filter(dF_F_mean_rdms_all, 10, 3)
 
 dF_F_cut_shift_rdms_left = dF_F_cut_rdms_left - dF_F_cut_rdms_left[:, :, 0][:, :, np.newaxis]
@@ -289,9 +294,16 @@ dF_F_cut_shift_rdms_right = dF_F_cut_rdms_left - dF_F_cut_rdms_left[:, :, 0][:, 
 dF_F_mean_cut_shift_rdms_left = dF_F_mean_cut_rdms_left - dF_F_mean_cut_rdms_left[:, 0][:, np.newaxis]
 dF_F_mean_cut_shift_rdms_right = dF_F_mean_cut_rdms_right - dF_F_mean_cut_rdms_right[:, 0][:, np.newaxis]
 
+# Make the regressors 40 s long (10 s base line + 30 s)
 regressors_cut = regressors[:, :80]
 regressors_cut_shift = regressors_cut - regressors_cut[:, 0][:, np.newaxis]
-
+# import pylab as pl
+# pl.plot(regressors_cut[0])
+# pl.plot(regressors_cut[1])
+# pl.plot(regressors_cut[2])
+# pl.plot(regressors_cut[3])
+# pl.show()
+# sdf
 import scipy
 r0_all = [float(scipy.stats.pearsonr(regressors_cut[0], dF_F_mean_cut_rdms_all[x, :])[0]) for x in range(dF_F_mean_cut_rdms_all.shape[0])]
 r1_all = [float(scipy.stats.pearsonr(regressors_cut[1], dF_F_mean_cut_rdms_all[x, :])[0]) for x in range(dF_F_mean_cut_rdms_all.shape[0])]

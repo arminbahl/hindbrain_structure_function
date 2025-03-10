@@ -1,17 +1,26 @@
-from analysis_helpers.analysis.two_photon_modules.segmented_cell_activity_viewer import *
+import h5py
+import numpy as np
+from numba import jit
+import numpy as np
+import pylab as pl
+import pathlib
 
-# Path to experiment folder
-path = r"W:\M11 2P microscopes\Kim\ARMIN\dot_motion_coherence_opposing\2025-03-03_19-56-46_fish004_setup0_arena0"
-#path = r"W:\M11 2P microscopes\Kim\ARMIN\dot_motion_coherence_opposing\2025-03-03_19-57-02_fish005_setup1_arena0"
+# matplotlib.use("macosx")
+import matplotlib.colors as colors
+import numpy as np
+import scipy
 
-cv = SegmentedCellActivityViewer(
-    path_to_data = path,
-    stimulus_start=int(10/0.5), # in timesteps
-    stimulus_end=int(30/0.5), # in timesteps
-    z_planes=0,
-)
+from analysis_helpers.analysis.utils.figure_helper import Figure
 
-# Process data with segmentation
-cv.load_and_process_data()
-# Show data
-cv.show_plot()
+path = '/Users/arminbahl/Nextcloud/CLEM_paper_data/clem_zfish1/activity_recordings/untitled folder/dF_F_dynamics.hdf5'
+
+fp = h5py.File('/Users/arminbahl/Nextcloud/CLEM_paper_data/clem_zfish1/activity_recordings/untitled folder/dF_F_dynamics.hdf5', 'r')
+MON_leftward = fp["all/dF_F_mean_rdms_left/dynamic_threshold"]
+MON_leftward_then_rightward = fp["all/dF_F_mean_rdms_left_right/dynamic_threshold"]
+MON_rightward = fp["all/dF_F_mean_rdms_right/dynamic_threshold"]
+MON_rightward_then_leftward = fp["all/dF_F_mean_rdms_right_left/dynamic_threshold"]
+time = np.arange(0, 60, 0.5)
+
+for i in range(MON_leftward.shape[0]):
+    pl.plot(MON_leftward[i])
+pl.show()
