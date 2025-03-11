@@ -1,13 +1,23 @@
 import h5py
 import pandas as pd
 import numpy as np
-import sys
-import os
 from matplotlib.lines import Line2D
-sys.path.extend(['/Users/fkampf/PycharmProjects'])
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from pathlib import Path
+from numba import jit
+import numpy as np
+import pylab as pl
+import pathlib
+
+# matplotlib.use("macosx")
+import matplotlib.colors as colors
+import numpy as np
+import scipy
+
+from analysis_helpers.analysis.utils.figure_helper import Figure
+
+
 
 #Set path pointing at folder containing the data
 path = Path('/Users/arminbahl/Nextcloud/CLEM_paper_data')
@@ -182,6 +192,7 @@ def reconcile_regressors(r0_all, r1_all, r2_all, r3_all, threshold=0.05):
     
     return r0_all_reconciled, r1_all_reconciled, r2_all_reconciled, r3_all_reconciled
 
+
 def plot_dF_F_responses(dF_F_mean, 
                         r_left_list, r_right_list,
                         r_left_cutoff, r_right_cutoff,
@@ -199,10 +210,24 @@ def plot_dF_F_responses(dF_F_mean,
     """
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
     fig.suptitle(title)
-    
+
     for i in range(4):
         r_left = r_left_list[i]
         r_right = r_right_list[i]
+
+        if i == 0:
+            left_responses_MON = dF_F_mean[(np.array(r_left) > r_left_cutoff[i]) & (z_left > z_limit), :].T.copy()
+            right_responses_MON = dF_F_mean[(np.array(r_right) > r_right_cutoff[i])&(z_right>z_limit), :].T.copy()
+        elif i == 1:
+            left_responses_MI1 = dF_F_mean[(np.array(r_left) > r_left_cutoff[i]) & (z_left > z_limit), :].T.copy()
+            right_responses_MI1 = dF_F_mean[(np.array(r_right) > r_right_cutoff[i]) & (z_right > z_limit), :].T.copy()
+        elif i == 2:
+            left_responses_SMI = dF_F_mean[(np.array(r_left) > r_left_cutoff[i]) & (z_left > z_limit), :].T.copy()
+            right_responses_SMI = dF_F_mean[(np.array(r_right) > r_right_cutoff[i]) & (z_right > z_limit), :].T.copy()
+        elif i == 3:
+            left_responses_MI2 = dF_F_mean[(np.array(r_left) > r_left_cutoff[i]) & (z_left > z_limit), :].T.copy()
+            right_responses_MI2 = dF_F_mean[(np.array(r_right) > r_right_cutoff[i]) & (z_right > z_limit), :].T.copy()
+
         ax[i//2, i%2].plot(dF_F_mean[(np.array(r_left) > r_left_cutoff[i])&(z_left>z_limit), :].T, c='green', lw=1, alpha=0.4)
         ax[i//2, i%2].plot(np.mean(dF_F_mean[(np.array(r_left) > r_left_cutoff[i])&(z_left>z_limit), :], axis=0), c='green', lw=3)
         ax[i//2, i%2].plot(dF_F_mean[(np.array(r_right) > r_right_cutoff[i])&(z_right>z_limit), :].T, c='red', lw=1, alpha=0.4)
@@ -213,6 +238,13 @@ def plot_dF_F_responses(dF_F_mean,
                        Line2D([0], [0], color='red', lw=3, label=legend_labels[1])]
     fig.legend(handles=legend_elements, loc='upper right')
     plt.show()
+
+    return (left_responses_MON,
+            right_responses_MON,
+            np.c_[left_responses_MI1, left_responses_MI2],
+            np.c_[right_responses_MI1, right_responses_MI2],
+            left_responses_SMI,
+            right_responses_SMI)
 
 def passes_cutoff(row):
     if row['r_max_name'] == 'r0_left':
@@ -392,7 +424,8 @@ ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,:],axis=0
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
-
+########################################
+# Plot and analyze
 
 plot_dF_F_responses(dF_F_mean_no_motion, 
                     [r0_left, r1_left, r2_left, r3_left], 
@@ -402,23 +435,63 @@ plot_dF_F_responses(dF_F_mean_no_motion,
                     rdms_left_zu,rdms_right_zu,
                     'Mean dF/F Responses RDMS no motion', 
                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-plot_dF_F_responses(dF_F_mean_rdms_left_right, 
+
+(left_responses_MON_left_left,
+right_responses_MON_left_left,
+left_responses_MI_left_left,
+right_responses_MI_left_left,
+left_responses_SMI_left_left,
+right_responses_SMI_left_left) =  plot_dF_F_responses(dF_F_mean_rdms_left,
+                    [r0_left, r1_left, r2_left, r3_left],
+                    [r0_right, r1_right, r2_right, r3_right],
+                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                    rdms_left_zu,rdms_right_zu,
+                    'Mean dF/F Responses RDMS left, left',
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+
+(left_responses_MON_right_right,
+ right_responses_MON_right_right,
+ left_responses_MI_right_right,
+ right_responses_MI_right_right,
+ left_responses_SMI_right_right,
+ right_responses_SMI_right_right) = plot_dF_F_responses(dF_F_mean_rdms_right,
+                    [r0_left, r1_left, r2_left, r3_left],
+                    [r0_right, r1_right, r2_right, r3_right],
+                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                    rdms_left_zu,rdms_right_zu,
+                    'Mean dF/F Responses RDMS right, right',
+                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+
+(left_responses_MON_left_right,
+ right_responses_MON_left_right,
+ left_responses_MI_left_right,
+ right_responses_MI_left_right,
+ left_responses_SMI_left_right,
+ right_responses_SMI_left_right) = plot_dF_F_responses(dF_F_mean_rdms_left_right,
                     [r0_left, r1_left, r2_left, r3_left], 
                     [r0_right, r1_right, r2_right, r3_right],
                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
                     [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff], 
                     rdms_left_zu,rdms_right_zu,
-                    'dF/F Responses RDMS left > RDMS right', 
+                    'dF/F Responses RDMS left, right',
                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-plot_dF_F_responses(dF_F_mean_rdms_right_left, 
+(left_responses_MON_right_left,
+ right_responses_MON_right_left,
+ left_responses_MI_right_left,
+ right_responses_MI_right_left,
+ left_responses_SMI_right_left,
+ right_responses_SMI_right_left) = plot_dF_F_responses(dF_F_mean_rdms_right_left,
                     [r0_left, r1_left, r2_left, r3_left], 
                     [r0_right, r1_right, r2_right, r3_right],
                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
                     [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
                     rdms_left_zu,rdms_right_zu,
-                    'dF/F Responses RDMS right > RDMS left', 
+                    'dF/F Responses RDMS right, left',
                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-plot_dF_F_responses(dF_F_mean_ramping_right, 
+
+plot_dF_F_responses(dF_F_mean_ramping_right,
                     [r0_left, r1_left, r2_left, r3_left], 
                     [r0_right, r1_right, r2_right, r3_right],
                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
@@ -426,7 +499,8 @@ plot_dF_F_responses(dF_F_mean_ramping_right,
                     rdms_left_zu,rdms_right_zu,
                     'dF/F Responses ramping right', 
                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-plot_dF_F_responses(dF_F_mean_ramping_left, 
+
+plot_dF_F_responses(dF_F_mean_ramping_left,
                     [r0_left, r1_left, r2_left, r3_left], 
                     [r0_right, r1_right, r2_right, r3_right],
                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
@@ -436,30 +510,129 @@ plot_dF_F_responses(dF_F_mean_ramping_left,
                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
 
 
+MON_left_left = np.c_[left_responses_MON_left_left, right_responses_MON_right_right]
+MI_left_left = np.c_[left_responses_MI_left_left, right_responses_MI_right_right]
+SMI_left_left = np.c_[left_responses_SMI_left_left, right_responses_SMI_right_right]
 
-#write dynamics to hdf5 file
-first_level = ['fish0', 'fish1','all']
-second_level = ['dF_F_rdms_left', 'dF_F_rdms_right', 'dF_F_mean_rdms_right', 'dF_F_mean_rdms_left', 'dF_F_no_motion', 'dF_F_mean_no_motion', 'dF_F_rdms_left_right', 'dF_F_rdms_right_left', 'dF_F_mean_rdms_left_right', 'dF_F_mean_rdms_right_left', 'dF_F_ramping_right', 'dF_F_ramping_left', 'dF_F_mean_ramping_right', 'dF_F_mean_ramping_left']
-third_level = ['all','all_passing','dynamic_threshold','integrator','motor_command','none']
-with h5py.File(path_fish0.parent/'dF_F_dynamics.hdf5', "w") as f:
+MON_left_right = np.c_[left_responses_MON_left_right, right_responses_MON_right_left]
+MI_left_right = np.c_[left_responses_MI_left_right, right_responses_MI_right_left]
+SMI_left_right = np.c_[left_responses_SMI_left_right, right_responses_SMI_right_left]
 
-    for lvl1 in first_level:
-        for lvl2 in second_level:
-            for lvl3 in third_level:
-                temp = np.full(all_fish_df.shape[0],fill_value=True)
-                if lvl1 != 'all':
-                    temp = (all_fish_df['fish_id']== lvl1) * temp
-                
-                if lvl3 in ['dynamic_threshold','integrator','motor_command','none']:
-                    temp = (all_fish_df['functional_type']==lvl3) * temp
-                elif lvl3 == 'all_passing':
-                    temp = (all_fish_df['passes_cutoff']==True) * temp
 
-                if len(eval(lvl2).shape) == 3:
-                    data = eval(lvl2)[:,temp,:]
-                elif len(eval(lvl2).shape) == 2:
-                    data = eval(lvl2)[temp,:]
+## Plotting and stats
+# Do a time constant fit (average time to 90% as in
 
-                f.create_dataset(f'{lvl1}/{lvl2}/{lvl3}', data=data, dtype=data.dtype)
+dt = 0.5
+t = np.arange(0, 70, dt)
+S_left1 = np.zeros(len(t))
+S_right1 = np.zeros(len(t))
+S_left2 = np.zeros(len(t))
+S_right2 = np.zeros(len(t))
 
-all_fish_df.loc[:,['unit_name','fish_id','functional_type']].to_hdf(path_fish0.parent/'dF_F_dynamics.hdf5', key='df_correlation_classification', mode='a')
+# Both visual inputs have some baseline input rate
+S_left1[:] = 0.5
+S_right1[:] = 0.5
+
+# Show some input on the left eye
+S_left1[int(20/dt):int(50/dt)] += 1
+# Which reduced firing on the right side.
+S_right1[int(20/dt):int(50/dt)] -= 0.5
+
+S_left2[:] = 0.5
+S_right2[:] = 0.5
+
+# Show some input on the left eye
+# S_left2[int(20/dt):int(40/dt)] += np.linspace(0, 1, int(20/dt))
+# S_right2[int(20/dt):int(40/dt)] -= 0.5*S_left2[int(20/dt):int(40/dt)]
+
+# Opposing stimulation
+S_left2[int(20/dt):int(35/dt)] += 1
+S_right2[int(20/dt):int(35/dt)] -= 0.5
+S_left2[int(35/dt):int(50/dt)] -= 0.5
+S_right2[int(35/dt):int(50/dt)] += 1
+
+# Make a standard figure
+fig = Figure(figure_title="Figure 5_data")
+
+colors = ["#68C7EC", "#ED7658", "#7F58AF"]
+line_dashes = [None, None, None, None]
+
+names = ["MON", "MI", "SMI"]
+
+for prediction in [0, 1]:
+
+    plot0 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=24.5, plot_height=0.5, plot_width=2,
+                            errorbar_area=True,
+                            xl="", xmin=9, xmax=71, xticks=[],
+                            plot_title="Ipsi. hemisphere",
+                            yl="", ymin=-0.1, ymax=1.6, yticks=[0, 0.5], hlines=[0],
+                            vspans=[[20, 50, "#aaaaaa", 0.5]])
+
+    plot1 = fig.create_plot(plot_label='a', xpos=3.5  + prediction * 8, ypos=22, plot_height=2, plot_width=2, errorbar_area=True,
+                            xl="Time (s)", xmin=9, xmax=71, xticks=[10, 20], vlines=[20+15],
+                            yl="ΔF / F0", ymin=-21, ymax=71.1, yticks=[0, 35, 71], hlines=[0],
+                            vspans=[[20, 50, "#aaaaaa", 0.5]])
+
+    if prediction == 0:
+        plot0.draw_line(x=t[int(10 / dt):], y=S_left1[int(10 / dt):], lw=1.5, lc='black')
+    if prediction == 1:
+        plot0.draw_line(x=t[int(10 / dt):], y=S_left2[int(10 / dt):], lw=1.5, lc='black')
+
+    delays = []
+    delays2 = []
+
+    for i_cell in np.arange(3):
+        if i_cell == 0 and prediction == 0:
+            df_f0 = MON_left_left.mean(axis=1)
+        if i_cell == 0 and prediction == 1:
+            df_f0 = MON_left_right.mean(axis=1)
+
+        if i_cell == 1 and prediction == 0:
+            df_f0 = MI_left_left.mean(axis=1)
+        if i_cell == 1 and prediction == 1:
+            df_f0 = MI_left_right.mean(axis=1)
+
+        if i_cell == 2 and prediction == 0:
+            df_f0 = SMI_left_left.mean(axis=1)
+        if i_cell == 2 and prediction == 1:
+            df_f0 = SMI_left_right.mean(axis=1)
+
+        if prediction == 0:
+            rate_90_percent = df_f0[int(20 / dt):int(50 / dt)].max() * 0.9
+            ind = np.where(df_f0[int(20 / dt):int(50 / dt)] > rate_90_percent)
+        else:
+            rate_90_percent = df_f0[int(20 / dt):int(35 / dt)].max() * 0.9
+            ind = np.where(df_f0[int(20 / dt):int(35 / dt)] > rate_90_percent)
+
+        if len(ind[0]) > 0:
+            t_to_90_percent = ind[0][0] * dt
+            delays.append(t_to_90_percent)
+        else:
+            delays.append(np.nan)
+
+        if prediction == 0:
+            val_10_percent = df_f0[int(50 / dt)] * 0.2
+            ind = np.where(df_f0[int(50 / dt):] < val_10_percent)
+        else:
+            val_10_percent = df_f0[int(35/dt)]*0.2
+            ind = np.where(df_f0[int(35/dt):] < val_10_percent)
+
+        if len(ind[0]) > 0:
+            t_to_10_percent = ind[0][0] * dt
+            delays2.append(t_to_10_percent)
+        else:
+            delays2.append(np.nan)
+
+        plot1.draw_line(x=t[int(10/dt):], y=df_f0[int(10/dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
+
+    plot2 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=13.5, plot_height=1.5,
+                            plot_width=1.5,
+                            errorbar_area=True,
+                            xl="Time to 90% of max (s)", xmin=-0.1, xmax=20.1, xticks=[0, 10, 20],
+                            yl="Time from max to 10% (s)", ymin=-0.1, ymax=20.1, yticks=[0, 10, 20], hlines=[0], vlines=[0])
+    plot2.draw_line([0, 20], [0,20], lw=0.5, line_dashes=(2,2), lc='gray')
+
+    for i in range(3):
+        plot2.draw_scatter(x=[delays[i]], y=[delays2[i]], pc=colors[i])
+
+fig.save(Path.home() / 'Desktop' / "fig_test_data.pdf", open_file=True)
