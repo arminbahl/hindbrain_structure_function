@@ -36,6 +36,7 @@ for idx, path_fish in {0:path_fish0, 1:path_fish1, 3:path_fish3, 4:path_fish4}.i
         keys = [key for key in f.keys() if key.startswith("repeat")]
         print('Fish', idx, 'keys', keys)
         for key in keys:
+            # smallest common length is 12. Maximum length is 13.
             F_fish_rdms_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])[:12,...])
             F_fish_rdms_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/right_right/F'])[:12,...])
             F_fish_rdms_left_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_right/F'])[:12,...])
@@ -78,6 +79,7 @@ def retrieve_segmentation(path_hdf5,id,plane='z000',seg_type='unit_contours'):
     Parameters:
     path_hdf5 (str): The file path to the HDF5 file containing the segmentation data.
     id (str): The identifier for the specific segmentation data to retrieve.
+    plane (str, optional): select plane string to retrieve segmentation. Default is 'z000'.
     seg_type (str, optional): The type of segmentation data to retrieve. Options are 'unit_contours', 
                                 'unit_masks', and 'unit_contour_masks'. Default is 'unit_contours'.
 
@@ -98,7 +100,7 @@ def plot_cells_in_brain(df, color_dict, cmap='gray', seg_type='unit_contours'):
     Plots cells in the brain for each fish in the given DataFrame.
     Parameters:
     df (pd.DataFrame): DataFrame containing information about the cells. 
-                       Must include columns 'fish_id', 'passes_cutoff', 'hdf5_path', 'unit_name', and 'functional_type'.
+                       Must include columns 'fish_id', 'plane', 'passes_cutoff', 'hdf5_path', 'unit_name', and 'functional_type'.
     color_dict (dict): Dictionary mapping functional types to colors.
     cmap (str, optional): Colormap to use for the background image. Default is 'gray'.
     seg_type (str, optional): Type of segmentation to retrieve. Default is 'unit_contours'.
