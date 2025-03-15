@@ -20,11 +20,11 @@ from analysis_helpers.analysis.utils.figure_helper import Figure
 
 
 #Set path pointing at folder containing the data
-path = Path(r'Z:\Kim\clem_g8s\dot_motion_coherence_direction_change')  # Z: = imaging_data1/M11 2P microscopes
-path_fish0 = path / r"2025-03-13_14-43-43_fish000_setup0_arena0_plane1\2025-03-13_14-43-43_fish000_setup0_arena0_plane1_preprocessed_data.h5"
-path_fish1 = path / r"2025-03-13_12-56-57_fish001_setup1_arena0\2025-03-13_12-56-57_fish001_setup1_arena0_preprocessed_data.h5"
-path_fish3 = path / r"2025-03-13_16-49-45_fish003_setup0_arena0\2025-03-13_16-49-45_fish003_setup0_arena0_preprocessed_data.h5"
-path_fish4 = path / r"2025-03-13_19-15-32_fish004_setup1_arena0\2025-03-13_19-15-32_fish004_setup1_arena0_preprocessed_data.h5"
+path = Path(r'C:\Users\ag-bahl\Desktop\CLEM data')  # Z: = imaging_data1/M11 2P microscopes
+path_fish0 = path / r"2025-03-13_14-43-43_fish000_setup0_arena0_plane1_preprocessed_data.h5"
+path_fish1 = path / r"2025-03-13_12-56-57_fish001_setup1_arena0_preprocessed_data.h5"
+path_fish3 = path / r"2025-03-13_16-49-45_fish003_setup0_arena0_preprocessed_data.h5"
+path_fish4 = path / r"2025-03-13_19-15-32_fish004_setup1_arena0_preprocessed_data.h5"
 # Load regressors
 regressors = np.load(r"C:\Users\ag-bahl\Desktop\kmeans_regressors.npy")*100
 
@@ -115,13 +115,20 @@ def plot_cells_in_brain(df, color_dict, cmap='gray', seg_type='unit_contours'):
         with h5py.File(passing_cells_per_fish_plane['hdf5_path'].unique()[0]) as f:
             average_image = np.array(f[f'repeat00_tile000_{plane}_950nm/preprocessed_data/fish00/imaging_data_channel0_time_averaged'])
             average_image = np.clip(average_image,np.percentile(average_image,2),np.percentile(average_image,98))
-        ax.imshow(average_image,cmap=cmap)
+
+        ax.imshow(average_image, cmap=cmap)
+
+
+        cells_per_fish_plane = df[(df['fish_id'] == fish) & (df['plane'] == plane)]
+        for i, item in cells_per_fish_plane.iterrows():
+            cell_seg = retrieve_segmentation(item['hdf5_path'], item['unit_name'], plane, seg_type)
+            ax.plot(cell_seg[:, 0], cell_seg[:, 1], color='gray', lw=1)
 
         for i,item in passing_cells_per_fish_plane.iterrows():
             cell_seg = retrieve_segmentation(item['hdf5_path'],item['unit_name'],plane,seg_type)
-            
-            ax.plot(cell_seg[:,0],cell_seg[:,1],color=color_dict[item['functional_type']],lw=1)
-        fig.show()
+            ax.plot(cell_seg[:,0],cell_seg[:,1],color=color_dict[item['functional_type']],lw=2)
+
+        fig.savefig(path / f"{fish}_{plane}.png")
 
 def z_scorer(stim_activity_1, stim_activity_2, prestim, stim):
     """
@@ -145,7 +152,7 @@ def z_scorer(stim_activity_1, stim_activity_2, prestim, stim):
     z_score_down = np.nanpercentile(z_score[:, prestim:(prestim + stim)], 10, axis=1)
     return z_score_up, z_score_down
 
-def reconcile_regressors(r0_all, r1_all, r2_all, r3_all, threshold=0.05):
+def reconcile_regressors(r0_all, r1_all, r2_all, r3_all, threshold=0.02):
     """
     Reconcile regressors by setting the maximum to its value and others to zero.
     If the difference between max and 2nd largest is less than threshold, set all to zero.
@@ -196,6 +203,7 @@ def plot_dF_F_responses(dF_F_mean,
     title (str): Title of the plot
     legend_labels (list): Labels for the legend
     """
+    print('Zlimit:', z_limit)
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
     fig.suptitle(title)
 
@@ -288,8 +296,6 @@ dF_F_mean_rdms_right_left = np.nanmean(dF_F_rdms_right_left, axis=0)
 rdms_left_zu, rdms_left_zd = z_scorer(dF_F_rdms_left, dF_F_rdms_right, prestim=80, stim=60)  # right z-scored
 rdms_right_zu, rdms_right_zd = z_scorer(dF_F_rdms_right, dF_F_rdms_left, prestim=80, stim=60)  # left z-scored
 
-
-
 # Cut data to correct length
 # dF_F_cut_rdms_left = dF_F_rdms_left[:, :, 20:120]
 # dF_F_cut_rdms_right = dF_F_rdms_right[:, :, 20:120]
@@ -316,12 +322,12 @@ dF_F_mean_cut_shift_rdms_right = dF_F_mean_cut_rdms_right - dF_F_mean_cut_rdms_r
 
 # Make the regressors 40 s long (10 s base line + 30 s)
 regressors_cut = regressors[:, :80]
-regressors_cut_shift = regressors_cut - regressors_cut[:, 0][:, np.newaxis]
+regressors_cut_shift = regressors_cut - np.nanmean(regressors_cut[:, 5:20], axis=1, keepdims=True)#[:, np.newaxis]
 # import pylab as pl
-# pl.plot(regressors_cut[0])
-# pl.plot(regressors_cut[1])
-# pl.plot(regressors_cut[2])
-# pl.plot(regressors_cut[3])
+# pl.plot(regressors_cut_shift[0])
+# pl.plot(regressors_cut_shift[1])
+# pl.plot(regressors_cut_shift[2])
+# pl.plot(regressors_cut_shift[3])
 # pl.show()
 # sdf
 import scipy
@@ -389,25 +395,25 @@ plot_cells_in_brain(all_fish_df, color_dict, cmap='gray',seg_type='unit_contours
 # Plotting the results
 
 fig,ax = plt.subplots(2,2,figsize=(10,10))
-ax[0,0].plot(dF_F_mean_rdms_all[np.array(r0_all)>r0_all_cutoff,:].T,c='gray',lw=1,alpha=0.5)
+ax[0,0].plot(dF_F_mean_rdms_all[np.array(r0_all)>r0_all_cutoff,60:].T,c='gray',lw=1,alpha=0.5)
 ax[0,0].plot(regressors_cut_shift[0],lw=5,alpha=0.6,c='red')
-ax[0,1].plot(dF_F_mean_rdms_all[np.array(r1_all)>r1_all_cutoff,:].T,c='gray',lw=1,alpha=0.5)
+ax[0,1].plot(dF_F_mean_rdms_all[np.array(r1_all)>r1_all_cutoff,60:].T,c='gray',lw=1,alpha=0.5)
 ax[0,1].plot(regressors_cut_shift[1],lw=5,alpha=0.6,c='red')
-ax[1,0].plot(dF_F_mean_rdms_all[np.array(r2_all)>r2_all_cutoff,:].T,c='gray',lw=1,alpha=0.5)
+ax[1,0].plot(dF_F_mean_rdms_all[np.array(r2_all)>r2_all_cutoff,60:].T,c='gray',lw=1,alpha=0.5)
 ax[1,0].plot(regressors_cut_shift[2],lw=5,alpha=0.6,c='red')
-ax[1,1].plot(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,:].T,c='gray',lw=1,alpha=0.5)
+ax[1,1].plot(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,60:].T,c='gray',lw=1,alpha=0.5)
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
 fig,ax = plt.subplots(2,2,figsize=(10,10))
 fig.suptitle('Mean dF/F Responses and Regressors RDMS left/right')
-ax[0,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r0_all)>r0_all_cutoff,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[0,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r0_all)>r0_all_cutoff,60:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[0,0].plot(regressors_cut_shift[0],lw=5,alpha=0.6,c='red')
-ax[0,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r1_all)>r1_all_cutoff,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[0,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r1_all)>r1_all_cutoff,60:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[0,1].plot(regressors_cut_shift[1],lw=5,alpha=0.6,c='red')
-ax[1,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r2_all)>r2_all_cutoff,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[1,0].plot(np.mean(dF_F_mean_rdms_all[np.array(r2_all)>r2_all_cutoff,60:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[1,0].plot(regressors_cut_shift[2],lw=5,alpha=0.6,c='red')
-ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,:],axis=0).T,c='green',lw=5,alpha=0.5)
+ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,60:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
@@ -539,7 +545,7 @@ S_left2[int(55/dt):int(70/dt)] -= 0.5
 S_right2[int(55/dt):int(70/dt)] += 1
 
 # Make a standard figure
-fig = Figure(figure_title="Figure 5_data")
+fig = Figure(figure_title="Figure 4_data")
 
 colors = ["#68C7EC", "#ED7658", "#7F58AF"]
 line_dashes = [None, None, None, None]
@@ -548,20 +554,20 @@ names = ["MON", "MI", "SMI"]
 
 for prediction in [0, 1]:
 
-    plot0 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=24.5, plot_height=0.5, plot_width=2,
+    plot0 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=24.5, plot_height=0.5, plot_width=3,
                             errorbar_area=True,
-                            xl="", xmin=9, xmax=111, xticks=[],
+                            xl="", xmin=29, xmax=111, xticks=[],
                             plot_title="Ipsi. hemisphere",
                             yl="", ymin=-0.1, ymax=1.6, yticks=[0, 0.5], hlines=[0])
 
-    plot1 = fig.create_plot(plot_label='a', xpos=3.5  + prediction * 8, ypos=22, plot_height=2, plot_width=2, errorbar_area=True,
-                            xl="Time (s)", xmin=9, xmax=111, xticks=[10, 20], vlines=[40,55,70],
-                            yl="ΔF / F0", ymin=-21, ymax=71.1, yticks=[0, 35, 71], hlines=[0])
+    plot1 = fig.create_plot(plot_label='a', xpos=3.5  + prediction * 8, ypos=22, plot_height=2, plot_width=3, errorbar_area=True,
+                            xl="Time (s)", xmin=29, xmax=111, xticks=[30, 40], vlines=[40, 55, 70],
+                            yl="ΔF / F0", ymin=-21, ymax=71, yticks=[0, 20], hlines=[0])
 
     if prediction == 0:
-        plot0.draw_line(x=t[int(10 / dt):], y=S_left1[int(10 / dt):], lw=1.5, lc='black')
+        plot0.draw_line(x=t[int(30 / dt):], y=S_left1[int(30 / dt):], lw=1.5, lc='black')
     if prediction == 1:
-        plot0.draw_line(x=t[int(10 / dt):], y=S_left2[int(10 / dt):], lw=1.5, lc='black')
+        plot0.draw_line(x=t[int(30 / dt):], y=S_left2[int(30 / dt):], lw=1.5, lc='black')
 
     delays = []
     delays2 = []
@@ -608,17 +614,17 @@ for prediction in [0, 1]:
         else:
             delays2.append(np.nan)
 
-        plot1.draw_line(x=t[int(10/dt):], y=df_f0[int(10/dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
+        plot1.draw_line(x=t[int(30/dt):], y=df_f0[int(30/dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
 
     plot2 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=13.5, plot_height=1.5,
                             plot_width=1.5,
                             errorbar_area=True,
-                            xl="Time to 90% of max (s)", xmin=-0.1, xmax=35.1, xticks=[0, 10, 20],
-                            yl="Time from max to 10% (s)", ymin=-0.1, ymax=35.1, yticks=[0, 10, 20], hlines=[0], vlines=[0])
-    plot2.draw_line([0, 20], [0,20], lw=0.5, line_dashes=(2,2), lc='gray')
+                            xl="Time to 90% of max (s)", xmin=-0.1, xmax=30.1, xticks=[0, 15, 30],
+                            yl="Time from max to 10% (s)", ymin=-0.1, ymax=30.1, yticks=[0, 15, 30], hlines=[0], vlines=[0])
+    plot2.draw_line([0, 30], [0,30], lw=0.5, line_dashes=(2, 2), lc='gray')
     print(delays, delays2)
 
     for i in range(3):
         plot2.draw_scatter(x=[delays[i]], y=[delays2[i]], pc=colors[i])
 
-fig.save(Path.home() / 'Desktop' / "fig_test_data.pdf", open_file=True)
+fig.save(Path.home() / 'Desktop' / 'CLEM data' / "fig_test_data.pdf", open_file=True)
