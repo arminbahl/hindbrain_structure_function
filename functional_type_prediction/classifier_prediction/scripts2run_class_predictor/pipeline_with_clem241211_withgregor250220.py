@@ -1,7 +1,6 @@
 from holoviews.plotting.bokeh.styles import font_size
 import os
 import sys
-import os
 sys.path.extend(['/Users/fkampf/PycharmProjects'])
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.class_predictor import *
 from itertools import product
