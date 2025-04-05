@@ -10,7 +10,6 @@ from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 from hindbrain_structure_function.functional_type_prediction.FK_tools.nblast import *
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
-from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df_old import *
 from hindbrain_structure_function.functional_type_prediction.classifier_prediction.calculate_metric2df import *
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_classif, chi2, mutual_info_classif

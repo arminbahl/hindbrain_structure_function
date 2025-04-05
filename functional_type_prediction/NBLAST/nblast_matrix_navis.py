@@ -24,7 +24,6 @@ import matplotlib.colors as mcl
 import seaborn as sns
 from copy import deepcopy
 from tqdm import tqdm
-from hindbrain_structure_function.functional_type_prediction.FK_tools.branching_angle_calculator import *
 import math
 import navis
 from navis.nbl.smat import Lookup2d, LookupDistDotBuilder, Digitizer

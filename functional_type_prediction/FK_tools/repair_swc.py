@@ -28,7 +28,6 @@ import matplotlib.colors as mcl
 import seaborn as sns
 from copy import deepcopy
 from tqdm import tqdm
-from hindbrain_structure_function.functional_type_prediction.FK_tools.branching_angle_calculator import *
 import plotly
 from hindbrain_structure_function.functional_type_prediction.FK_tools.fragment_neurite import *
 import sys
