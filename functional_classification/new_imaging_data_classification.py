@@ -5,6 +5,8 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from pathlib import Path
+import os
+import re
 from numba import jit
 import numpy as np
 import pylab as pl
@@ -20,24 +22,28 @@ from analysis_helpers.analysis.utils.figure_helper import Figure
 
 
 #Set path pointing at folder containing the data
-path = Path(r'C:\Users\ag-bahl\Desktop\CLEM data')  # Z: = imaging_data1/M11 2P microscopes
-path_fish0 = path / r"2025-03-13_14-43-43_fish000_setup0_arena0_plane1_preprocessed_data.h5"
-path_fish1 = path / r"2025-03-13_12-56-57_fish001_setup1_arena0_preprocessed_data.h5"
-path_fish3 = path / r"2025-03-13_16-49-45_fish003_setup0_arena0_preprocessed_data.h5"
-path_fish4 = path / r"2025-03-13_19-15-32_fish004_setup1_arena0_preprocessed_data.h5"
+path = Path(r'C:\Users\ag-bahl\Desktop\Current ToDo\CLEM data\g8s')
+# Find all HDF5 files in the directory
+hdf5_files = [f for f in os.listdir(path) if f.endswith('.h5')]
+
 # Load regressors
-regressors = np.load(r"C:\Users\ag-bahl\Desktop\kmeans_regressors.npy")*100
+regressors = np.load(r"C:\Users\ag-bahl\Desktop\Current ToDo\CLEM data\kmeans_regressors.npy")*100
 
 all_fish_df = pd.DataFrame()
-F_fish_rdms_left, F_fish_rdms_right, F_fish_rdms_right, F_fish_rdms_left_right, F_fish_rdms_right_left = [],[],[],[],[]
+F_fish_rdms_left, F_fish_rdms_right, F_fish_rdms_left_right, F_fish_rdms_right_left = [],[],[],[]
+
 # Load data from HDF5 files
-for idx, path_fish in {0:path_fish0, 1:path_fish1, 3:path_fish3, 4:path_fish4}.items():
+for idx, file in enumerate(hdf5_files):
+    path_fish = path / file
+    # Extract fish number from file name
+    fish_str = re.search(r'fish(\d+)', file).group(1)
+    fish_id = int(fish_str)
     with h5py.File(path_fish) as f:
         keys = [key for key in f.keys() if key.startswith("repeat")]
-        print('Fish', idx, 'keys', keys)
+        print(f'Fish {fish_id} keys', keys)
         for key in keys:
             # smallest common length is 12. Maximum length is 13.
-            F_fish_rdms_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])[:12,...])
+            F_fish_rdms_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_left/F'])[:12,...])  # [:12,...]
             F_fish_rdms_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/right_right/F'])[:12,...])
             F_fish_rdms_left_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/left_right/F'])[:12,...])
             F_fish_rdms_right_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/right_left/F'])[:12,...])
@@ -45,13 +51,14 @@ for idx, path_fish in {0:path_fish0, 1:path_fish1, 3:path_fish3, 4:path_fish4}.i
             average_image_fish = np.array(f[f'{key}/preprocessed_data/fish00/imaging_data_channel0_time_averaged'])
             unit_names_fish = np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/unit_names'])
             hdf5_path_fish = np.full(unit_names_fish.shape, fill_value=str(path_fish))
-            fish_id_fish = np.full(unit_names_fish.shape, fill_value=f'fish{idx}')
+            fish_id_fish = np.full(unit_names_fish.shape, fill_value=f'fish{fish_id}')
             plane_fish = np.full(unit_names_fish.shape, fill_value=f'{key.split('_')[2]}')
+
             fish_df = pd.DataFrame([unit_names_fish, hdf5_path_fish, fish_id_fish, plane_fish]).T
             fish_df.columns = ['unit_name', 'hdf5_path', 'fish_id', 'plane']
-            all_fish_df = pd.concat([all_fish_df, fish_df], axis=0)
+            all_fish_df = pd.concat([all_fish_df, fish_df], axis=0).reset_index(drop=True)
 
-# Combine data from both fish
+# Combine data from all fish
 F_rdms_left = np.concatenate(F_fish_rdms_left, axis=1)[:,:,:]
 F_rdms_right = np.concatenate(F_fish_rdms_right, axis=1)[:,:,:]
 F_rdms_left_right = np.concatenate(F_fish_rdms_left_right, axis=1)[:,:,:]
@@ -417,99 +424,80 @@ ax[1,1].plot(np.mean(dF_F_mean_rdms_all[np.array(r3_all)>r3_all_cutoff,60:],axis
 ax[1,1].plot(regressors_cut_shift[3],lw=5,alpha=0.6,c='red')
 plt.show()
 
+
 ########################################
-# Plot and analyze
+# Plot and analyze per fish
 
-# plot_dF_F_responses(dF_F_mean_no_motion,
-#                     [r0_left, r1_left, r2_left, r3_left],
-#                     [r0_right, r1_right, r2_right, r3_right],
-#                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-#                     [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-#                     rdms_left_zu,rdms_right_zu,
-#                     'Mean dF/F Responses RDMS no motion',
-#                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+MON_left_left,MI_left_left,SMI_left_left,MON_left_right,MI_left_right,SMI_left_right = {},{},{},{},{},{}
+# Only functional cells
+grouped = all_fish_df.groupby('fish_id')
+for fish_id, fish_df in grouped:
 
-(left_responses_MON_left_left,
-right_responses_MON_left_left,
-left_responses_MI_left_left,
-right_responses_MI_left_left,
-left_responses_SMI_left_left,
-right_responses_SMI_left_left) =  plot_dF_F_responses(dF_F_mean_rdms_left,
-                    [r0_left, r1_left, r2_left, r3_left],
-                    [r0_right, r1_right, r2_right, r3_right],
-                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-                    rdms_left_zu,rdms_right_zu,
-                    'Mean dF/F Responses RDMS left, left',
-                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+    idx = fish_df.index.values
 
-(left_responses_MON_right_right,
- right_responses_MON_right_right,
- left_responses_MI_right_right,
- right_responses_MI_right_right,
- left_responses_SMI_right_right,
- right_responses_SMI_right_right) = plot_dF_F_responses(dF_F_mean_rdms_right,
-                    [r0_left, r1_left, r2_left, r3_left],
-                    [r0_right, r1_right, r2_right, r3_right],
-                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-                    rdms_left_zu,rdms_right_zu,
-                    'Mean dF/F Responses RDMS right, right',
-                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+    (left_responses_MON_left_left,
+     right_responses_MON_left_left,
+     left_responses_MI_left_left,
+     right_responses_MI_left_left,
+     left_responses_SMI_left_left,
+     right_responses_SMI_left_left) = plot_dF_F_responses(dF_F_mean_rdms_left[idx],
+                                                          [[r0_left[i] for i in idx], [r1_left[i] for i in idx], [r2_left[i] for i in idx], [r3_left[i] for i in idx]],
+                                                          [[r0_right[i] for i in idx], [r1_right[i] for i in idx], [r2_right[i] for i in idx], [r3_right[i] for i in idx]],
+                                                          [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                                                          [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                                                          rdms_left_zu[idx],rdms_right_zu[idx],
+                                                          'Mean dF/F Responses RDMS left, left',
+                                                          ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
 
-(left_responses_MON_left_right,
- right_responses_MON_left_right,
- left_responses_MI_left_right,
- right_responses_MI_left_right,
- left_responses_SMI_left_right,
- right_responses_SMI_left_right) = plot_dF_F_responses(dF_F_mean_rdms_left_right,
-                    [r0_left, r1_left, r2_left, r3_left], 
-                    [r0_right, r1_right, r2_right, r3_right],
-                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff], 
-                    rdms_left_zu,rdms_right_zu,
-                    'dF/F Responses RDMS left, right',
-                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-(left_responses_MON_right_left,
- right_responses_MON_right_left,
- left_responses_MI_right_left,
- right_responses_MI_right_left,
- left_responses_SMI_right_left,
- right_responses_SMI_right_left) = plot_dF_F_responses(dF_F_mean_rdms_right_left,
-                    [r0_left, r1_left, r2_left, r3_left], 
-                    [r0_right, r1_right, r2_right, r3_right],
-                    [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-                    [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-                    rdms_left_zu,rdms_right_zu,
-                    'dF/F Responses RDMS right, left',
-                    ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+    (left_responses_MON_right_right,
+     right_responses_MON_right_right,
+     left_responses_MI_right_right,
+     right_responses_MI_right_right,
+     left_responses_SMI_right_right,
+     right_responses_SMI_right_right) = plot_dF_F_responses(dF_F_mean_rdms_right[idx],
+                                                            [[r0_left[i] for i in idx], [r1_left[i] for i in idx], [r2_left[i] for i in idx], [r3_left[i] for i in idx]],
+                                                          [[r0_right[i] for i in idx], [r1_right[i] for i in idx], [r2_right[i] for i in idx], [r3_right[i] for i in idx]],
+                                                            [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                                                            [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                                                            rdms_left_zu[idx],rdms_right_zu[idx],
+                                                            'Mean dF/F Responses RDMS right, right',
+                                                            ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
 
-# plot_dF_F_responses(dF_F_mean_ramping_right,
-#                     [r0_left, r1_left, r2_left, r3_left],
-#                     [r0_right, r1_right, r2_right, r3_right],
-#                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-#                     [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-#                     rdms_left_zu,rdms_right_zu,
-#                     'dF/F Responses ramping right',
-#                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
-#
-# plot_dF_F_responses(dF_F_mean_ramping_left,
-#                     [r0_left, r1_left, r2_left, r3_left],
-#                     [r0_right, r1_right, r2_right, r3_right],
-#                     [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
-#                     [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
-#                     rdms_left_zu,rdms_right_zu,
-#                     'dF/F Responses ramping left',
-#                     ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+    (left_responses_MON_left_right,
+     right_responses_MON_left_right,
+     left_responses_MI_left_right,
+     right_responses_MI_left_right,
+     left_responses_SMI_left_right,
+     right_responses_SMI_left_right) = plot_dF_F_responses(dF_F_mean_rdms_left_right[idx],
+                                                           [[r0_left[i] for i in idx], [r1_left[i] for i in idx], [r2_left[i] for i in idx], [r3_left[i] for i in idx]],
+                                                          [[r0_right[i] for i in idx], [r1_right[i] for i in idx], [r2_right[i] for i in idx], [r3_right[i] for i in idx]],
+                                                           [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                                                           [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                                                           rdms_left_zu[idx],rdms_right_zu[idx],
+                                                           'dF/F Responses RDMS left, right',
+                                                           ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
+    (left_responses_MON_right_left,
+     right_responses_MON_right_left,
+     left_responses_MI_right_left,
+     right_responses_MI_right_left,
+     left_responses_SMI_right_left,
+     right_responses_SMI_right_left) = plot_dF_F_responses(dF_F_mean_rdms_right_left[idx],
+                                                           [[r0_left[i] for i in idx], [r1_left[i] for i in idx], [r2_left[i] for i in idx], [r3_left[i] for i in idx]],
+                                                          [[r0_right[i] for i in idx], [r1_right[i] for i in idx], [r2_right[i] for i in idx], [r3_right[i] for i in idx]],
+                                                           [r0_left_cutoff, r1_left_cutoff, r2_left_cutoff, r3_left_cutoff],
+                                                           [r0_right_cutoff, r1_right_cutoff, r2_right_cutoff, r3_right_cutoff],
+                                                           rdms_left_zu[idx],rdms_right_zu[idx],
+                                                           'dF/F Responses RDMS right, left',
+                                                           ['Cells responding to RDMS left', 'Cells responding to RDMS right'])
 
 
-MON_left_left = np.c_[left_responses_MON_left_left, right_responses_MON_right_right]
-MI_left_left = np.c_[left_responses_MI_left_left, right_responses_MI_right_right]
-SMI_left_left = np.c_[left_responses_SMI_left_left, right_responses_SMI_right_right]
+    MON_left_left[fish_id] = np.c_[left_responses_MON_left_left, right_responses_MON_right_right]
+    MI_left_left[fish_id] = np.c_[left_responses_MI_left_left, right_responses_MI_right_right]
+    SMI_left_left[fish_id] = np.c_[left_responses_SMI_left_left, right_responses_SMI_right_right]
 
-MON_left_right = np.c_[left_responses_MON_left_right, right_responses_MON_right_left]
-MI_left_right = np.c_[left_responses_MI_left_right, right_responses_MI_right_left]
-SMI_left_right = np.c_[left_responses_SMI_left_right, right_responses_SMI_right_left]
+    MON_left_right[fish_id] = np.c_[left_responses_MON_left_right, right_responses_MON_right_left]
+    MI_left_right[fish_id] = np.c_[left_responses_MI_left_right, right_responses_MI_right_left]
+    SMI_left_right[fish_id] = np.c_[left_responses_SMI_left_right, right_responses_SMI_right_left]
 
 
 ## Plotting and stats
@@ -545,86 +533,133 @@ S_left2[int(55/dt):int(70/dt)] -= 0.5
 S_right2[int(55/dt):int(70/dt)] += 1
 
 # Make a standard figure
-fig = Figure(figure_title="Figure 4_data")
+fig = Figure(figure_title="Figure 4_data", )
 
 colors = ["#68C7EC", "#ED7658", "#7F58AF"]
 line_dashes = [None, None, None, None]
-
 names = ["MON", "MI", "SMI"]
+
+line = path.name
+plotdict0 = {
+    'h2bg8s': {'ymin': -25, 'ymax': 75, 'yticks': [0,50]},
+    'g8s': {'ymin': -25, 'ymax': 75, 'yticks': [0,50]},
+    'g8f': {'ymin': -10, 'ymax': 28, 'yticks': [0,20]},
+}
 
 for prediction in [0, 1]:
 
+    # Stimulus
     plot0 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=24.5, plot_height=0.5, plot_width=3,
                             errorbar_area=True,
                             xl="", xmin=29, xmax=111, xticks=[],
                             plot_title="Ipsi. hemisphere",
                             yl="", ymin=-0.1, ymax=1.6, yticks=[0, 0.5], hlines=[0])
 
+    # Delta F/F0
     plot1 = fig.create_plot(plot_label='a', xpos=3.5  + prediction * 8, ypos=22, plot_height=2, plot_width=3, errorbar_area=True,
-                            xl="Time (s)", xmin=29, xmax=111, xticks=[30, 40], vlines=[40, 55, 70],
-                            yl="ΔF / F0", ymin=-21, ymax=71, yticks=[0, 20], hlines=[0])
+                            xl="Time (s)", xmin=29, xmax=111, xticks=[30, 40, 70], vlines=[40, 55, 70],
+                            yl="ΔF / F0", ymin=plotdict0[line]['ymin'], ymax=plotdict0[line]['ymax'], yticks=plotdict0[line]['yticks'], hlines=[0])
 
     if prediction == 0:
         plot0.draw_line(x=t[int(30 / dt):], y=S_left1[int(30 / dt):], lw=1.5, lc='black')
     if prediction == 1:
         plot0.draw_line(x=t[int(30 / dt):], y=S_left2[int(30 / dt):], lw=1.5, lc='black')
 
-    delays = []
-    delays2 = []
+    delays = np.empty((grouped.__len__(), 3))  # rise times
+    delays2 = np.empty((grouped.__len__(), 3))  # decay times
 
+    for i_fish, fish_id in enumerate(MON_left_left.keys()):
+        for i_cell in np.arange(3):
+
+            if i_cell == 0 and prediction == 0:
+                df_f0 = MON_left_left[fish_id].mean(axis=1)
+            if i_cell == 0 and prediction == 1:
+                df_f0 = MON_left_right[fish_id].mean(axis=1)
+
+            if i_cell == 1 and prediction == 0:
+                df_f0 = MI_left_left[fish_id].mean(axis=1)
+            if i_cell == 1 and prediction == 1:
+                df_f0 = MI_left_right[fish_id].mean(axis=1)
+
+            if i_cell == 2 and prediction == 0:
+                df_f0 = SMI_left_left[fish_id].mean(axis=1)
+            if i_cell == 2 and prediction == 1:
+                df_f0 = SMI_left_right[fish_id].mean(axis=1)
+
+            # Single fish, single functional cell class
+            plot1.draw_line(x=t[int(30 / dt):], y=df_f0[int(30 / dt):], lw=0.8, alpha=0.2, lc=colors[i_cell], line_dashes=line_dashes[i_cell])
+
+            # Rise times
+            if prediction == 0:
+                rate_90_percent = df_f0[int(40 / dt):int(70 / dt)].max() * 0.9
+                ind = np.where(df_f0[int(40 / dt):int(70 / dt)] > rate_90_percent)
+            else:
+                rate_90_percent = df_f0[int(40 / dt):int(55 / dt)].max() * 0.9
+                ind = np.where(df_f0[int(40 / dt):int(55 / dt)] > rate_90_percent)
+
+            if len(ind[0]) > 0:
+                t_to_90_percent = ind[0][0] * dt
+                delays[i_fish,i_cell]=t_to_90_percent
+            else:
+                delays[i_fish,i_cell]=np.nan
+
+            # Decay times
+            if prediction == 0:
+                val_10_percent = df_f0[int(70 / dt)] * 0.1
+                ind = np.where(df_f0[int(70 / dt):] < val_10_percent)
+            else:
+                val_10_percent = df_f0[int(55/dt)]*0.1
+                ind = np.where(df_f0[int(55/dt):] < val_10_percent)
+
+            if len(ind[0]) > 0:
+                t_to_10_percent = ind[0][0] * dt
+                delays2[i_fish,i_cell]=t_to_10_percent
+            else:
+                delays2[i_fish,i_cell]=np.nan
+
+    # Now all fish together
     for i_cell in np.arange(3):
         if i_cell == 0 and prediction == 0:
-            df_f0 = MON_left_left.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(MON_left_left.values()), axis=1).mean(axis=1)
         if i_cell == 0 and prediction == 1:
-            df_f0 = MON_left_right.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(MON_left_right.values()), axis=1).mean(axis=1)
 
         if i_cell == 1 and prediction == 0:
-            df_f0 = MI_left_left.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(MI_left_left.values()), axis=1).mean(axis=1)
         if i_cell == 1 and prediction == 1:
-            df_f0 = MI_left_right.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(MI_left_right.values()), axis=1).mean(axis=1)
 
         if i_cell == 2 and prediction == 0:
-            df_f0 = SMI_left_left.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(SMI_left_left.values()), axis=1).mean(axis=1)
         if i_cell == 2 and prediction == 1:
-            df_f0 = SMI_left_right.mean(axis=1)
+            df_f0_allfish = np.concatenate(list(SMI_left_right.values()), axis=1).mean(axis=1)
 
-        if prediction == 0:
-            rate_90_percent = df_f0[int(40 / dt):int(70 / dt)].max() * 0.9
-            ind = np.where(df_f0[int(40 / dt):int(70 / dt)] > rate_90_percent)
-        else:
-            rate_90_percent = df_f0[int(40 / dt):int(55 / dt)].max() * 0.9
-            ind = np.where(df_f0[int(40 / dt):int(55 / dt)] > rate_90_percent)
+        plot1.draw_line(x=t[int(30 / dt):], y=df_f0_allfish[int(30 / dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
+        print(names[i_cell], 'Min/max', [np.min(df_f0_allfish[int(30 / dt):]), np.max(df_f0_allfish[int(30 / dt):])])
 
-        if len(ind[0]) > 0:
-            t_to_90_percent = ind[0][0] * dt
-            delays.append(t_to_90_percent)
-        else:
-            delays.append(np.nan)
-
-        if prediction == 0:
-            val_10_percent = df_f0[int(70 / dt)] * 0.1
-            ind = np.where(df_f0[int(70 / dt):] < val_10_percent)
-        else:
-            val_10_percent = df_f0[int(55/dt)]*0.1
-            ind = np.where(df_f0[int(55/dt):] < val_10_percent)
-
-        if len(ind[0]) > 0:
-            t_to_10_percent = ind[0][0] * dt
-            delays2.append(t_to_10_percent)
-        else:
-            delays2.append(np.nan)
-
-        plot1.draw_line(x=t[int(30/dt):], y=df_f0[int(30/dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
-
+    # Rise-decay time correlation
     plot2 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=13.5, plot_height=1.5,
                             plot_width=1.5,
                             errorbar_area=True,
-                            xl="Time to 90% of max (s)", xmin=-0.1, xmax=30.1, xticks=[0, 15, 30],
-                            yl="Time from max to 10% (s)", ymin=-0.1, ymax=30.1, yticks=[0, 15, 30], hlines=[0], vlines=[0])
-    plot2.draw_line([0, 30], [0,30], lw=0.5, line_dashes=(2, 2), lc='gray')
+                            xl="Time to 90% of max (s)", xmin=-0.1, xmax=36.1, xticks=[0, 18, 36],
+                            yl="Time from max to 10% (s)", ymin=-0.1, ymax=36.1, yticks=[0, 18, 36], hlines=[0], vlines=[0])
+    plot2.draw_line([0, 36], [0,36], lw=0.5, line_dashes=(2, 2), lc='gray')
     print(delays, delays2)
 
-    for i in range(3):
-        plot2.draw_scatter(x=[delays[i]], y=[delays2[i]], pc=colors[i])
+    # Individual fish delays
+    for i in range(grouped.__len__()):
+        for j in range(3):
+            plot2.draw_scatter(x=[delays[i,j]], y=[delays2[i,j]], pc=colors[j], elw=0, alpha=0.2)
 
-fig.save(Path.home() / 'Desktop' / 'CLEM data' / "fig_test_data.pdf", open_file=True)
+    # All fish delays
+    for i in range(3):
+        # Mean +- SEM
+        x_sem = scipy.stats.sem(delays[:, i], nan_policy='omit')
+        y_sem = scipy.stats.sem(delays2[:, i], nan_policy='omit')
+        plot2.draw_scatter(x=np.nanmean(delays, axis=0)[i], xerr=x_sem,
+                           y=np.nanmean(delays2, axis=0)[i], yerr=y_sem, pc=colors[i], elw=0.4)
+
+# Save delays and delays2 as text files
+np.savetxt(path / 'delays.txt', delays, fmt='%.4f', header='Delays rise, ["MON", "MI", "SMI"] x individual fish')
+np.savetxt(path / 'delays2.txt', delays2, fmt='%.4f', header='Delays decay, ["MON", "MI", "SMI"] x individual fish')
+fig.save(path / f"{line}_perfish_meansem.pdf", open_file=True)
