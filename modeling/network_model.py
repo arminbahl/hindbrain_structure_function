@@ -28,7 +28,7 @@ S_right2 = np.zeros(len(t))
 
 # 7 x 14 matri
 connectivity_weights = [
-    [0,  1,  0,  0,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
+    [0,  1,  0,  0,  1,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
     [0,  1,  1,  1,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
     [0,  0,  0,  0, -5.5,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
     [0,  0,  0,  0,  0,  0,  0,     0, -1,  0, -1, -1, -1,  0], # iCI_l
@@ -36,8 +36,33 @@ connectivity_weights = [
     [0,  0,  0,  0,  0,  0,  1,     0,  0,  0,  0,  0,  0,  1], # eMC_l
     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
 
+# # Old model matrix from 2020 paper
+# # 7 x 14 matri
+# connectivity_weights = [
+#     [0,  1,  0,  0,  1,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
+#     [0,  1,  0,  1,  0,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
+#     [0,  0,  0,  0, 0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
+#     [0,  0,  0,  0,  -3.0,  0,  0,     0, -1,  0, 0, 0, 0,  0], # iCI_l
+#     [0, 0,  0, 0, 0,  -1,  0,     0,  0,  0, 0,  0,  0,  0], # iDT_l
+#     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eMC_l
+#     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
+
+
 # Leaks lead to forgetting (fraction per time bin), they define the time constant of the cell without recurrent feedbacks
 leaks = np.array([2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5]) * 0 + 2.5
+
+
+#
+# # old model
+# connectivity_weights = [
+#     [0,  1,  0,  0,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
+#     [0,  1,  1,  1,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
+#     [0,  0,  0,  0, -5.5,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
+#     [0,  0,  0,  0,  0,  0,  0,     0, -1,  0, -1, -1, -1,  0], # iCI_l
+#     [0, -1,  0, -1, -1,  -1,  0,     0,  0,  0, -1,  0,  0,  0], # iDT_l
+#     [0,  0,  0,  0,  0,  0,  1,     0,  0,  0,  0,  0,  0,  1], # eMC_l
+#     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
+
 
 # Both visual inputs have some baseline input rate
 S_left1[:] = 0.5
@@ -129,10 +154,10 @@ def run_simulation(t, S_left, S_right, rates):
 
             rates[i_t, i_cell] = rates[i_t-1, i_cell] + d_rate*dt
 
-            #Ablate the left dt!
+            # #Ablate the dt!
             # if i_cell == 4 or i_cell == 4+7:
             #     rates[i_t, i_cell] = 0
-            #
+
             if rates[i_t, i_cell] < 0:
                  rates[i_t, i_cell] = 0
 
@@ -147,8 +172,8 @@ run_simulation(t, S_left2, S_right2, rates2)
 # Make a standard figure
 fig = Figure(figure_title="Figure 5")
 
-colors = ["#8B8B8B", "#F9AE40", "#F9AE40", "#EB2327", "#26A8DF", "#93579F", "#5CE572"]
-line_dashes = [None, None, (2, 2), (2, 2), (2, 2), None, None]
+colors = ["#00FF00", "#FEB326", "#FEB326", "#E84D8A", "#26A8DF", "#7F58AF", "#5CE572"]
+line_dashes = [None, None, (2,2), None, None, None, None]
 
 for prediction in [0, 1]:
 
@@ -215,34 +240,136 @@ for prediction in [0, 1]:
         for i in np.arange(0, 7):
             plot1.draw_line(x=t[int(10/dt):-int(10/dt)], y=dr_ro[int(10/dt):-int(10/dt), i + ipsi*7], lw=1.5, lc=colors[i], line_dashes=line_dashes[i], label=f"{names[i]}" if ipsi == 0 else None)
 
-        ######################
-        # Draw vertical vars
-        plot2 = fig.create_plot(plot_label='c', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=20, plot_height=1.25, plot_width=1.5,
-                                xl="Cell type", xmin=-0.5, xmax=6.5, xticks=[0, 1, 2, 3, 4, 5, 6], xticklabels=names[:7], xticklabels_rotation=45,
-                                hlines=[0],
-                                yl="Time to 90% of max (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6])
+        # ######################
+        # # Draw vertical bars
+        # plot2 = fig.create_plot(plot_label='c', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=20, plot_height=1.25, plot_width=1.5,
+        #                         xl="Cell type", xmin=-0.5, xmax=6.5, xticks=[0, 1, 2, 3, 4, 5, 6], xticklabels=names[:7], xticklabels_rotation=45,
+        #                         hlines=[0],
+        #                         yl="Rise time (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6])
+        #
+        #
+        # for i in range(7):
+        #     plot2.draw_vertical_bars(x=[i], y=[delays[i]], lc=colors[i], vertical_bar_width=0.75)
+        #
+        # plot2 = fig.create_plot(plot_label='c', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=17, plot_height=1.25,
+        #                         plot_width=1.5,
+        #                         xl="Cell type", xmin=-0.5, xmax=6.5, xticks=[0, 1, 2, 3, 4, 5, 6],
+        #                         xticklabels=names[:7], xticklabels_rotation=45,
+        #                         hlines=[0],
+        #                         yl="Decay time (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6])
+        #
+        # for i in range(7):
+        #     plot2.draw_vertical_bars(x=[i], y=[delays2[i]], lc=colors[i], vertical_bar_width=0.75)
+        #
 
-
-        for i in range(7):
-            plot2.draw_vertical_bars(x=[i], y=[delays[i]], lc=colors[i], vertical_bar_width=0.75)
-
-        plot2 = fig.create_plot(plot_label='c', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=17, plot_height=1.25,
+        plot2 = fig.create_plot(plot_label='c', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=14, plot_height=1.25,
                                 plot_width=1.5,
                                 xl="Cell type", xmin=-0.5, xmax=6.5, xticks=[0, 1, 2, 3, 4, 5, 6],
                                 xticklabels=names[:7], xticklabels_rotation=45,
-                                hlines=[0],
-                                yl="Time from max to 10% (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6])
+                                hlines=[0, 1],
+                                yl="Rise/Decay time ratio", ymin=-0.1, ymax=3.6, yticks=[0, 1.0, 2.0, 3.0])
 
         for i in range(7):
-            plot2.draw_vertical_bars(x=[i], y=[delays2[i]], lc=colors[i], vertical_bar_width=0.75)
+            plot2.draw_scatter(x=[i], y=[delays[i]/delays2[i]], pc=colors[i], alpha=1.0, ps=3.0, ec=colors[i])
 
-        plot2 = fig.create_plot(plot_label='a', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=13.5, plot_height=1.5,
+
+        plot2 = fig.create_plot(plot_label='a', xpos=3.5 + ipsi * 4 + prediction * 8, ypos=9.5, plot_height=1.5,
                                 plot_width=1.5,
                                 errorbar_area=True,
-                                xl="Time to 90% of max (s)", xmin=-0.1, xmax=6.1, xticks=[0, 3, 6],
-                                yl="Time from max to 10% (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6], hlines=[0], vlines=[0])
+                                xl="Rise time (s)", xmin=-0.1, xmax=6.1, xticks=[0, 3, 6],
+                                yl="Decay time (s)", ymin=-0.1, ymax=6.1, yticks=[0, 3, 6], hlines=[0], vlines=[0])
         plot2.draw_line([0, 6], [0,6], lw=0.5, line_dashes=(2,2), lc='gray')
         for i in range(7):
-            plot2.draw_scatter(x=[delays[i]], y=[delays2[i]], pc=colors[i])
+            plot2.draw_scatter(x=[delays[i]], y=[delays2[i]], pc=colors[i], alpha=1.0, ps=3.0, ec=colors[i])
+
+
+for prediction in [0, 1]:
+
+    # Stats plot for the experimental data
+    plot2 = fig.create_plot(plot_label='c', xpos=3.5 + prediction * 8, ypos=4, plot_height=1.25,
+                                plot_width=1.5,
+                                xl="Cell type", xmin=-0.5, xmax=6.5, xticks=[0, 1, 2],
+                                xticklabels=["MI", "MON", "SMI"], xticklabels_rotation=45,
+                                hlines=[0, 1],
+                                yl="Rise/Decay time ratio", ymin=-0.1, ymax=2.4, yticks=[0, 0.5, 1.0, 1.5, 2.0])
+
+    if prediction == 0:
+        rise_times = [[ 4.,  12.5,  np.nan],
+                         [ 3.5, 13.,  22.5],
+                         [ 3.5, 10.5,  np.nan],
+                         [ 4.,  12.5, 22.5],
+                         [ 4.,  10.,  29.5],
+                         [ 3.5, 12.5, 21.5],
+                         [ np.nan, 22.5, 24. ]]
+
+        decay_times = [[ 3.,  31.,   np.nan],
+                     [ 2.5, 19.5, 27. ],
+                     [ 2.5, 24.5,  np.nan],
+                     [ 4.,  29.,  23. ],
+                     [ 2.5, 27.5, 17. ],
+                     [ 3.,   np.nan, 24. ],
+                     [ np.nan,  np.nan, 34. ]]
+    else:
+        rise_times = [[4.0000, 10.5000, np.nan],
+                      [3.5000, 10.0000, 13.5000],
+                      [3.0000, 7.5000, np.nan],
+                      [4.0000, 9.0000, 13.5000],
+                      [6.5000, 12.0000, 14.0000],
+                      [3.5000, 10.0000, 12.0000],
+                      [np.nan, 7.5000, 3.5000]]
+
+        decay_times = [[2.0000, 5.0000, np.nan],
+                       [2.5000, 5.5000, 19.5000],
+                       [2.0000, 4.5000, np.nan],
+                       [2.5000, 6.0000, 6.5000],
+                       [3.0000, 6.0000, 6.5000],
+                       [2.0000, 7.0000, 4.0000],
+                       [np.nan, 5.0000, 4.5000]]
+
+    rise_times = np.array(rise_times)
+    decay_times = np.array(decay_times)
+
+    # MON, MI, SMI
+    colors = ["#26A8DF", "#ED7658", "#7F58AF"]
+    for j in range(3):
+        j_ = [1,0,2][j] # change the order of the cells to MI, MON, SMI
+
+        ratios = []
+        for i in range(7):
+            ratios.append(rise_times[i][j_]/decay_times[i][j_])
+            plot2.draw_scatter(x=[j], y=[rise_times[i][j_]/decay_times[i][j_]], pc=colors[j_], alpha=0.33, ps=2.0, ec=colors[j_])
+
+        mean = np.nanmean(ratios)
+        sem = scipy.stats.sem(ratios, nan_policy='omit')
+
+        plot2.draw_scatter(x=[j], y=[mean], yerr=[sem], pc=colors[j_], alpha=1.0, ps=3.0, ec=colors[j_])
+
+    plot2 = fig.create_plot(plot_label='a', xpos=3.5 + prediction * 8, ypos=6.5, plot_height=1.5,
+                            plot_width=1.5,
+                            errorbar_area=True,
+                            xl="Rise time (s)", xmin=-0.1, xmax=36.1, xticks=[0, 15, 30],
+                            yl="Decay time (s)", ymin=-0.1, ymax=36.1, yticks=[0, 15, 30], hlines=[0], vlines=[0])
+    plot2.draw_line([0, 36], [0, 36], lw=0.5, line_dashes=(2, 2), lc='gray')
+
+    for j in range(3):
+        j_ = [1, 0, 2][j]  # change the order of the cells to MI, MON, SMI
+        for i in range(7):
+            plot2.draw_scatter(x=[rise_times[i][j_]], y=[decay_times[i][j_]], pc=colors[j_], alpha=0.33, ps=2.0, ec=colors[j_])
+
+        x_mean = np.nanmean(rise_times[:, j_])
+        y_mean = np.nanmean(decay_times[:, j_])
+
+        x_sem = scipy.stats.sem(rise_times[:, j_], nan_policy='omit')
+        y_sem = scipy.stats.sem(decay_times[:, j_], nan_policy='omit')
+
+
+        plot2.draw_scatter(x=[x_mean], y=[y_mean], pc=colors[j_], xerr=[x_sem], yerr=[y_sem], alpha=1.0, ps=3.0, ec=colors[j_])
+
 
 fig.save(pathlib.Path.home() / 'Desktop' / "fig_test.pdf", open_file=True)
+
+
+
+
+
+
