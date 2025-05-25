@@ -26,26 +26,26 @@ S_right1 = np.zeros(len(t))
 S_left2 = np.zeros(len(t))
 S_right2 = np.zeros(len(t))
 
-# 7 x 14 matri
-connectivity_weights = [
-    [0,  1,  0,  0,  1,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
-    [0,  1,  1,  1,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
-    [0,  0,  0,  0, -5.5,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
-    [0,  0,  0,  0,  0,  0,  0,     0, -1,  0, -1, -1, -1,  0], # iCI_l
-    [0, -1,  0, -1, -1,  -1,  0,     0,  0,  0, -1,  0,  0,  0], # iDT_l
-    [0,  0,  0,  0,  0,  0,  1,     0,  0,  0,  0,  0,  0,  1], # eMC_l
-    [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
-
-# # Old model matrix from 2020 paper
 # # 7 x 14 matri
 # connectivity_weights = [
 #     [0,  1,  0,  0,  1,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
-#     [0,  1,  0,  1,  0,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
-#     [0,  0,  0,  0, 0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
-#     [0,  0,  0,  0,  -3.0,  0,  0,     0, -1,  0, 0, 0, 0,  0], # iCI_l
-#     [0, 0,  0, 0, 0,  -1,  0,     0,  0,  0, 0,  0,  0,  0], # iDT_l
-#     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eMC_l
+#     [0,  1,  1,  1,  1,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
+#     [0,  0,  0,  0, -5.5,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
+#     [0,  0,  0,  0,  0,  0,  0,     0, -1,  0, -1, -1, -1,  0], # iCI_l
+#     [0, -1,  0, -1, -1,  -1,  0,     0,  0,  0, -1,  0,  0,  0], # iDT_l
+#     [0,  0,  0,  0,  0,  0,  1,     0,  0,  0,  0,  0,  0,  1], # eMC_l
 #     [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
+
+# Old model matrix from 2020 paper
+# 7 x 14 matri
+connectivity_weights = [
+    [0,  1,  0,  0,  1,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eVI_l
+    [0,  1,  0,  1,  0,  1,  0,     0,  0,  0,  0,  0,  0,  0], # eII_l
+    [0,  0,  0,  0, 0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # iII_l
+    [0,  0,  0,  0,  -3.0,  0,  0,     0, -1,  0, 0, 0, 0,  0], # iCI_l
+    [0, 0,  0, 0, 0,  -1,  0,     0,  0,  0, 0,  0,  0,  0], # iDT_l
+    [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0], # eMC_l
+    [0,  0,  0,  0,  0,  0,  0,     0,  0,  0,  0,  0,  0,  0]] # My_l
 
 
 # Leaks lead to forgetting (fraction per time bin), they define the time constant of the cell without recurrent feedbacks
@@ -158,8 +158,11 @@ def run_simulation(t, S_left, S_right, rates):
             # if i_cell == 4 or i_cell == 4+7:
             #     rates[i_t, i_cell] = 0
 
-            if rates[i_t, i_cell] < 0:
-                 rates[i_t, i_cell] = 0
+            if rates[i_t, i_cell] < 0.00:
+                 rates[i_t, i_cell] = 0.00
+
+            # if i_cell == 4 or i_cell == 4+7:
+            #     rates[i_t, i_cell] += 0.0005
 
             if i_t == 1:
                 print('')
