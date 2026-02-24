@@ -18,8 +18,16 @@ except Exception:
     def tqdm(iterable=None, *args, **kwargs):
         return iterable if iterable is not None else range(kwargs.get("total", 0))
 
+# ============================================================================
+# Set temporal resolutions
+# ============================================================================
+DATA_DT = 0.1  # Temporal resolution of imaging data
+REGRESSOR_DT = 0.5  # Regressors are always at 0.5 s/frame (from kmeans_regressors.npy)
+# ============================================================================
+do_plot_cells_in_brain = True
+
 #Set path pointing at folder containing the data
-path = Path(r'Z:\Kim\clem_rebuttal')
+path = Path(r'Z:\Kim\clem_rebuttal_newstim')
 # Find all HDF5 files in the directory
 hdf5_files = [f for f in os.listdir(path) if f.endswith('.h5')]
 # Load regressors
@@ -45,14 +53,14 @@ for idx, file in enumerate(hdf5_files):
         keys = [key for key in f.keys() if key.startswith("repeat")]
         print(f'Fish {fish_id} keys', keys)
         for key in keys:
-            F_fish_rdms_left_100.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_left_100/F']))
-            F_fish_rdms_right_100.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_right_100/F']))
-            F_fish_rdms_left_50.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_left_50/F']))
-            F_fish_rdms_right_50.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_right_50/F']))
+            F_fish_rdms_left_100.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_100_left/F']))
+            F_fish_rdms_right_100.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_100_right/F']))
+            F_fish_rdms_left_50.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_50_left/F']))
+            F_fish_rdms_right_50.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/constant_50_right/F']))
             F_fish_rdms_oscillating_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/oscillating_left/F']))
             F_fish_rdms_oscillating_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/oscillating_right/F']))
-            F_fish_rdms_switching_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/switching_left/F']))
-            F_fish_rdms_switching_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/switching_right/F']))
+            F_fish_rdms_switching_left.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/switching_100_left/F']))
+            F_fish_rdms_switching_right.append(np.array(f[f'{key}/preprocessed_data/fish00/cellpose_segmentation/stimulus_aligned_dynamics/switching_100_right/F']))
 
 
             average_image_fish = np.array(f[f'{key}/preprocessed_data/fish00/imaging_data_channel0_time_averaged'])
@@ -83,19 +91,20 @@ F_rdms_oscillating_right = np.concatenate(F_fish_rdms_oscillating_right, axis=1)
 F_rdms_switching_left = np.concatenate(F_fish_rdms_switching_left, axis=1)[:,:,:]
 F_rdms_switching_right = np.concatenate(F_fish_rdms_switching_right, axis=1)[:,:,:]
 
-def calc_dF_F(F, dt=0.5, show_progress=True):
+def calc_dF_F(F, dt=0.1, show_progress=True):
     """
     Calculate deltaF/F for given fluorescence data.
     
     Parameters:
     F (numpy array): Fluorescence data
     dt (float): Time step
-    
+
     Returns:
     numpy array: deltaF/F data
     """
+    baseline_frames = int(16 / dt)
     if F.ndim != 3:
-        F0 = np.nanmean(F[:, 32:64], axis=1, keepdims=True)
+        F0 = np.nanmean(F[:, :baseline_frames], axis=1, keepdims=True)
         return 100 * (F - F0) / F0
 
     dF_F = np.empty_like(F, dtype=float)
@@ -103,7 +112,7 @@ def calc_dF_F(F, dt=0.5, show_progress=True):
     if show_progress:
         iterator = tqdm(iterator, desc="calc_dF_F", leave=False)
     for i in iterator:
-        F0 = np.nanmean(F[i, :, 32:64], axis=1, keepdims=True)
+        F0 = np.nanmean(F[i, :, :baseline_frames], axis=1, keepdims=True)
         dF_F[i] = 100 * (F[i] - F0) / F0
     return dF_F
 
@@ -143,7 +152,7 @@ def plot_cells_in_brain(df, color_dict, cmap='gray', seg_type='unit_contours'):
     None: This function does not return any value. It displays a plot for each fish.
     """
 
-    for (fish, plane) in tqdm(df[['fish_id', 'plane']].drop_duplicates().itertuples(index=False), desc="Planes to plot", leave=False):
+    for (fish, plane) in tqdm(df[['fish_id', 'plane']].drop_duplicates().itertuples(index=False), desc="Planes to plot", leave=False, total=df[['fish_id', 'plane']].drop_duplicates().shape[0]):
         passing_cells_per_fish_plane = df[(df['fish_id']==fish)&(df['plane']==plane)&(df['passes_cutoff']==True)]
 
         fig,ax = plt.subplots(1,1,figsize=(10,10))
@@ -349,11 +358,19 @@ dF_F_mean_rdms_oscillating_right = np.nanmean(dF_F_rdms_oscillating_right, axis=
 dF_F_mean_rdms_switching_left = np.nanmean(dF_F_rdms_switching_left, axis=0)
 dF_F_mean_rdms_switching_right = np.nanmean(dF_F_rdms_switching_right, axis=0)
 
-# Function to calculate z-score
-
 # Calculate z-scores for different conditions (using 100% constant stimuli)
-rdms_left_100_zu, rdms_left_100_zd = z_scorer(dF_F_rdms_left_100, dF_F_rdms_right_100, prestim=64, stim=64)  # right z-scored
-rdms_right_100_zu, rdms_right_100_zd = z_scorer(dF_F_rdms_right_100, dF_F_rdms_left_100, prestim=64, stim=64)  # left z-scored
+prestim_duration_s = 16  # Pre-stimulus period in seconds
+stim_duration_s = 32     # Stimulus period in seconds
+
+# Calculate frame counts based on DATA_DT
+prestim_frames = int(prestim_duration_s / DATA_DT)  # 32 at dt=0.5, 160 at dt=0.1
+stim_frames = int(stim_duration_s / DATA_DT)        # 64 at dt=0.5, 320 at dt=0.1
+
+print(f"Z-scorer parameters: prestim={prestim_frames} frames ({prestim_duration_s}s), stim={stim_frames} frames ({stim_duration_s}s) at dt={DATA_DT}")
+
+# Function to calculate z-score
+rdms_left_100_zu, rdms_left_100_zd = z_scorer(dF_F_rdms_left_100, dF_F_rdms_right_100, prestim=prestim_frames, stim=stim_frames)  # right z-scored
+rdms_right_100_zu, rdms_right_100_zd = z_scorer(dF_F_rdms_right_100, dF_F_rdms_left_100, prestim=prestim_frames, stim=stim_frames)  # left z-scored
 
 # Cut data to correct length
 # dF_F_cut_rdms_left = dF_F_rdms_left[:, :, 20:120]
@@ -364,9 +381,18 @@ rdms_right_100_zu, rdms_right_100_zd = z_scorer(dF_F_rdms_right_100, dF_F_rdms_l
 dF_F_cut_rdms_left_100 = dF_F_rdms_left_100[:, :, :]
 dF_F_cut_rdms_right_100 = dF_F_rdms_right_100[:, :, :]
 
-# Mean over trial, cut to 84 datapoints, to match the length of the regressor (10s rest, 32 s of stimulation)
-dF_F_mean_cut_rdms_left_100 = dF_F_mean_rdms_left_100[:, 44:128]
-dF_F_mean_cut_rdms_right_100 = dF_F_mean_rdms_right_100[:, 44:128]
+# Mean over trial, cut to match the length of the regressor (42s: 10s rest + 32s stimulation)
+data_start_s = 6   # Start time for data window
+data_end_s = 48    # End time for data window (6s to 48s = 42s total)
+
+# Calculate frame indices based on DATA_DT
+start_frame = int(data_start_s / DATA_DT)  # 12 at dt=0.5, 60 at dt=0.1
+end_frame = int(data_end_s / DATA_DT)      # 96 at dt=0.5, 480 at dt=0.1
+
+print(f"Data slicing: [{start_frame}:{end_frame}] = {end_frame-start_frame} frames ({data_start_s}s to {data_end_s}s) at dt={DATA_DT}")
+
+dF_F_mean_cut_rdms_left_100 = dF_F_mean_rdms_left_100[:, start_frame:end_frame]
+dF_F_mean_cut_rdms_right_100 = dF_F_mean_rdms_right_100[:, start_frame:end_frame]
 
 dF_F_mean_cut_rdms_all = np.concatenate([dF_F_mean_cut_rdms_left_100, dF_F_mean_cut_rdms_right_100], axis=0)
 dF_F_mean_cut_rdms_all = savgol_filter(dF_F_mean_cut_rdms_all, 10, 3)
@@ -383,9 +409,44 @@ dF_F_mean_cut_shift_rdms_right_100 = dF_F_mean_cut_rdms_right_100 - dF_F_mean_cu
 dF_F_mean_cut_rdms_left = dF_F_mean_cut_rdms_left_100
 dF_F_mean_cut_rdms_right = dF_F_mean_cut_rdms_right_100
 
-# Make the regressors 42 s long (10 s base line + 32 s)
-regressors_cut = regressors[:, :84]
-regressors_cut_shift = regressors_cut - np.nanmean(regressors_cut[:, 5:20], axis=1, keepdims=True)#[:, np.newaxis]
+# Make the regressors 42 s long (10 s baseline + 32 s)
+# Modular regressor processing using centralized configuration
+# Duration parameters (in seconds)
+regressor_duration_s = 42  # Total duration (10s baseline + 32s stimulus)
+baseline_start_s = 5
+baseline_end_s = 10
+
+# Calculate frame counts based on dt values
+regressor_original_frames = int(regressor_duration_s / REGRESSOR_DT)  # 84 at dt=0.5
+data_target_frames = int(regressor_duration_s / DATA_DT)  # 84 at dt=0.5, 420 at dt=0.1
+baseline_start_frame = int(baseline_start_s / DATA_DT)
+baseline_end_frame = int(baseline_end_s / DATA_DT)
+
+if DATA_DT == REGRESSOR_DT:
+    # No resampling needed - data and regressors have same dt
+    regressors_cut = regressors[:, :regressor_original_frames]
+    regressors_cut_shift = regressors_cut - np.nanmean(regressors_cut[:, baseline_start_frame:baseline_end_frame], axis=1, keepdims=True)
+    print(f"Regressors: No resampling needed (dt={DATA_DT}). Shape: {regressors_cut.shape}")
+else:
+    # Resample regressors to match data dt
+    from scipy.interpolate import interp1d
+
+    # Original regressors at REGRESSOR_DT
+    regressors_cut_original = regressors[:, :regressor_original_frames]
+    t_original = np.arange(regressor_original_frames) * REGRESSOR_DT
+
+    # Target time array at DATA_DT
+    t_target = np.arange(data_target_frames) * DATA_DT
+
+    # Resample each regressor
+    regressors_cut = np.zeros((regressors_cut_original.shape[0], data_target_frames))
+    for i in range(regressors_cut_original.shape[0]):
+        interpolator = interp1d(t_original, regressors_cut_original[i], kind='linear', fill_value='extrapolate')
+        regressors_cut[i] = interpolator(t_target)
+
+    # Baseline correction using frames appropriate for DATA_DT
+    regressors_cut_shift = regressors_cut - np.nanmean(regressors_cut[:, baseline_start_frame:baseline_end_frame], axis=1, keepdims=True)
+    print(f"Regressors: Resampled from dt={REGRESSOR_DT} to dt={DATA_DT}. Shape: {regressors_cut_original.shape} -> {regressors_cut.shape}")
 # import pylab as pl
 # pl.plot(regressors_cut_shift[0])
 # pl.plot(regressors_cut_shift[1])
@@ -460,7 +521,7 @@ all_fish_df['passes_cutoff'] = all_fish_df.apply(passes_cutoff, axis=1)
 all_fish_df['functional_type'] = all_fish_df.apply(determine_function, axis=1)
 color_dict = {'dynamic_threshold': '#68C7EC', 'integrator': '#ED7658', 'motor_command': '#7F58AF', 'none': 'gray'}
 
-if 0:
+if do_plot_cells_in_brain:
     plot_cells_in_brain(all_fish_df, color_dict, cmap='gray',seg_type='unit_contours')
 
 # Plotting the results
@@ -482,7 +543,7 @@ ax[1,1].set_title('Integrator (r3)')
 plt.show()
 
 fig,ax = plt.subplots(2,2,figsize=(10,10))
-fig.suptitle('Mean dF/F Responses and Regressors - Constant Stimuli 100%')
+fig.suptitle('Mean dF/F Responses (green) and Regressors (red) - Constant Stimuli 100%')
 ax[0,0].plot(np.mean(dF_F_mean_cut_rdms_all[np.array(r0_all)>r0_all_cutoff,:],axis=0).T,c='green',lw=5,alpha=0.5)
 ax[0,0].plot(regressors_cut_shift[0],lw=5,alpha=0.6,c='red')
 ax[0,0].set_title('Dynamic Threshold (r0)')
@@ -693,20 +754,20 @@ if 1:
             'MI_switching_left': MI_switching_left, 'MI_switching_right': MI_switching_right,
             'SMI_switching_left': SMI_switching_left, 'SMI_switching_right': SMI_switching_right,
         }
-        save_dicts_as_csv(dicts_to_save, 'responses')
+        # save_dicts_as_csv(dicts_to_save, 'responses')
         save_dicts_as_pickle(dicts_to_save, 'responses_cell_types')
 
     print("Analysis complete for all fish and all stimulus types!")
     print(f"Constant 100% stimuli: {len(MON_constant_left_100)} fish")
     print(f"Oscillating stimuli: {len(MON_oscillating_left)} fish")
 
-a
+
 ########################################
 # Plot averaged responses across all fish
 # Reuse plot_dF_F_responses with consistent, concatenated indices
-if 0:
+if 1:
     fish_count_all = int(all_fish_df['fish_id'].nunique())
-    print(f"\nCreating averaged plots across all {fish_count_all} fish using plot_dF_F_responses...")
+    print(f"Creating averaged plots across all {fish_count_all} fish using plot_dF_F_responses...")
 
 
     # Build a stable concatenation order using the same per-fish grouping
@@ -729,7 +790,7 @@ if 0:
     z_right_all = rdms_right_100_zu[idx_order]
 
     # Plot constant left 100%
-    print("\n1. Constant Left 100% - Averaged across all fish")
+    print("1. Constant Left 100% - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_left_100[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -742,7 +803,7 @@ if 0:
                        fish_count=fish_count_all)
 
     # Plot constant right 100%
-    print("\n2. Constant Right 100% - Averaged across all fish")
+    print("2. Constant Right 100% - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_right_100[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -755,7 +816,7 @@ if 0:
                        fish_count=fish_count_all)
 
     # Plot oscillating left
-    print("\n3. Oscillating Left - Averaged across all fish")
+    print("3. Oscillating Left - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_oscillating_left[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -768,7 +829,7 @@ if 0:
                        fish_count=fish_count_all)
 
     # Plot oscillating right
-    print("\n4. Oscillating Right - Averaged across all fish")
+    print("4. Oscillating Right - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_oscillating_right[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -781,7 +842,7 @@ if 0:
                        fish_count=fish_count_all)
 
     # Plot switching left
-    print("\n5. Switching Left - Averaged across all fish")
+    print("5. Switching Left - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_switching_left[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -794,7 +855,7 @@ if 0:
                        fish_count=fish_count_all)
 
     # Plot switching right
-    print("\n6. Switching Right - Averaged across all fish")
+    print("6. Switching Right - Averaged across all fish")
     plot_dF_F_responses(dF_F_mean_rdms_switching_right[idx_order],
                        r_left_lists,
                        r_right_lists,
@@ -806,12 +867,11 @@ if 0:
                        plot_individual=False,
                        fish_count=fish_count_all)
 
-    print("\nAll averaged plots created successfully!")
+    print("All averaged plots created successfully!")
 
 ## Plotting and stats
-
-dt = 0.5
-t = np.arange(0, 96, dt)
+dt = DATA_DT
+t = np.arange(0, 80, dt)
 
 S_left1 = np.zeros(len(t))
 S_right1 = np.zeros(len(t))
@@ -825,23 +885,23 @@ S_left1[:] = 0.5
 S_right1[:] = 0.5
 
 # Show some input on the left eye
-S_left1[int(32/dt):int(64/dt)] += 1
+S_left1[int(16/dt):int(48/dt)] += 1
 # Which reduced firing on the right side.
-S_right1[int(32/dt):int(64/dt)] -= 0.5
+S_right1[int(16/dt):int(48/dt)] -= 0.5
 
 S_left2[:] = 0.5
 S_right2[:] = 0.5
 
 # Oscillation stimulation
-S_left2[int(32/dt):int(64/dt)] += 0.5*(np.sin(2 * np.pi * (t[int(32/dt):int(64/dt)] - 32) / 8 - np.pi/2) + 1)
-S_right2[int(32/dt):int(64/dt)] -= 0.25*(np.sin(2 * np.pi * (t[int(32/dt):int(64/dt)] - 32) / 8 - np.pi/2) + 1)
+S_left2[int(16/dt):int(48/dt)] += 0.5*(np.sin(2 * np.pi * (t[int(16/dt):int(48/dt)] - 32) / 8 - np.pi/2) + 1)
+S_right2[int(16/dt):int(48/dt)] -= 0.25*(np.sin(2 * np.pi * (t[int(16/dt):int(48/dt)] - 32) / 8 - np.pi/2) + 1)
 
 S_left3[:] = 0.5
 S_right3[:] = 0.5
 
 # Switching stimulation
-S_left3[int(32/dt):int(48/dt)] += 1
-S_right3[int(32/dt):int(48/dt)] -= 0.5
+S_left3[int(16/dt):int(48/dt)] += 1
+S_right3[int(16/dt):int(48/dt)] -= 0.5
 S_left3[int(48/dt):int(64/dt)] -= 0.5
 S_right3[int(48/dt):int(64/dt)] += 1
 
@@ -852,7 +912,7 @@ colors = ["#68C7EC", "#ED7658", "#7F58AF"]
 line_dashes = [None, None, None, None]
 names = ["MON", "MI", "SMI"]
 
-line = 'h2bg8s'
+line = 'g8s'
 plotdict0 = {
     'h2bg8s': {'ymin': -25, 'ymax': 75, 'yticks': [0,50]},
     'g8s': {'ymin': -25, 'ymax': 75, 'yticks': [0,50]},
@@ -976,108 +1036,87 @@ def _estimate_lag_seconds(ref_signal, response_signal, dt, window_s=(16, 48), mi
 for prediction in [0, 1, 2]:  # constant, oscillating, switching
 
     # Stimulus
-    plot0 = fig.create_plot(plot_label='a', xpos=2 + prediction * 5, ypos=24.5, plot_height=0.5, plot_width=3,
+    plot0 = fig.create_plot(plot_label='a', xpos=2 + prediction * 5.5, ypos=24.5, plot_height=0.5, plot_width=3,
                             errorbar_area=True,
-                            xl="", xmin=21, xmax=96, xticks=[],
+                            xl="", xmin=5, xmax=80, xticks=[],
                             plot_title="Ipsi. hemisphere",
                             yl="", ymin=-0.1, ymax=1.6, yticks=[0, 0.5], hlines=[0])
 
     # Delta F/F0
-    plot1 = fig.create_plot(plot_label='a', xpos=2  + prediction * 5, ypos=22, plot_height=2, plot_width=3, errorbar_area=True,
-                            xl="Time (s)", xmin=21, xmax=96, xticks=[30, 50, 70], vlines=[32, 64],
+    plot1 = fig.create_plot(plot_label='a', xpos=2  + prediction * 5.5, ypos=22, plot_height=2, plot_width=3, errorbar_area=True,
+                            xl="Time (s)", xmin=5, xmax=80, xticks=[20, 40, 60], vlines=[16, 48],
                             yl="ΔF / F0", ymin=plotdict0[line]['ymin'], ymax=plotdict0[line]['ymax'], yticks=plotdict0[line]['yticks'], hlines=[0])
 
     if prediction == 0:  # const
-        plot0.draw_line(x=t[int(25 / dt):], y=S_left1[int(25 / dt):], lw=1.5, lc='black')
+        plot0.draw_line(x=t[int(9 / dt):], y=S_left1[int(9 / dt):], lw=1.5, lc='black')
     if prediction == 1:  # oscillating
-        plot0.draw_line(x=t[int(25 / dt):], y=S_left2[int(25 / dt):], lw=1.5, lc='black')
+        plot0.draw_line(x=t[int(9 / dt):], y=S_left2[int(9 / dt):], lw=1.5, lc='black')
     if prediction == 2:  # switching
-        plot0.draw_line(x=t[int(25 / dt):], y=S_left3[int(25 / dt):], lw=1.5, lc='black')
+        plot0.draw_line(x=t[int(9 / dt):], y=S_left3[int(9 / dt):], lw=1.5, lc='black')
 
     for i_fish, fish_id in enumerate(MON_constant_left_100.keys()):
         for i_cell in np.arange(3):
 
             if i_cell == 0 and prediction == 0:
                 df_f0 = MON_constant_left_100[fish_id].mean(axis=1)
-                df_f0_a = MON_constant_right_100[fish_id].mean(axis=1)
             if i_cell == 0 and prediction == 1:
                 df_f0 = MON_oscillating_left[fish_id].mean(axis=1)
-                df_f0_a = MON_oscillating_right[fish_id].mean(axis=1)
             if i_cell == 0 and prediction == 2:
                 df_f0 = MON_switching_left[fish_id].mean(axis=1)
-                df_f0_a = MON_switching_right[fish_id].mean(axis=1)
 
             if i_cell == 1 and prediction == 0:
                 df_f0 = MI_constant_left_100[fish_id].mean(axis=1)
-                df_f0_a = MI_constant_right_100[fish_id].mean(axis=1)
             if i_cell == 1 and prediction == 1:
                 df_f0 = MI_oscillating_left[fish_id].mean(axis=1)
-                df_f0_a = MI_oscillating_right[fish_id].mean(axis=1)
             if i_cell == 1 and prediction == 2:
                 df_f0 = MI_switching_left[fish_id].mean(axis=1)
-                df_f0_a = MI_switching_right[fish_id].mean(axis=1)
 
             if i_cell == 2 and prediction == 0:
                 df_f0 = SMI_constant_left_100[fish_id].mean(axis=1)
-                df_f0_a = SMI_constant_right_100[fish_id].mean(axis=1)
             if i_cell == 2 and prediction == 1:
                 df_f0 = SMI_oscillating_left[fish_id].mean(axis=1)
-                df_f0_a = SMI_oscillating_right[fish_id].mean(axis=1)
             if i_cell == 2 and prediction == 2:
                 df_f0 = SMI_switching_left[fish_id].mean(axis=1)
-                df_f0_a = SMI_switching_right[fish_id].mean(axis=1)
 
             # Single fish, single functional cell class
-            plot1.draw_line(x=t[int(25 / dt):], y=df_f0[int(25 / dt):], lw=0.8, alpha=0.2, lc=colors[i_cell], line_dashes=line_dashes[i_cell])
-            plot1.draw_line(x=t[int(25 / dt):], y=df_f0_a[int(25 / dt):], lw=0.8, alpha=0.2, lc=colors[i_cell], line_dashes=[2,2])
+            plot1.draw_line(x=t[int(9 / dt):], y=df_f0[int(9 / dt):], lw=0.8, alpha=0.2, lc=colors[i_cell], line_dashes=line_dashes[i_cell])
 
             if prediction == 1:  # only for oscillating stimulus
                 # Lag vs stimulus oscillation (cross-correlation, windowed)
-                shifts[i_fish, i_cell] = _estimate_lag_seconds(
-                    S_left2, df_f0, dt, window_s=(32, 64), min_lag_s=0, max_lag_s=8, fish_id=fish_id, i_cell=i_cell)
+                shifts[i_fish, i_cell] = _estimate_lag_seconds(S_left2, df_f0, dt, window_s=(16, 48), min_lag_s=0, max_lag_s=8, fish_id=fish_id, i_cell=i_cell)
 
     # Now all fish together
     for i_cell in np.arange(3):
         if i_cell == 0 and prediction == 0:
             df_f0_allfish = np.concatenate(list(MON_constant_left_100.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MON_constant_right_100.values()), axis=1).mean(axis=1)
         if i_cell == 0 and prediction == 1:
             df_f0_allfish = np.concatenate(list(MON_oscillating_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MON_oscillating_right.values()), axis=1).mean(axis=1)
         if i_cell == 0 and prediction == 2:
             df_f0_allfish = np.concatenate(list(MON_switching_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MON_switching_right.values()), axis=1).mean(axis=1)
 
         if i_cell == 1 and prediction == 0:
             df_f0_allfish = np.concatenate(list(MI_constant_left_100.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MI_constant_right_100.values()), axis=1).mean(axis=1)
         if i_cell == 1 and prediction == 1:
             df_f0_allfish = np.concatenate(list(MI_oscillating_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MI_oscillating_right.values()), axis=1).mean(axis=1)
         if i_cell == 1 and prediction == 2:
             df_f0_allfish = np.concatenate(list(MI_switching_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(MI_switching_right.values()), axis=1).mean(axis=1)
 
         if i_cell == 2 and prediction == 0:
             df_f0_allfish = np.concatenate(list(SMI_constant_left_100.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(SMI_constant_right_100.values()), axis=1).mean(axis=1)
         if i_cell == 2 and prediction == 1:
             df_f0_allfish = np.concatenate(list(SMI_oscillating_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(SMI_oscillating_right.values()), axis=1).mean(axis=1)
         if i_cell == 2 and prediction == 2:
             df_f0_allfish = np.concatenate(list(SMI_switching_left.values()), axis=1).mean(axis=1)
-            df_f0_a_allfish = np.concatenate(list(SMI_switching_right.values()), axis=1).mean(axis=1)
 
-        plot1.draw_line(x=t[int(25 / dt):], y=df_f0_allfish[int(25 / dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
-        plot1.draw_line(x=t[int(25 / dt):], y=df_f0_a_allfish[int(25 / dt):], lw=1.5, lc=colors[i_cell], line_dashes=[2,2])
-        print(names[i_cell], 'Min/max', [np.min(df_f0_allfish[int(25 / dt):]), np.max(df_f0_allfish[int(25 / dt):])])
+        plot1.draw_line(x=t[int(9 / dt):], y=df_f0_allfish[int(9 / dt):], lw=1.5, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
+        print(names[i_cell], 'Min/max', [np.min(df_f0_allfish[int(9 / dt):]), np.max(df_f0_allfish[int(25 / dt):])])
 
     if prediction == 1:  # only for oscillating stimulus
         # Phase shift comparison (oscillating only)
-        plot2 = fig.create_plot(plot_label='a', xpos=2 + prediction * 5, ypos=18, plot_height=1.5,
+        plot2 = fig.create_plot(plot_label='a', xpos=2 + prediction * 5.5, ypos=18, plot_height=1.5,
                                 plot_width=1.5,
                                 errorbar_area=True,
-                                xl="Lag vs stimulus (s)", xmin=-1.1, xmax=8.1, xticks=[-8, -4, 0, 4, 8],
+                                xl="Lag vs stimulus (s)", xmin=-0.5, xmax=8.5, xticks=[0, 2, 4, 6, 8],
                                 yl="Cell type", ymin=-0.6, ymax=2.6, yticks=[0, 1, 2],
                                 yticklabels=names, hlines=[0, 1, 2], vlines=[0])
 
@@ -1091,15 +1130,24 @@ for prediction in [0, 1, 2]:  # constant, oscillating, switching
         for i in range(3):
             x_sem = scipy.stats.sem(shifts[:, i], nan_policy='omit')
             x_mean = np.nanmean(shifts[:, i])
+            print(f"\nPLOTTING {names[i]}: mean={x_mean:.4f}s, sem={x_sem:.4f}s")
             plot2.draw_scatter(x=x_mean, xerr=x_sem,
                                y=i, yerr=0, pc=colors[i], elw=0.4)
 
 
 # Zoomed in for oscillating stimulus (debugging)
-plot3 = fig.create_plot(plot_label='a', xpos=2  + 1.5 * 5, ypos=18, plot_height=2, plot_width=1.5, errorbar_area=True,
-                            xl="Time (s)", xmin=34, xmax=40, xticks=[35, 37, 39],
-                            yl="ΔF / F0", ymin=0, ymax=40, yticks=plotdict0[line]['yticks'], hlines=[0])
+plot3 = fig.create_plot(plot_label='a', xpos=2  + 1.5 * 5.5, ypos=18, plot_height=2, plot_width=1.5, errorbar_area=True,
+                            xl="Time (s)", xmin=18, xmax=24, xticks=[20, 22, 24],
+                            yl="ΔF / F0", ymin=-4, ymax=55, yticks=plotdict0[line]['yticks'], hlines=[0])
 mean_lags = np.nanmean(shifts, axis=0)
+
+print("\n" + "="*70)
+print("ZOOMED PLOT VERIFICATION")
+print("="*70)
+for i_cell, name in enumerate(names):
+    print(f"{name}: mean_lag = {mean_lags[i_cell]:.4f}s, vertical line at {mean_lags[i_cell] + 20:.4f}s")
+print("="*70 + "\n")
+
 for i_cell in np.arange(3):
     if i_cell == 0:
         df_f0_allfish = np.concatenate(list(MON_oscillating_left.values()), axis=1).mean(axis=1)
@@ -1107,9 +1155,9 @@ for i_cell in np.arange(3):
         df_f0_allfish = np.concatenate(list(MI_oscillating_left.values()), axis=1).mean(axis=1)
     if i_cell == 2:
         df_f0_allfish = np.concatenate(list(SMI_oscillating_left.values()), axis=1).mean(axis=1)
-    plot3.draw_line(x=t[int(25 / dt):], y=df_f0_allfish[int(25 / dt):], lw=1.0, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
+    plot3.draw_line(x=t[int(9 / dt):], y=df_f0_allfish[int(9 / dt):], lw=1.0, lc=colors[i_cell], line_dashes=line_dashes[i_cell], label=f"{names[i_cell]}")
     plot3.draw_line(
-        x=[mean_lags[i_cell] + 36, mean_lags[i_cell] + 36],  # shift 36s to align with stimulus
+        x=[mean_lags[i_cell] + 20, mean_lags[i_cell] + 20],  # shift 20s to align with first stimulus peak
         y=[plotdict0[line]["ymin"], plotdict0[line]["ymax"]],
         lw=1.0,
         alpha=0.6,
@@ -1118,6 +1166,5 @@ for i_cell in np.arange(3):
         figure_title='dF_zoom with shifts'
     )
 
-# Save shifts as text file
 np.savetxt(path / 'oscillation_lags.txt', shifts, fmt='%.4f', header='Lag vs stimulus (s), ["MON", "MI", "SMI"] x individual fish')
 fig.save(path / f"{line}_perfish_meansem.pdf", open_file=True)
