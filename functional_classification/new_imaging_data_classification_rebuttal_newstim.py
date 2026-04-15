@@ -21,7 +21,7 @@ except Exception:
 # ============================================================================
 # Set temporal resolutions
 # ============================================================================
-DATA_DT = 0.1  # Temporal resolution of imaging data
+DATA_DT = 0.5  # Temporal resolution of imaging data
 REGRESSOR_DT = 0.5  # Regressors are always at 0.5 s/frame (from kmeans_regressors.npy)
 # ============================================================================
 do_plot_cells_in_brain = True
@@ -91,7 +91,7 @@ F_rdms_oscillating_right = np.concatenate(F_fish_rdms_oscillating_right, axis=1)
 F_rdms_switching_left = np.concatenate(F_fish_rdms_switching_left, axis=1)[:,:,:]
 F_rdms_switching_right = np.concatenate(F_fish_rdms_switching_right, axis=1)[:,:,:]
 
-def calc_dF_F(F, dt=0.1, show_progress=True):
+def calc_dF_F(F, dt=0.5, show_progress=True):
     """
     Calculate deltaF/F for given fluorescence data.
     
@@ -340,14 +340,14 @@ def determine_function(row):
     return 'none'
 
 # Calculate deltaF/F for different conditions
-dF_F_rdms_left_100 = calc_dF_F(F_rdms_left_100)
-dF_F_rdms_right_100 = calc_dF_F(F_rdms_right_100)
-dF_F_rdms_left_50 = calc_dF_F(F_rdms_left_50)
-dF_F_rdms_right_50 = calc_dF_F(F_rdms_right_50)
-dF_F_rdms_oscillating_left = calc_dF_F(F_rdms_oscillating_left)
-dF_F_rdms_oscillating_right = calc_dF_F(F_rdms_oscillating_right)
-dF_F_rdms_switching_left = calc_dF_F(F_rdms_switching_left)
-dF_F_rdms_switching_right = calc_dF_F(F_rdms_switching_right)
+dF_F_rdms_left_100 = calc_dF_F(F_rdms_left_100, dt=DATA_DT)
+dF_F_rdms_right_100 = calc_dF_F(F_rdms_right_100, dt=DATA_DT)
+dF_F_rdms_left_50 = calc_dF_F(F_rdms_left_50, dt=DATA_DT)
+dF_F_rdms_right_50 = calc_dF_F(F_rdms_right_50, dt=DATA_DT)
+dF_F_rdms_oscillating_left = calc_dF_F(F_rdms_oscillating_left, dt=DATA_DT)
+dF_F_rdms_oscillating_right = calc_dF_F(F_rdms_oscillating_right, dt=DATA_DT)
+dF_F_rdms_switching_left = calc_dF_F(F_rdms_switching_left, dt=DATA_DT)
+dF_F_rdms_switching_right = calc_dF_F(F_rdms_switching_right, dt=DATA_DT)
 
 dF_F_mean_rdms_left_100 = np.nanmean(dF_F_rdms_left_100, axis=0)
 dF_F_mean_rdms_right_100 = np.nanmean(dF_F_rdms_right_100, axis=0)
